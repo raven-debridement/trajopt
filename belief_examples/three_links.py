@@ -47,7 +47,7 @@ if __name__ == "__main__":
     ### Parameters ###
     ENV_FILE = "../data/three_links.env.xml"
     MANIP_NAME = "arm"
-    LINK_NAME = "LFinger"
+    LINK_NAME = "Finger"
     INTERACTIVE = True
     ##################
     
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         env.StopSimulation()
         env.Load(ENV_FILE)
     robot = env.GetRobots()[0]
-    robot.SetDOFValues([ 0 ,0 ,0 ,0 ,0]);
+    robot.SetDOFValues([ 0 ,0 ,0]);
     manip = robot.GetManipulator(MANIP_NAME)
     ##################
     T_gripper = robot.GetLink(LINK_NAME).GetTransform()

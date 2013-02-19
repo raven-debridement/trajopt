@@ -52,7 +52,7 @@
       <axis>0 0 1</axis>
     </Joint>
  
- 	<!-- Create the gripper joints:-->
+ 	<!-- the third movable link-->
     <Body name="Arm2" type="dynamic">
       <offsetfrom>Arm1</offsetfrom>
       <Translation>0.16 0 0</Translation>
@@ -69,59 +69,32 @@
       <limitsdeg>-120 120</limitsdeg>
       <axis>0 0 1</axis>
     </Joint>
-    
-    <!-- Create the gripper joints:-->
-    <!-- right gripper-->
-    <Body name="RFinger" type="dynamic">
-      <offsetfrom>Arm2</offsetfrom>
-      <Translation>0.08 0.005 0</Translation>
-      <Geom type="box">
-        <Translation>0.01 0 0</Translation>
-        <Extents>0.01 0.0025 0.005</Extents>
-      </Geom>
-    </Body>
-    <Joint name="j1" type="hinge">
-      <Body>Arm2</Body>
-      <Body>RFinger</Body>
-      <offsetfrom>RFinger</offsetfrom>
-      <limitsdeg>0 45</limitsdeg>
-      <axis>0 0 1</axis>
-    </Joint>
- 
-    <!--left gripper-->
-    <Body name="LFinger" type="dynamic">
-      <offsetfrom>Arm2</offsetfrom>
-      <Translation>0.08 -0.005 0</Translation>
-      <Geom type="box">
-        <Translation>0.01 0 0</Translation>
-        <Extents>0.01 0.0025 0.005</Extents>
-      </Geom>
-    </Body>
-    <Joint name="j2" type="hinge">
-      <Body>Arm2</Body>
-      <Body>LFinger</Body>
-      <offsetfrom>LFinger</offsetfrom>
-      <limitsdeg>0 45</limitsdeg>
-      <axis>0 0 -1</axis>
-    </Joint>
 
+	<!-- link that at the endpoint of Arm2 -->
+    <Body name="Finger">
+      <offsetfrom>Arm2</offsetfrom>
+      <Translation>0.08 0 0</Translation>
+    </Body>
+    <Joint name="dummy" type="hinge" enable="False">
+      <Body>Arm2</Body>
+      <Body>Finger</Body>
+      <limits>0 0</limits>
+    </Joint>
+    
     <!-- set the transparency of every geometry in the KinBody-->
     <transparency>0.1</transparency>
   </KinBody>
  
   <!-- Specifying the manipulator structure-->
   <Manipulator name="arm">
-    <effector>Arm2</effector>   <!-- last link where end effector is attached-->
+    <effector>Finger</effector>   <!-- last link where end effector is attached-->
     <base>Base</base>           <!-- base link-->
-    <joints>j1 j2</joints>      <!-- the gripper joints used for contact-->
     <!-- the id of the inverse kinematics solver, it is not necessary to-->
     <!-- specify an ik solver for every robot. But if there is one,-->
     <!-- use iksolver field to identity it.-->
     <!-- <iksolver>MyTriDOFSolver</iksolver> -->
     <!-- joint values of the closed and opened positions-->
-    <closingdirection>1 1</closingdirection>
-    <direction>1 0 0</direction>
     <!-- grasp goal with respect to the effector-->
-    <Translation>0.09 0 0</Translation>
+    <Translation>0 0 0</Translation>
   </Manipulator>
 </Robot>
