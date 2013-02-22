@@ -613,6 +613,47 @@ GraphHandlePtr OSGViewer::PlotAxes(const OpenRAVE::Transform& T, float size) {
   return GraphHandlePtr(new OsgGraphHandle(group, m_root.get()));
 }
 
+OpenRAVE::GraphHandlePtr OSGViewer::PlotEllipsoid(const osg::Matrix& T, const RaveVectorf& color) {
+  osg::Geode *geode = new osg::Geode;
+
+	TessellationHints* hints = new TessellationHints;
+	hints->setDetailRatio(.5f);
+
+	osg::Sphere* sphere = new osg::Sphere();
+	osg::ShapeDrawable* sphereDrawable = new osg::ShapeDrawable(sphere, hints);
+	geode->addDrawable(sphereDrawable);
+
+	osg::Material* pMaterial = new osg::Material;
+	pMaterial->setDiffuse( osg::Material::FRONT, toOsgVec4(color));
+	geode->getOrCreateStateSet()->setAttribute( pMaterial, osg::StateAttribute::OVERRIDE );
+
+	osg::MatrixTransform* mt = new osg::MatrixTransform(T);
+
+	mt->addChild(geode);
+
+	return GraphHandlePtr(new OsgGraphHandle(mt, m_root.get()));
+}
+
+OpenRAVE::GraphHandlePtr OSGViewer::PlotSphere(const OpenRAVE::Vector& x, float radius, const RaveVectorf& color) {
+	osg::Group* group = new osg::Group;
+	osg::Geode* geode = new osg::Geode;
+
+	TessellationHints* hints = new TessellationHints;
+	hints->setDetailRatio(.5f);
+
+	osg::Sphere* sphere = new osg::Sphere(toOsgVec3(x), radius);
+	osg::ShapeDrawable* sphereDrawable = new osg::ShapeDrawable(sphere, hints);
+	geode->addDrawable(sphereDrawable);
+
+	osg::Material* pMaterial = new osg::Material;
+	pMaterial->setDiffuse( osg::Material::FRONT, toOsgVec4(color));
+	geode->getOrCreateStateSet()->setAttribute( pMaterial, osg::StateAttribute::OVERRIDE );
+
+	group->addChild(geode);
+
+  return GraphHandlePtr(new OsgGraphHandle(group, m_root.get()));
+}
+
 OpenRAVE::GraphHandlePtr OSGViewer::drawtrimesh (const float *ppoints, int stride, const int *pIndices, int numTriangles, const RaveVectorf &color) {
 
   osg::DrawElementsUInt* deui = new osg::DrawElementsUInt(GL_TRIANGLES);

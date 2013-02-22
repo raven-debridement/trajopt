@@ -41,7 +41,8 @@ public:
   void SetAllTransparency(float alpha);
 
   OpenRAVE::GraphHandlePtr PlotAxes(const OpenRAVE::Transform& T, float size);
-  OpenRAVE::GraphHandlePtr PlotSphere(const OpenRAVE::Vector& x, float radius);
+  OpenRAVE::GraphHandlePtr PlotEllipsoid(const osg::Matrix& T, const RaveVectorf& color);
+  OpenRAVE::GraphHandlePtr PlotSphere(const OpenRAVE::Vector& x, float radius, const RaveVectorf& color);
 
   /** copy current state of kinbody or link */
   OpenRAVE::GraphHandlePtr PlotKinBody(const OpenRAVE::KinBodyPtr);

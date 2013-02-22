@@ -62,11 +62,11 @@
       </Geom>
     </Body>
     <!-- declare a hinge joint -->
-    <Joint name="Arm2" type="hinge">
+    <Joint circular="true" name="Arm2" type="hinge">
       <Body>Arm1</Body>
       <Body>Arm2</Body>
       <offsetfrom>Arm2</offsetfrom>
-      <limitsdeg>-120 120</limitsdeg>
+      <limitsdeg>-180 180</limitsdeg>
       <axis>0 0 1</axis>
     </Joint>
 

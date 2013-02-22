@@ -1,6 +1,7 @@
 #include "trajopt/common.hpp"
 #include "json_marshal.hpp"
 #include <boost/function.hpp>
+#include "trajopt/belief.hpp"
 
 namespace ipi{namespace sco{struct OptResults;}}
 
@@ -38,7 +39,7 @@ void TRAJOPT_API HandlePlanningRequest(OR::EnvironmentBasePtr env, TrajOptReques
 class TRAJOPT_API TrajOptProb : public OptProb {
 public:
   TrajOptProb();
-  TrajOptProb(int n_steps, RobotAndDOFPtr rad);
+  TrajOptProb(int n_steps, BeliefRobotAndDOFPtr rad);
   ~TrajOptProb() {}
   VarVector GetVarRow(int i) {
     return m_traj_vars.row(i);
@@ -48,7 +49,7 @@ public:
   }
   int GetNumSteps() {return m_traj_vars.rows();}
   int GetNumDOF() {return m_traj_vars.cols();}
-  RobotAndDOFPtr GetRAD() {return m_rad;}
+  BeliefRobotAndDOFPtr GetRAD() {return m_rad;}
   OR::EnvironmentBasePtr GetEnv() {return m_rad->GetRobot()->GetEnv();}
 
   void SetInitTraj(const TrajArray& x) {m_init_traj = x;}
@@ -57,7 +58,7 @@ public:
   friend TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo&);
 private:
   VarArray m_traj_vars;
-  RobotAndDOFPtr m_rad;
+  BeliefRobotAndDOFPtr m_rad;
   TrajArray m_init_traj;
   typedef std::pair<string,string> StringPair;
 };
@@ -135,7 +136,7 @@ public:
   InitInfo init_info;
 
   OR::EnvironmentBasePtr env;
-  RobotAndDOFPtr rad;
+  BeliefRobotAndDOFPtr rad;
 
   ProblemConstructionInfo(OR::EnvironmentBasePtr _env) : env(_env) {}
   void fromJson(const Value& v);

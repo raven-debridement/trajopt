@@ -18,6 +18,7 @@ add_library(trajopt SHARED
 	collision_checker.cpp
 	plot_callback.cpp
 	bullet_unity.cpp
+	belief.cpp
 )
 target_link_libraries(trajopt ${OpenRAVE_BOTH_LIBRARIES} ${Boost_SYSTEM_LIBRARY} sco utils json osgviewer)
 

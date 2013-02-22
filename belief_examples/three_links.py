@@ -15,6 +15,10 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
             "start_fixed" : True
         },
         "costs" : [
+        #{
+        #    "type" : "continuous_collision",
+        #    "params" : {"coeffs" : [1],"dist_pen" : [0.01]}
+        #},
         {
             "type" : "joint_vel",
             "params": {"coeffs" : [1]}
@@ -68,6 +72,7 @@ if __name__ == "__main__":
     xyz_targ = T_grasp[:3,3]
     #success = mk.create_cylinder(env, xyz_targ-np.array([.03,0,0]), .02, .5)
     quat_targ = rave.quatFromRotationMatrix(T_grasp[:3,:3])
+    #success = mk.create_cylinder(env, T_gripper[:3,3]-np.array([.1,-.1,0]), .02, .5)
 
     request = move_arm_to_grasp(xyz_targ, quat_targ, LINK_NAME, MANIP_NAME)
     s = json.dumps(request)

@@ -37,9 +37,9 @@ void RegisterMakers() {
   gRegisteredMakers = true;
 }
 
-RobotAndDOFPtr RADFromName(const string& name, RobotBasePtr robot) {
+BeliefRobotAndDOFPtr RADFromName(const string& name, RobotBasePtr robot) {
   if (name == "active") {
-    return RobotAndDOFPtr(new RobotAndDOF(robot, robot->GetActiveDOFIndices(), robot->GetAffineDOF(), robot->GetAffineRotationAxis()));
+    return BeliefRobotAndDOFPtr(new BeliefRobotAndDOF(robot, robot->GetActiveDOFIndices(), robot->GetAffineDOF(), robot->GetAffineRotationAxis()));
   }
   vector<int> dof_inds;
   int affinedofs = 0;
@@ -60,7 +60,7 @@ RobotAndDOFPtr RADFromName(const string& name, RobotBasePtr robot) {
     }
     else PRINT_AND_THROW( boost::format("error in reading manip description: %s must be a manipulator, link, or 'base'")%component );
   }
-  return RobotAndDOFPtr(new RobotAndDOF(robot, dof_inds, affinedofs, rotationaxis));
+  return BeliefRobotAndDOFPtr(new BeliefRobotAndDOF(robot, dof_inds, affinedofs, rotationaxis));
 }
 
 BoolVec toMask(const VectorXd& x) {
@@ -241,6 +241,7 @@ TrajOptResultPtr OptimizeProblem(TrajOptProbPtr prob, bool plot) {
   return TrajOptResultPtr(new TrajOptResult(opt.results(), *prob));
 }
 
+
 TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
   TrajOptProbPtr prob(new TrajOptProb());
 
@@ -261,9 +262,23 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
     for (unsigned j=0; j < n_dof; ++j) {
       names.push_back( (boost::format("j_%i_%i")%i%j).str() );
     }
+    // belief-alex
+    for (unsigned jj=0; jj< n_dof; ++jj) {
+			for (unsigned ii=0; ii < n_dof; ++ii) {
+				names.push_back( (boost::format("cov_%i_%i")%ii%jj).str() );
+				vlower.push_back(-INFINITY);
+				vupper.push_back(INFINITY);
+			}
+		}
+    for (unsigned j=0; j < n_dof; ++j) {
+			names.push_back( (boost::format("u_%i_%i")%i%j).str() );
+			vlower.push_back(-INFINITY);
+			vupper.push_back(INFINITY);
+		}
   }
   prob->createVariables(names, vlower, vupper);
-  prob->m_traj_vars = VarArray(n_steps, n_dof, prob->vars_.data());
+  //belief-alex
+  prob->m_traj_vars = VarArray(n_steps, n_dof+n_dof*n_dof+n_dof, prob->vars_.data());
 
   DblVec cur_dofvals = prob->m_rad->GetDOFValues();
 
@@ -304,8 +319,25 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
   BOOST_FOREACH(const CostPtr& cost, prob->getCosts()) cost->setName(cost_names[iCost++]);
   BOOST_FOREACH(const ConstraintPtr& cnt, prob->getConstraints()) cnt->setName(cnt_names[iCnt++]);
 
+  // belief-alex begin
+  for (unsigned i=0; i < n_steps-1; ++i) {
+		VarVector theta0_vars = prob->m_traj_vars.block(0,0,n_steps,n_dof+n_dof*n_dof).row(i);
+		VarVector theta1_vars = prob->m_traj_vars.block(0,0,n_steps,n_dof+n_dof*n_dof).row(i+1);
+		VarVector u_vars = prob->m_traj_vars.block(0,n_dof+n_dof*n_dof,n_steps,n_dof).row(i);
+		prob->addConstr(ConstraintPtr(new BeliefDynamicsConstraint(theta0_vars, theta1_vars, u_vars, prob->GetRAD())));
+	}
 
-  prob->SetInitTraj(pci.init_info.data);
+  TrajArray init_data = TrajArray::Zero(n_steps,n_dof+n_dof*n_dof+n_dof);
+  for (unsigned i=0; i < n_steps; ++i) {
+  	init_data(i,n_dof) = 1.0;
+  	init_data(i,n_dof+4) = 1.0;
+  	init_data(i,n_dof+8) = 1.0;
+  }
+  init_data.block(0,0,n_steps,n_dof) = pci.init_info.data;
+  cout << init_data << endl;
+  // belief-alex end
+
+  prob->SetInitTraj(init_data);
 
   return prob;
 
@@ -317,7 +349,7 @@ TrajOptProbPtr ConstructProblem(const Json::Value& root, OpenRAVE::EnvironmentBa
 }
 
 
-TrajOptProb::TrajOptProb(int n_steps, RobotAndDOFPtr rad) : m_rad(rad) {
+TrajOptProb::TrajOptProb(int n_steps, BeliefRobotAndDOFPtr rad) : m_rad(rad) {
   DblVec lower, upper;
   m_rad->GetDOFLimits(lower, upper);
   int n_dof = m_rad->GetDOF();
@@ -448,7 +480,8 @@ CostInfoPtr JointVelCostInfo::create() {
   return CostInfoPtr(new JointVelCostInfo());
 }
 void JointVelCostInfo::hatch(TrajOptProb& prob) {
-  prob.addCost(CostPtr(new JointVelCost(prob.GetVars(), toVectorXd(coeffs))));
+	// belief-alex take the submatrix because we want joint-vel only on the joint variables
+  prob.addCost(CostPtr(new JointVelCost(prob.GetVars().block(0,0,prob.GetVars().m_nRow, prob.GetRAD()->GetRobot()->GetDOF()), toVectorXd(coeffs))));
 }
 
 void CollisionCostInfo::fromJson(const Value& v) {
