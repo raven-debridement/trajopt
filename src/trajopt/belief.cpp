@@ -25,52 +25,65 @@ MatrixXd BeliefRobotAndDOF::GetDynNoise() {
 
 MatrixXd BeliefRobotAndDOF::GetObsNoise() { return VectorXd::Constant(3,0.09).asDiagonal(); }
 
-VectorXd BeliefRobotAndDOF::Observe(VectorXd dofs, VectorXd r) {
-		VectorXd z = dofs + GetObsNoise()*r;
-		return z;
+VectorXd BeliefRobotAndDOF::Observe(const VectorXd& dofs, const VectorXd& r) {
+	OR::RobotBasePtr robot = GetRobot();
+	OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(this)->Save();
+	robot->SetDOFValues(toDblVec(dofs), false);
+	OR::KinBody::LinkPtr link = robot->GetLink("Finger");
+	OR::Vector trans = link->GetTransform().trans;
+
+	VectorXd z = Vector3d(trans.x, trans.y, trans.z) + GetObsNoise()*r;
+	return z;
 }
 
-VectorXd BeliefRobotAndDOF::Dynamics(VectorXd dofs, VectorXd u, VectorXd q) {
+VectorXd BeliefRobotAndDOF::Dynamics(const VectorXd& dofs, const VectorXd& u, const VectorXd& q) {
 		VectorXd dofs1 = dofs+u + GetDynNoise()*q;
 		return dofs1;
 }
 
-VectorXd BeliefRobotAndDOF::beta(VectorXd theta0, VectorXd u0) {
+VectorXd BeliefRobotAndDOF::BeliefDynamics(const VectorXd& theta0, const VectorXd& u0) {
+	VectorXd x0, x;
+	MatrixXd rtSigma0, rtSigma;
+	decomposeBelief(theta0, x0, rtSigma0);
+	ekfUpdate(u0, x0, rtSigma0, x, rtSigma);
 	VectorXd theta;
-	ekfUpdate(VectorXd::Zero(GetObsSize()), u0, theta0, theta);
+	composeBelief(x, rtSigma, theta);
 	return theta;
 }
 
-VectorXd BeliefRobotAndDOF::VectorXdRand(int size, double sigma) {
+VectorXd BeliefRobotAndDOF::VectorXdRand(int size) {
 	VectorXd v(size);
 	for (int i=0; i<size; i++) v(i) = generator();
 	return v;
 }
 
-void BeliefRobotAndDOF::composeBelief(VectorXd x, MatrixXd V, VectorXd& theta) {
+void BeliefRobotAndDOF::composeBelief(const VectorXd& x, const MatrixXd& rt_S, VectorXd& theta) {
 	int n_dof = GetDOF();
-	theta.resize(n_dof+n_dof*n_dof);
+	theta.resize(n_dof + n_dof*(n_dof+1)/2);
 	theta.topRows(n_dof) = x;
-	V.resize(n_dof*n_dof,1);
-	theta.bottomRows(n_dof*n_dof) = V;
+	int idx = n_dof;
+	for (int i=0; i<n_dof; i++) {
+		for (int j=i; j<n_dof; j++) {
+			theta(idx) = 0.5 * (rt_S(i,j)+rt_S(j,i));
+			idx++;
+		}
+	}
 }
 
-void BeliefRobotAndDOF::decomposeBelief(VectorXd theta, VectorXd& x, MatrixXd& V) {
+void BeliefRobotAndDOF::decomposeBelief(const VectorXd& theta, VectorXd& x, MatrixXd& rt_S) {
 	int n_dof = GetDOF();
 	x = theta.topRows(n_dof);
-	V = theta.bottomRows(n_dof*n_dof);
-	V.resize(n_dof,n_dof);
+	int idx = n_dof;
+	rt_S.resize(n_dof, n_dof);
+	for (int j = 0; j < n_dof; ++j) {
+		for (int i = j; i < n_dof; ++i) {
+			rt_S(i,j) = rt_S(j,i) = theta(idx);
+			idx++;
+		}
+	}
 }
 
-void BeliefRobotAndDOF::ekfUpdate(VectorXd z0, VectorXd u0, VectorXd theta0, VectorXd& theta) {
-	VectorXd xest0, xest;
-	MatrixXd Vest0, Vest;
-	decomposeBelief(theta0, xest0, Vest0);
-	ekfUpdate(z0, u0, xest0, Vest0, xest, Vest);
-	composeBelief(xest, Vest, theta);
-}
-
-void BeliefRobotAndDOF::ekfUpdate(VectorXd z0, VectorXd u0, VectorXd xest0, MatrixXd Vest0, VectorXd& xest, MatrixXd& Vest) {
+void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma) {
 //	cout << "EKF"<< endl;
 //	cout << "z0" << endl;
 //	cout << z0 << endl;
@@ -80,29 +93,52 @@ void BeliefRobotAndDOF::ekfUpdate(VectorXd z0, VectorXd u0, VectorXd xest0, Matr
 //	cout << xest0 << endl;
 //	cout << "Vest0" << endl;
 //	cout << Vest0 << endl;
+//	VectorXd q = VectorXd::Zero(GetQSize());
+//
+//	MatrixXd A = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, _1, u0, q), xest0);
+//	MatrixXd Q = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, xest0, u0, _1), q);
+//
+//	VectorXd xpred = Dynamics(xest0, u0, q);
+//	MatrixXd Vpred = A * (Vest0 * Vest0.transpose()) * A.transpose() + Q*Q;
+//
+//	VectorXd r = VectorXd::Zero(GetRSize());
+//	MatrixXd C = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, _1, r), xpred);
+//	MatrixXd R = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, xpred, _1), r);
+//
+//	MatrixXd C_Vpred = C*Vpred;
+//
+//	MatrixXd A_K = C_Vpred*C.transpose() + R*R.transpose();
+//  PartialPivLU<MatrixXd> solver(A_K);
+//  MatrixXd L_transpose = solver.solve(C_Vpred);
+//  MatrixXd L = L_transpose.transpose();
+//
+//	xest = xpred + L*(z0-Observe(xpred, r));
+//
+//	LLT<MatrixXd> lltofVest((MatrixXd::Identity(GetDOF(),GetDOF()) - L*C) * Vpred);
+//	Vest = lltofVest.matrixL();
+
+	int n_dof = GetDOF();
+
 	VectorXd q = VectorXd::Zero(GetQSize());
+	x = Dynamics(x0, u0, q);
 
-	MatrixXd A = calcForwardNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, _1, u0, q), xest0);
-	MatrixXd Q = calcForwardNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, xest0, u0, _1), q);
+	MatrixXd Sigma0 = rtSigma0 * rtSigma0.transpose();
 
-	VectorXd xpred = Dynamics(xest0, u0, q);
-	MatrixXd Vpred = A * (Vest0 * Vest0.transpose()) * A.transpose() + Q*Q;
+	MatrixXd A = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, _1, u0, q), x0);
+	MatrixXd Gamma0 = A * Sigma0 * A.transpose();
 
 	VectorXd r = VectorXd::Zero(GetRSize());
-	MatrixXd C = calcForwardNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, _1, r), xpred);
-	MatrixXd R = calcForwardNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, xpred, _1), r);
+	MatrixXd C = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, _1, r), x0);
+	MatrixXd R = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, x0, _1), r);
 
-	MatrixXd C_Vpred = C*Vpred;
-
-	MatrixXd A_K = C_Vpred*C.transpose() + R*R.transpose();
+	MatrixXd W;
+	MatrixXd A_K = C*Gamma0*C.transpose() + R*R.transpose();
   PartialPivLU<MatrixXd> solver(A_K);
-  MatrixXd L_transpose = solver.solve(C_Vpred);
-  MatrixXd L = L_transpose.transpose();
+  MatrixXd L = solver.solve(C*Gamma0);
+  MatrixXd Sigma = Gamma0 - Gamma0 * C.transpose() * L;
 
-	xest = xpred + L*(z0-Observe(xpred, r));
-
-	LLT<MatrixXd> lltofVest((MatrixXd::Identity(GetDOF(),GetDOF()) - L*C) * Vpred);
-	Vest = lltofVest.matrixL();
+	LLT<MatrixXd> lltofSigma(Sigma);
+	rtSigma = lltofSigma.matrixL();
 
 //	cout << "xest" << endl;
 //	cout << xest << endl;
@@ -120,7 +156,7 @@ vector<double> BeliefDynamicsConstraint::value(const vector<double>& xin) {
   VectorXd theta0_hat = getVec(xin, theta0_vars_);
   VectorXd theta1_hat = getVec(xin, theta1_vars_);
   VectorXd u_hat = getVec(xin, u_vars_);
-  return toDblVec(brad_->beta(theta0_hat, u_hat) - theta1_hat);
+  return toDblVec(brad_->BeliefDynamics(theta0_hat, u_hat) - theta1_hat);
 }
 ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin, Model* model) {
   VectorXd theta0_hat = getVec(xin, theta0_vars_);
@@ -128,10 +164,9 @@ ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin,
   VectorXd u_hat = getVec(xin, u_vars_);
 
   // linearize belief dynamics around theta0_hat and u_hat
-  // beta is the belief dynamics without noise
-  MatrixXd A = calcForwardNumJac(boost::bind(&BeliefRobotAndDOF::beta, brad_.get(), _1, u_hat), theta0_hat);
-  MatrixXd B = calcForwardNumJac(boost::bind(&BeliefRobotAndDOF::beta, brad_.get(), theta0_hat, _1), u_hat);
-  VectorXd c = brad_->beta(theta0_hat, u_hat);
+  MatrixXd A = calcNumJac(boost::bind(&BeliefRobotAndDOF::BeliefDynamics, brad_.get(), _1, u_hat), theta0_hat);
+  MatrixXd B = calcNumJac(boost::bind(&BeliefRobotAndDOF::BeliefDynamics, brad_.get(), theta0_hat, _1), u_hat);
+  VectorXd c = brad_->BeliefDynamics(theta0_hat, u_hat);
 
 //  // test convexification
 //  cout << "theta0" << endl;
@@ -144,11 +179,12 @@ ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin,
 //  VectorXd theta1_approx = A * (theta0 - theta0_hat) + B * (u - u_hat) + c;
 //  cout << theta1_approx << endl;
 //  cout << "theta1" << endl;
-//  VectorXd theta1 = brad_->beta(theta0, u);
+//  VectorXd theta1 = brad_->BeliefDynamics(theta0, u);
 //  cout << theta1 << endl;
 
   // equality constraint
   // theta1_vars_ = A * (theta0_vars_ - theta0_hat) + B * (u_vars_ - u_hat) + c
+  // 0 = A * (theta0_vars_ - theta0_hat) + B * (u_vars_ - u_hat) + c - theta1_vars_
   ConvexConstraintsPtr out(new ConvexConstraints(model));
   assert(A.rows() == B.rows());
   for (int i=0; i < A.rows(); ++i) {
@@ -172,45 +208,56 @@ ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin,
   return out;
 }
 
-/*
-#include "osgviewer/osgviewer.hpp"
-void BeliefDynamicsConstraint::Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles) {
-  VectorXd theta0 = getVec(x, theta0_vars_);
-
-  VectorXd xest;
-  MatrixXd Vest;
-  brad_->decomposeBelief(theta0, xest, Vest);
-
-  OR::RobotBasePtr robot = brad_->GetRobot();
-  brad_->SetDOFValues(toDblVec(xest));
-  OR::KinBody::LinkPtr link = robot->GetLink("Finger");
-  MatrixXd jac = brad_->PositionJacobian(3,OR::Vector(0,0,0,0));
 
 
-  boost::shared_ptr<OSGViewer> viewer = OSGViewer::GetOrCreate(brad_->GetRobot()->GetEnv());
 
-  Eigen::Matrix3d cov;
-  cov << 0.025, 0.0075, 0.00175, 0.0075, 0.0070, 0.00135, 0.00175, 0.00135, 0.00043;
-  Eigen::Vector3d mean(0,0,0.1);
 
-  handles.push_back(viewer.PlotEllipsoid(beliefToTransform(mean,cov), OR::Vector(1,0,0,1)));
-}
-*/
+//#include "osgviewer/osgviewer.hpp"
+//void BeliefDynamicsConstraint::Plot(const DblVec& xin, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles) {
+//  VectorXd theta0 = getVec(xin, theta0_vars_);
+//
+//  VectorXd x;
+//  MatrixXd rt_Sigma;
+//  brad_->decomposeBelief(theta0, x, rt_Sigma);
+//
+//  OR::RobotBasePtr robot = brad_->GetRobot();
+////  brad_->SetDOFValues(toDblVec(xest));
+//  OR::KinBody::LinkPtr link = robot->GetLink("Finger");
+//  MatrixXd jac = brad_->PositionJacobian(3,OR::Vector(0,0,0,0));
+//
+//
+//  boost::shared_ptr<OSGViewer> viewer = OSGViewer::GetOrCreate(robot->GetEnv());
+////
+////  Eigen::Matrix3d cov;
+////  cov << 0.025, 0.0075, 0.00175, 0.0075, 0.0070, 0.00135, 0.00175, 0.00135, 0.00043;
+////  Eigen::Vector3d mean(0,0,0.1);
+//
+//  OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(brad_.get())->Save();
+//  robot->SetDOFValues(toDblVec(x), false);
+//  OR::Vector trans = link->GetTransform().trans;
+//  Vector3d trans_eig(trans.x, trans.y, trans.z);
+//  MatrixXd cov = jac * rt_Sigma * rt_Sigma.transpose() * jac.transpose();
+//
+//  handles.push_back(viewer->PlotEllipsoid(gaussianToTransform(trans_eig,cov), OR::Vector(1,0,0,1)));
+//}
 
-MatrixXd calcForwardNumJac(VectorOfVectorFun f, const VectorXd& x, double epsilon) {
+
+MatrixXd calcNumJac(VectorOfVectorFun f, const VectorXd& x, double epsilon) {
   VectorXd y = f(x);
   MatrixXd out(y.size(), x.size());
-  VectorXd xpert = x;
+  VectorXd x_plus = x;
+  VectorXd x_minus = x;
   for (size_t i=0; i < size_t(x.size()); ++i) {
-    xpert(i) = x(i) + epsilon;
-    VectorXd ypert = f(xpert);
-    out.col(i) = (ypert - y) / epsilon;
-    xpert(i) = x(i);
+  	x_plus(i) = x(i) + epsilon;
+    VectorXd y_plus = f(x_plus);
+    x_minus(i) = x(i) - epsilon;
+		VectorXd y_minus = f(x_minus);
+		out.col(i) = (y_plus - y_minus) / (2*epsilon);
   }
   return out;
 }
 
-osg::Matrix beliefToTransform(const Eigen::Vector3d& mean, const Eigen::Matrix3d& cov) {
+osg::Matrix gaussianToTransform(const Eigen::Vector3d& mean, const Eigen::Matrix3d& cov) {
 //	Eigen::Matrix3d cov;
 //	cov << 0.025, 0.0075, 0.00175, 0.0075, 0.0070, 0.00135, 0.00175, 0.00135, 0.00043;
 //	Eigen::Vector3d mean(0,0,0.1);

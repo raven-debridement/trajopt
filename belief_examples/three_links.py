@@ -42,6 +42,10 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
         }
     }
     
+#    traj_init = np.load("/home/alex/Desktop/traj.npy")
+#    request["init_info"]["type"] = "given_traj"
+#    request["init_info"]["data"] = [x.tolist() for x in traj_init]
+    
     return request
 
 
@@ -80,3 +84,5 @@ if __name__ == "__main__":
     trajoptpy.SetInteractive(INTERACTIVE);
     prob = trajoptpy.ConstructProblem(s, env)
     result = trajoptpy.OptimizeProblem(prob)
+    
+#    np.save("/home/alex/Desktop/traj.npy", result.GetTraj())

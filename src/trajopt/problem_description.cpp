@@ -242,6 +242,33 @@ TrajOptResultPtr OptimizeProblem(TrajOptProbPtr prob, bool plot) {
 }
 
 
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
+#include <Eigen/LU>
+void dummy() {
+	MatrixXd cov(3,3);
+	cov << 1.5756, 1.4679, 0.4592, 1.4679,    1.5194,    0.7003,  0.4592,    0.7003 ,   0.9425;
+	MatrixXd B(3,3);
+	B << 0.9649,    0.9572 ,   0.1419,	    0.1576  ,  0.4854 ,   0.4218,	    0.9706  ,  0.8003,   0.9157;
+	// cov^-1 * B
+	// B \ cov
+
+	cout << "INV " << endl;
+
+	Eigen::PartialPivLU<MatrixXd> solver(cov);
+	MatrixXd L_transpose = solver.solve(B);
+
+	cout << L_transpose << endl;
+
+	cout << (MatrixXd)(cov.inverse() * B) << endl;
+
+//	13.8710    8.4941   -0.1541
+//	  -16.2074   -9.6888   -0.0852
+//	    6.3150    3.9101    1.1101
+
+	assert(0);
+}
+
 TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
   TrajOptProbPtr prob(new TrajOptProb());
 
@@ -264,7 +291,7 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
     }
     // belief-alex
     for (unsigned jj=0; jj< n_dof; ++jj) {
-			for (unsigned ii=0; ii < n_dof; ++ii) {
+			for (unsigned ii=jj; ii < n_dof; ++ii) {
 				names.push_back( (boost::format("cov_%i_%i")%ii%jj).str() );
 				vlower.push_back(-INFINITY);
 				vupper.push_back(INFINITY);
@@ -278,7 +305,8 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
   }
   prob->createVariables(names, vlower, vupper);
   //belief-alex
-  prob->m_traj_vars = VarArray(n_steps, n_dof+n_dof*n_dof+n_dof, prob->vars_.data());
+  int theta_size = n_dof + n_dof*(n_dof+1)/2;
+  prob->m_traj_vars = VarArray(n_steps, theta_size+n_dof, prob->vars_.data());
 
   DblVec cur_dofvals = prob->m_rad->GetDOFValues();
 
@@ -321,19 +349,32 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
 
   // belief-alex begin
   for (unsigned i=0; i < n_steps-1; ++i) {
-		VarVector theta0_vars = prob->m_traj_vars.block(0,0,n_steps,n_dof+n_dof*n_dof).row(i);
-		VarVector theta1_vars = prob->m_traj_vars.block(0,0,n_steps,n_dof+n_dof*n_dof).row(i+1);
-		VarVector u_vars = prob->m_traj_vars.block(0,n_dof+n_dof*n_dof,n_steps,n_dof).row(i);
-		prob->addConstr(ConstraintPtr(new BeliefDynamicsConstraint(theta0_vars, theta1_vars, u_vars, prob->GetRAD())));
+		VarVector theta0_vars = prob->m_traj_vars.block(0,0,n_steps,theta_size).row(i);
+		VarVector theta1_vars = prob->m_traj_vars.block(0,0,n_steps,theta_size).row(i+1);
+		VarVector u_vars = prob->m_traj_vars.block(0,theta_size,n_steps,n_dof).row(i);
+//		prob->addConstr(ConstraintPtr(new BeliefDynamicsConstraint(theta0_vars, theta1_vars, u_vars, prob->GetRAD())));
 	}
 
-  TrajArray init_data = TrajArray::Zero(n_steps,n_dof+n_dof*n_dof+n_dof);
-  for (unsigned i=0; i < n_steps; ++i) {
-  	init_data(i,n_dof) = 1.0;
-  	init_data(i,n_dof+4) = 1.0;
-  	init_data(i,n_dof+8) = 1.0;
+  TrajArray init_data = TrajArray::Zero(n_steps,theta_size+n_dof);
+  MatrixXd rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof);
+  for (unsigned i=0; i < n_steps-1; ++i) {
+  	VectorXd x0 = pci.init_info.data.block(i,0,1,n_dof).transpose();
+  	VectorXd x1 = pci.init_info.data.block(i+1,0,1,n_dof).transpose();
+  	VectorXd u0 = x1-x0;
+  	VectorXd theta0;
+  	prob->GetRAD()->composeBelief(x0, rt_Sigma0, theta0);
+  	init_data.block(i,0,1,theta_size) = theta0.transpose();
+  	init_data.block(i,theta_size,1,n_dof) = u0.transpose();
+		VectorXd x_unused;
+		prob->GetRAD()->ekfUpdate(u0, x0, rt_Sigma0, x_unused, rt_Sigma0);
+
+		if (i == n_steps-2) {
+	  	VectorXd theta1;
+	  	prob->GetRAD()->composeBelief(x1, rt_Sigma0, theta1);
+	  	init_data.block(i+1,0,1,theta_size) = theta1.transpose();
+		}
   }
-  init_data.block(0,0,n_steps,n_dof) = pci.init_info.data;
+  //init_data.block(0,0,n_steps,n_dof) = pci.init_info.data;
   cout << init_data << endl;
   // belief-alex end
 

@@ -25,16 +25,29 @@ public:
   inline int GetRSize() { return GetObsNoise().cols(); }
   inline int GetObsSize() { return GetObsNoise().rows(); }
 
-  Eigen::VectorXd Observe(Eigen::VectorXd dofs, Eigen::VectorXd r);
-  Eigen::VectorXd Dynamics(Eigen::VectorXd dofs, Eigen::VectorXd u, Eigen::VectorXd q);
-  Eigen::VectorXd BeliefDynamics(Eigen::VectorXd theta, Eigen::VectorXd u);
-  Eigen::VectorXd beta(Eigen::VectorXd theta0, Eigen::VectorXd u0);
-  Eigen::VectorXd VectorXdRand(int size, double sigma=1);
+  Eigen::VectorXd Observe(const Eigen::VectorXd& dofs, const Eigen::VectorXd& r);
+  Eigen::VectorXd Dynamics(const Eigen::VectorXd& dofs, const Eigen::VectorXd& u, const Eigen::VectorXd& q);
+  Eigen::VectorXd BeliefDynamics(const Eigen::VectorXd& theta0, const Eigen::VectorXd& u0);
+  Eigen::VectorXd VectorXdRand(int size);
 
-  void composeBelief(Eigen::VectorXd x, Eigen::MatrixXd V, VectorXd& theta);
-  void decomposeBelief(Eigen::VectorXd theta, VectorXd& x, Eigen::MatrixXd& V);
-  void ekfUpdate(Eigen::VectorXd z0, Eigen::VectorXd u0, Eigen::VectorXd theta0, VectorXd& theta);
-  void ekfUpdate(Eigen::VectorXd z0, Eigen::VectorXd u0, Eigen::VectorXd xest0, Eigen::MatrixXd Vest0, VectorXd& xest, Eigen::MatrixXd& Vest);
+  void composeBelief(const Eigen::VectorXd& x, const Eigen::MatrixXd& rt_S, VectorXd& theta);
+  void decomposeBelief(const Eigen::VectorXd& theta, VectorXd& x, Eigen::MatrixXd& rt_S);
+  void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& xest0, const Eigen::MatrixXd& Vest0, VectorXd& xest, Eigen::MatrixXd& Vest);
+
+  Eigen::MatrixXd EndEffectorJacobian(const Eigen::VectorXd& x0) {
+  	Eigen::MatrixXd jac(3,3);
+		double l1 = 0.16;
+		double l2 = 0.16;
+		double l3 = 0.08;
+		double s1 = -l1 * sin(x0(0));
+		double s2 = -l2 * sin(x0(0)+x0(1));
+		double s3 = -l3 * sin(x0(0)+x0(1)+x0(2));
+		double c1 = l1 * cos(x0(0));
+		double c2 = l2 * cos(x0(0)+x0(1));
+		double c3 = l3 * cos(x0(0)+x0(1)+x0(2));
+		jac << s1+s2+s3, s2+s3, s3, c1+c2+c3, c2+c3, c3, 0, 0, 0;
+		return jac;
+  }
 
   Eigen::VectorXd sqrt_sigma;
 };
@@ -46,7 +59,7 @@ public:
   vector<double> value(const vector<double>& x);
   ConvexConstraintsPtr convex(const vector<double>& x, Model* model);
   ConstraintType type() {return type_;}
-  //void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
+//  void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
 protected:
   BeliefRobotAndDOFPtr brad_;
   VarVector theta0_vars_;
@@ -57,7 +70,7 @@ protected:
 
 typedef boost::function<VectorXd(VectorXd)> VectorOfVectorFun;
 typedef boost::shared_ptr<VectorOfVectorFun> VectorOfVectorFunPtr;
-Eigen::MatrixXd calcForwardNumJac(VectorOfVectorFun f, const VectorXd& x, double epsilon=1e-5);
-osg::Matrix beliefToTransform(const Eigen::Vector3d& mean, const Eigen::Matrix3d& cov);
+Eigen::MatrixXd calcNumJac(VectorOfVectorFun f, const VectorXd& x, double epsilon=0.00048828125);
+osg::Matrix gaussianToTransform(const Eigen::Vector3d& mean, const Eigen::Matrix3d& cov);
 
 }
