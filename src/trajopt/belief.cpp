@@ -209,6 +209,42 @@ ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin,
 }
 
 
+BeliefDynamicsConstraint::BeliefDynamicsConstraint(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars, BeliefRobotAndDOFPtr brad) :
+    Constraint("BeliefDynamics"), brad_(brad), theta0_vars_(theta0_vars), theta1_vars_(theta1_vars), u_vars_(u_vars), type_(EQ)
+{}
+
+
+////////// FIX BELIEF COST //////////////////
+//
+//class BeliefCost : public Cost {
+//public:
+//	BeliefCost(const VarVector& theta_vars, BeliefRobotAndDOFPtr brad);
+//  virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
+//  virtual double value(const vector<double>&);
+//private:
+//  VarVector theta_vars_;
+//  QuadExpr expr_;
+//  BeliefRobotAndDOFPtr brad_;
+//};
+//
+//BeliefCost::BeliefCost(const VarVector& theta_vars, const VarVector& theta_vars, BeliefRobotAndDOFPtr brad) :
+//    Cost("Covariance"), theta_vars_(theta_vars), brad_(brad) {
+//	VarVector x_var;
+//
+//	expr_ = exprSquare(x_var);
+//
+//}
+//double BeliefCost::value(const vector<double>& xvec) {
+//  MatrixXd traj = getTraj(xvec, vars_);
+//  return (diffAxis0(traj).array().square().matrix() * coeffs_.asDiagonal()).sum();
+//}
+//ConvexObjectivePtr BeliefCost::convex(const vector<double>& x, Model* model) {
+//  ConvexObjectivePtr out(new ConvexObjective(model));
+//  out->addQuadExpr(expr_);
+//  return out;
+//}
+////////// FIX BELIEF COST //////////////////
+
 
 
 

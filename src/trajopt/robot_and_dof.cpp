@@ -4,6 +4,7 @@
 #include "utils/math.hpp"
 using namespace OpenRAVE;
 using namespace util;
+using namespace std;
 
 namespace trajopt {
 

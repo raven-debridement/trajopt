@@ -10,9 +10,14 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
+// alex
+# include "utils/eigen_conversions.hpp"
+using namespace std;
+
+
 namespace trajopt {
 
-class BeliefRobotAndDOF : public RobotAndDOF, public boost::enable_shared_from_this<BeliefRobotAndDOF> {
+class BeliefRobotAndDOF : public RobotAndDOF {
 private:
   boost::variate_generator<boost::mt19937, boost::normal_distribution<> > generator;
 public:
@@ -46,10 +51,18 @@ public:
 		double c2 = l2 * cos(x0(0)+x0(1));
 		double c3 = l3 * cos(x0(0)+x0(1)+x0(2));
 		jac << s1+s2+s3, s2+s3, s3, c1+c2+c3, c2+c3, c3, 0, 0, 0;
+
+//		// analytical jacobian computed in openrave
+//		OR::KinBody::LinkPtr link = GetRobot()->GetLink("Finger");
+//		DblMatrix Jxyz = PositionJacobian(link->GetIndex(), link->GetTransform().trans);
+//		cout << "Jxyz" << endl;
+//		std::cout << Jxyz << std::endl;
+//		cout << "JAC" << endl;
+//		cout << jac << endl;
+//		cout << "-----------" << endl;
+
 		return jac;
   }
-
-  Eigen::VectorXd sqrt_sigma;
 };
 typedef boost::shared_ptr<BeliefRobotAndDOF> BeliefRobotAndDOFPtr;
 

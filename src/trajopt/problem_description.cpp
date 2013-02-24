@@ -352,7 +352,7 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
 		VarVector theta0_vars = prob->m_traj_vars.block(0,0,n_steps,theta_size).row(i);
 		VarVector theta1_vars = prob->m_traj_vars.block(0,0,n_steps,theta_size).row(i+1);
 		VarVector u_vars = prob->m_traj_vars.block(0,theta_size,n_steps,n_dof).row(i);
-//		prob->addConstr(ConstraintPtr(new BeliefDynamicsConstraint(theta0_vars, theta1_vars, u_vars, prob->GetRAD())));
+		prob->addConstr(ConstraintPtr(new BeliefDynamicsConstraint(theta0_vars, theta1_vars, u_vars, prob->GetRAD())));
 	}
 
   TrajArray init_data = TrajArray::Zero(n_steps,theta_size+n_dof);
