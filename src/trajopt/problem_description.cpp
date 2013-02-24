@@ -231,7 +231,7 @@ TrajOptResult::TrajOptResult(OptResults& opt, TrajOptProb& prob) :
 TrajOptResultPtr OptimizeProblem(TrajOptProbPtr prob, bool plot) {
   RobotBase::RobotStateSaver saver = prob->GetRAD()->Save();
   BasicTrustRegionSQP opt(prob);
-  opt.max_iter_ = 30;
+  opt.max_iter_ = 100;
   opt.min_approx_improve_frac_ = .001;
   opt.merit_error_coeff_ = 10;
   if (plot) opt.addCallback(PlotCallback(*prob));
@@ -239,34 +239,6 @@ TrajOptResultPtr OptimizeProblem(TrajOptProbPtr prob, bool plot) {
   opt.initialize(trajToDblVec(prob->GetInitTraj()));
   opt.optimize();
   return TrajOptResultPtr(new TrajOptResult(opt.results(), *prob));
-}
-
-
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
-#include <Eigen/LU>
-void dummy() {
-	MatrixXd cov(3,3);
-	cov << 1.5756, 1.4679, 0.4592, 1.4679,    1.5194,    0.7003,  0.4592,    0.7003 ,   0.9425;
-	MatrixXd B(3,3);
-	B << 0.9649,    0.9572 ,   0.1419,	    0.1576  ,  0.4854 ,   0.4218,	    0.9706  ,  0.8003,   0.9157;
-	// cov^-1 * B
-	// B \ cov
-
-	cout << "INV " << endl;
-
-	Eigen::PartialPivLU<MatrixXd> solver(cov);
-	MatrixXd L_transpose = solver.solve(B);
-
-	cout << L_transpose << endl;
-
-	cout << (MatrixXd)(cov.inverse() * B) << endl;
-
-//	13.8710    8.4941   -0.1541
-//	  -16.2074   -9.6888   -0.0852
-//	    6.3150    3.9101    1.1101
-
-	assert(0);
 }
 
 TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
@@ -348,6 +320,10 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
   BOOST_FOREACH(const ConstraintPtr& cnt, prob->getConstraints()) cnt->setName(cnt_names[iCnt++]);
 
   // belief-alex begin
+  for (int i=0; i < n_steps; ++i) {
+		VarVector rtSigma_vars = prob->m_traj_vars.block(0,n_dof,n_steps,theta_size-n_dof).row(i);
+		prob->addCost(CostPtr(new CovarianceCost(rtSigma_vars, MatrixXd::Identity(n_dof,n_dof)*10, prob->GetRAD())));
+	}
   for (unsigned i=0; i < n_steps-1; ++i) {
 		VarVector theta0_vars = prob->m_traj_vars.block(0,0,n_steps,theta_size).row(i);
 		VarVector theta1_vars = prob->m_traj_vars.block(0,0,n_steps,theta_size).row(i+1);

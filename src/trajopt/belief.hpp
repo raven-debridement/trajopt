@@ -2,18 +2,10 @@
 #include "trajopt/common.hpp"
 #include "osgviewer/osgviewer.hpp"
 #include "robot_and_dof.hpp"
-#include <time.h>
 #include <boost/random/normal_distribution.hpp>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/variate_generator.hpp>
-#include <boost/enable_shared_from_this.hpp>
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
-
-// alex
-# include "utils/eigen_conversions.hpp"
-using namespace std;
-
+#include <Eigen/Core>
 
 namespace trajopt {
 
@@ -39,30 +31,7 @@ public:
   void decomposeBelief(const Eigen::VectorXd& theta, VectorXd& x, Eigen::MatrixXd& rt_S);
   void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& xest0, const Eigen::MatrixXd& Vest0, VectorXd& xest, Eigen::MatrixXd& Vest);
 
-  Eigen::MatrixXd EndEffectorJacobian(const Eigen::VectorXd& x0) {
-  	Eigen::MatrixXd jac(3,3);
-		double l1 = 0.16;
-		double l2 = 0.16;
-		double l3 = 0.08;
-		double s1 = -l1 * sin(x0(0));
-		double s2 = -l2 * sin(x0(0)+x0(1));
-		double s3 = -l3 * sin(x0(0)+x0(1)+x0(2));
-		double c1 = l1 * cos(x0(0));
-		double c2 = l2 * cos(x0(0)+x0(1));
-		double c3 = l3 * cos(x0(0)+x0(1)+x0(2));
-		jac << s1+s2+s3, s2+s3, s3, c1+c2+c3, c2+c3, c3, 0, 0, 0;
-
-//		// analytical jacobian computed in openrave
-//		OR::KinBody::LinkPtr link = GetRobot()->GetLink("Finger");
-//		DblMatrix Jxyz = PositionJacobian(link->GetIndex(), link->GetTransform().trans);
-//		cout << "Jxyz" << endl;
-//		std::cout << Jxyz << std::endl;
-//		cout << "JAC" << endl;
-//		cout << jac << endl;
-//		cout << "-----------" << endl;
-
-		return jac;
-  }
+  Eigen::MatrixXd EndEffectorJacobian(const Eigen::VectorXd& x0);
 };
 typedef boost::shared_ptr<BeliefRobotAndDOF> BeliefRobotAndDOFPtr;
 
@@ -79,6 +48,18 @@ protected:
   VarVector theta1_vars_;
   VarVector u_vars_;
   ConstraintType type_;
+};
+
+class CovarianceCost : public Cost {
+public:
+	CovarianceCost(const VarVector& rtSigma_vars, const Eigen::MatrixXd& Q, BeliefRobotAndDOFPtr brad);
+  virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
+  virtual double value(const vector<double>&);
+private:
+  VarVector rtSigma_vars_;
+  Eigen::MatrixXd Q_;
+  QuadExpr expr_;
+  BeliefRobotAndDOFPtr brad_;
 };
 
 typedef boost::function<VectorXd(VectorXd)> VectorOfVectorFun;
