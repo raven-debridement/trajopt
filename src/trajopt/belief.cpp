@@ -156,9 +156,12 @@ vector<double> BeliefDynamicsConstraint::value(const vector<double>& xin) {
 	VectorXd theta0_hat = getVec(xin, theta0_vars_);
 	VectorXd theta1_hat = getVec(xin, theta1_vars_);
 	VectorXd u_hat = getVec(xin, u_vars_);
+
+//	cout << "theta0_hat inside:\n" << theta0_hat.transpose() << endl;
+//	cout << "theta1_hat inside:\n" << theta1_hat.transpose() << endl;
+//	cout << "u_hat inside:\n" << u_hat.transpose() << endl;
 	return toDblVec(brad_->BeliefDynamics(theta0_hat, u_hat) - theta1_hat);
 }
-
 
 ///**
 // *
@@ -178,9 +181,9 @@ ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin,
 	VectorXd theta1_hat = getVec(xin, theta1_vars_);
 	VectorXd u_hat = getVec(xin, u_vars_);
 
-	cout << "theta0_hat:\n" << theta0_hat.transpose() << endl;
-	cout << "theta1_hat:\n" << theta1_hat.transpose() << endl;
-	cout << "u_hat:\n" << u_hat.transpose() << endl;
+//	cout << "theta0_hat:\n" << theta0_hat.transpose() << endl;
+//	cout << "theta1_hat:\n" << theta1_hat.transpose() << endl;
+//	cout << "u_hat:\n" << u_hat.transpose() << endl;
 
 	// linearize belief dynamics around theta0_hat and u_hat
 	MatrixXd A = calcNumJac(boost::bind(&BeliefRobotAndDOF::BeliefDynamics, brad_.get(), _1, u_hat), theta0_hat);
@@ -196,23 +199,19 @@ ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin,
 	MatrixXd B = calcNumJac(boost::bind(&BeliefRobotAndDOF::BeliefDynamics, brad_.get(), theta0_hat, _1), u_hat);
 	VectorXd c = brad_->BeliefDynamics(theta0_hat, u_hat);
 
-	cout << "A matrix:\n" << A << endl;
-	cout << "B matrix:\n" << B << endl;
-	cout << "c vector:\n" << c.transpose() << endl;
+//	cout << "A matrix:\n" << A << endl;
+//	cout << "B matrix:\n" << B << endl;
+//	cout << "c vector:\n" << c.transpose() << endl;
 
-	//  // test convexification
-	//  cout << "theta0" << endl;
-	//  VectorXd theta0 = theta0_hat + brad_->VectorXdRand(12,0.1);
-	//  cout << theta0 << endl;
-	//  cout << "u "<< endl;
-	//  VectorXd u = u_hat + brad_->VectorXdRand(3,0.1);
-	//  cout << u << endl;
-	//  cout << "theta1_approx" << endl;
-	//  VectorXd theta1_approx = A * (theta0 - theta0_hat) + B * (u - u_hat) + c;
-	//  cout << theta1_approx << endl;
-	//  cout << "theta1" << endl;
-	//  VectorXd theta1 = brad_->BeliefDynamics(theta0, u);
-	//  cout << theta1 << endl;
+//	  // test convexification
+//	  VectorXd theta0 = theta0_hat + brad_->VectorXdRand(9)*0.1;
+//	  cout << "theta0" << theta0.transpose() << endl;
+//	  VectorXd u = u_hat +brad_->VectorXdRand(3)*0.1;
+//	  cout << "u "<< u.transpose() << endl;
+//	  VectorXd diff1_approx = A * (theta0 - theta0_hat) + B * (u - u_hat) + c - theta1_hat;
+//	  cout << "diff1_approx" << diff1_approx.transpose() << endl;
+//		VectorXd diff1 = brad_->BeliefDynamics(theta0_hat, u_hat) - theta1_hat;
+//	  cout << "diff1 " << diff1.transpose() << endl;
 
 	// equality constraint
 	// theta1_vars_ = A * (theta0_vars_ - theta0_hat) + B * (u_vars_ - u_hat) + c
@@ -230,20 +229,18 @@ ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin,
 		aff_u.vars = u_vars_;
 		AffExpr aff_theta1;
 		aff_theta1.constant = 0;
-		aff_theta1.coeffs = vector<double>(theta1_vars_.size(),1);
+		aff_theta1.coeffs = vector<double>(theta1_vars_.size(),0);
+		aff_theta1.coeffs[i] = 1;
 		aff_theta1.vars = theta1_vars_;
 		AffExpr aff_theta0_u = exprAdd(aff_theta0, aff_u);
 		AffExpr aff = exprSub(aff_theta0_u, aff_theta1);
-		//aff = cleanupAff(aff);
-
-		cout << aff << "\n\n";
-
+		aff = cleanupAff(aff);
+		//cout << aff << "\n\n";
 		out->addEqCnt(aff);
 	}
 
 	return out;
 }
-
 
 ////////// FIX BELIEF COST //////////////////
 //
