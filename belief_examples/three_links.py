@@ -10,7 +10,7 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
     
     request = {
         "basic_info" : {
-            "n_steps" : 20,
+            "n_steps" : 5,
             "manip" : manip_name,
             "start_fixed" : True
         },

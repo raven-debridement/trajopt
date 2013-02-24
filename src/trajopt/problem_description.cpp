@@ -292,7 +292,7 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
     // belief-alex
     for (unsigned jj=0; jj< n_dof; ++jj) {
 			for (unsigned ii=jj; ii < n_dof; ++ii) {
-				names.push_back( (boost::format("cov_%i_%i")%ii%jj).str() );
+				names.push_back( (boost::format("cov_%i_%i_%i")%i%ii%jj).str() );
 				vlower.push_back(-INFINITY);
 				vupper.push_back(INFINITY);
 			}

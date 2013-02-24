@@ -276,7 +276,8 @@ OptStatus BasicTrustRegionSQP::optimize() {
 
         if (logging::filter() >= IPI_LEVEL_DEBUG) {
           DblVec model_cnt_viols2 = evaluateModelCosts(cnt_cost_models, model_var_vals);
-          IPI_LOG_DEBUG("SHOULD BE THE SAME: %.2f*%s ?= %s", merit_error_coeff_, Str(model_cnt_viols), Str(model_cnt_viols2));
+          IPI_LOG_DEBUG("SHOULD BE THE SAME 1: %.2f*%s ?= %s", merit_error_coeff_, Str(model_cnt_viols), Str(model_cnt_viols2));
+          IPI_LOG_DEBUG("SHOULD BE THE SAME 2: %s ?= %s",Str(model_cnt_viols), Str(results_.cnt_viols));
         }
 
         DblVec new_cost_vals = evaluateCosts(prob_->getCosts(), new_x);
@@ -297,6 +298,8 @@ OptStatus BasicTrustRegionSQP::optimize() {
                         cnt_names, merit_error_coeff_);
           printf("%15s | %10.3e | %10.3e | %10.3e | %10.3e\n", "TOTAL", old_merit, approx_merit_improve, exact_merit_improve, merit_improve_ratio);
         }
+
+        //cout << "approx merit improve: " << approx_merit_improve << endl;
 
         if (approx_merit_improve < -1e-4) {
           IPI_LOG_ERR("approximate merit function got worse (%.3e). (convexification is probably wrong to zeroth order)", approx_merit_improve);

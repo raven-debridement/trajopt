@@ -135,6 +135,7 @@ vector<double> ConstraintFromNumDiff::value(const vector<double>& xin) {
     return out;
   }
 }
+
 ConvexConstraintsPtr ConstraintFromNumDiff::convex(const vector<double>& xin, Model* model) {
   VectorXd x = getVec(xin, vars_);
   MatrixXd jac = calcForwardNumJac(*f_, x, epsilon_);

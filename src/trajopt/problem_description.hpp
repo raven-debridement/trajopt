@@ -38,91 +38,91 @@ void TRAJOPT_API HandlePlanningRequest(OR::EnvironmentBasePtr env, TrajOptReques
  */
 class TRAJOPT_API TrajOptProb : public OptProb {
 public:
-  TrajOptProb();
-  TrajOptProb(int n_steps, BeliefRobotAndDOFPtr rad);
-  ~TrajOptProb() {}
-  VarVector GetVarRow(int i) {
-    return m_traj_vars.row(i);
-  }
-  VarArray& GetVars() {
-    return m_traj_vars;
-  }
-  int GetNumSteps() {return m_traj_vars.rows();}
-  int GetNumDOF() {return m_traj_vars.cols();}
-  BeliefRobotAndDOFPtr GetRAD() {return m_rad;}
-  OR::EnvironmentBasePtr GetEnv() {return m_rad->GetRobot()->GetEnv();}
+	TrajOptProb();
+	TrajOptProb(int n_steps, BeliefRobotAndDOFPtr rad);
+	~TrajOptProb() {}
+	VarVector GetVarRow(int i) {
+		return m_traj_vars.row(i);
+	}
+	VarArray& GetVars() {
+		return m_traj_vars;
+	}
+	int GetNumSteps() {return m_traj_vars.rows();}
+	int GetNumDOF() {return m_traj_vars.cols();}
+	BeliefRobotAndDOFPtr GetRAD() {return m_rad;}
+	OR::EnvironmentBasePtr GetEnv() {return m_rad->GetRobot()->GetEnv();}
 
-  void SetInitTraj(const TrajArray& x) {m_init_traj = x;}
-  TrajArray GetInitTraj() {return m_init_traj;}
+	void SetInitTraj(const TrajArray& x) {m_init_traj = x;}
+	TrajArray GetInitTraj() {return m_init_traj;}
 
-  friend TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo&);
+	friend TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo&);
 private:
-  VarArray m_traj_vars;
-  BeliefRobotAndDOFPtr m_rad;
-  TrajArray m_init_traj;
-  typedef std::pair<string,string> StringPair;
+	VarArray m_traj_vars;
+	BeliefRobotAndDOFPtr m_rad;
+	TrajArray m_init_traj;
+	typedef std::pair<string,string> StringPair;
 };
 
 struct TRAJOPT_API TrajOptResult {
-  vector<string> cost_names, cnt_names;
-  vector<double> cost_vals, cnt_viols;
-  TrajArray traj;
-  TrajOptResult(OptResults& opt, TrajOptProb& prob);
+	vector<string> cost_names, cnt_names;
+	vector<double> cost_vals, cnt_viols;
+	TrajArray traj;
+	TrajOptResult(OptResults& opt, TrajOptProb& prob);
 };
 
 
 struct BasicInfo  {
-  bool start_fixed;
-  int n_steps;
-  string manip;
-  string robot; // optional
-  IntVec dofs_fixed; // optional
-  void fromJson(const Json::Value& v);
+	bool start_fixed;
+	int n_steps;
+	string manip;
+	string robot; // optional
+	IntVec dofs_fixed; // optional
+	void fromJson(const Json::Value& v);
 };
 
 struct InitInfo {
-  enum Type {
-    STATIONARY,
-    GIVEN_TRAJ,
-  };
-  Type type;
-  TrajArray data;
-  void fromJson(const Json::Value& v);
+	enum Type {
+		STATIONARY,
+		GIVEN_TRAJ,
+	};
+	Type type;
+	TrajArray data;
+	void fromJson(const Json::Value& v);
 };
 
 struct TRAJOPT_API CostInfo  {
 
-  string name;
-  virtual void fromJson(const Json::Value& v)=0;
+	string name;
+	virtual void fromJson(const Json::Value& v)=0;
 
-  static CostInfoPtr fromName(const string& type);
-  virtual void hatch(TrajOptProb& prob) = 0;
-  typedef CostInfoPtr (*MakerFunc)();
+	static CostInfoPtr fromName(const string& type);
+	virtual void hatch(TrajOptProb& prob) = 0;
+	typedef CostInfoPtr (*MakerFunc)();
 
-  /**
-   * Registers a user-defined CostInfo so you can use your own cost
-   * see function RegisterMakers.cpp
-   */
-  static void RegisterMaker(const std::string& type, MakerFunc);
+	/**
+	 * Registers a user-defined CostInfo so you can use your own cost
+	 * see function RegisterMakers.cpp
+	 */
+	static void RegisterMaker(const std::string& type, MakerFunc);
 
-  virtual ~CostInfo() {}
+	virtual ~CostInfo() {}
 private:
-  static std::map<string, MakerFunc> name2maker;
+	static std::map<string, MakerFunc> name2maker;
 };
 
 struct TRAJOPT_API CntInfo  {
-  string name;
-  virtual void fromJson(const Json::Value& v) = 0;
+	string name;
+	virtual void fromJson(const Json::Value& v) = 0;
 
-  static CntInfoPtr fromName(const string& type);
-  virtual void hatch(TrajOptProb& prob) = 0;
-  typedef CntInfoPtr (*MakerFunc)();
+	static CntInfoPtr fromName(const string& type);
+	virtual void hatch(TrajOptProb& prob) = 0;
+	typedef CntInfoPtr (*MakerFunc)();
 
-  static void RegisterMaker(const std::string& type, MakerFunc);
+	static void RegisterMaker(const std::string& type, MakerFunc);
 
-  virtual ~CntInfo() {}
+	virtual ~CntInfo() {}
 private:
-  static std::map<string, MakerFunc> name2maker;
+	static std::map<string, MakerFunc> name2maker;
 };
 
 void fromJson(const Json::Value& v, CostInfoPtr&);
@@ -130,16 +130,16 @@ void fromJson(const Json::Value& v, CntInfoPtr&);
 
 struct TRAJOPT_API ProblemConstructionInfo {
 public:
-  BasicInfo basic_info;
-  vector<CostInfoPtr> cost_infos;
-  vector<CntInfoPtr> cnt_infos;
-  InitInfo init_info;
+	BasicInfo basic_info;
+	vector<CostInfoPtr> cost_infos;
+	vector<CntInfoPtr> cnt_infos;
+	InitInfo init_info;
 
-  OR::EnvironmentBasePtr env;
-  BeliefRobotAndDOFPtr rad;
+	OR::EnvironmentBasePtr env;
+	BeliefRobotAndDOFPtr rad;
 
-  ProblemConstructionInfo(OR::EnvironmentBasePtr _env) : env(_env) {}
-  void fromJson(const Value& v);
+	ProblemConstructionInfo(OR::EnvironmentBasePtr _env) : env(_env) {}
+	void fromJson(const Value& v);
 
 };
 
@@ -149,15 +149,15 @@ public:
  See trajopt::PoseCntInfo
  */
 struct PoseCostInfo : public CostInfo {
-  int timestep;
-  Vector3d xyz;
-  Vector4d wxyz;
-  Vector3d pos_coeffs, rot_coeffs;
-  double coeff;
-  KinBody::LinkPtr link;
-  void fromJson(const Value& v);
-  void hatch(TrajOptProb& prob);
-  static CostInfoPtr create();
+	int timestep;
+	Vector3d xyz;
+	Vector4d wxyz;
+	Vector3d pos_coeffs, rot_coeffs;
+	double coeff;
+	KinBody::LinkPtr link;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CostInfoPtr create();
 };
 
 
@@ -170,11 +170,11 @@ struct PoseCostInfo : public CostInfo {
   where \f$i\f$ indexes over dof and \f$c_i\f$ are coeffs
  */
 struct JointPosCostInfo : public CostInfo {
-  DblVec vals, coeffs;
-  int timestep;
-  void fromJson(const Value& v);
-  void hatch(TrajOptProb& prob);
-  static CostInfoPtr create();
+	DblVec vals, coeffs;
+	int timestep;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CostInfoPtr create();
 };
 
 
@@ -188,15 +188,15 @@ struct JointPosCostInfo : public CostInfo {
   pos_coeffs and rot_coeffs, respectively
  */
 struct PoseCntInfo : public CntInfo {
-  int timestep;
-  Vector3d xyz;
-  Vector4d wxyz;
-  Vector3d pos_coeffs, rot_coeffs;
-  double coeff;
-  KinBody::LinkPtr link;
-  void fromJson(const Value& v);
-  void hatch(TrajOptProb& prob);
-  static CntInfoPtr create();
+	int timestep;
+	Vector3d xyz;
+	Vector4d wxyz;
+	Vector3d pos_coeffs, rot_coeffs;
+	double coeff;
+	KinBody::LinkPtr link;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CntInfoPtr create();
 };
 
 /**
@@ -205,12 +205,12 @@ struct PoseCntInfo : public CntInfo {
  Constrains the change in position of the link in each timestep to be less than distance_limit
  */
 struct CartVelCntInfo : public CntInfo {
-  int first_step, last_step;
-  KinBody::LinkPtr link;
-  double distance_limit;
-  void fromJson(const Value& v);
-  void hatch(TrajOptProb& prob);
-  static CntInfoPtr create();
+	int first_step, last_step;
+	KinBody::LinkPtr link;
+	double distance_limit;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CntInfoPtr create();
 };
 
 /**
@@ -220,12 +220,12 @@ struct CartVelCntInfo : public CntInfo {
   cost = \sum_{t=0}^{T-2} \sum_j c_j (x_{t+1,j} - x_{t,j})^2
 \f}
 where j indexes over DOF, and \f$c_j\f$ are the coeffs.
-*/
+ */
 struct JointVelCostInfo : public CostInfo {
-  DblVec coeffs;
-  void fromJson(const Value& v);
-  void hatch(TrajOptProb& prob);
-  static CostInfoPtr create();
+	DblVec coeffs;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CostInfoPtr create();
 };
 /**
 \brief %Collision penalty
@@ -233,15 +233,15 @@ struct JointVelCostInfo : public CostInfo {
 \f{align*}{
   cost = \sum_{t=0}^{T-1} \sum_{A, B} | distpen_t - sd(A,B) |^+
 \f}
-*/
+ */
 struct CollisionCostInfo : public CostInfo {
-  /// coeffs.size() = num_timesteps
-  DblVec coeffs;
-  /// safety margin: contacts with distance < dist_pen are penalized
-  DblVec dist_pen;
-  void fromJson(const Value& v);
-  void hatch(TrajOptProb& prob);
-  static CostInfoPtr create();
+	/// coeffs.size() = num_timesteps
+	DblVec coeffs;
+	/// safety margin: contacts with distance < dist_pen are penalized
+	DblVec dist_pen;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CostInfoPtr create();
 };
 /**
 \brief continuous-time collision penalty
@@ -249,29 +249,29 @@ struct CollisionCostInfo : public CostInfo {
 \f{align*}{
   cost = \sum_{t=firststep}^{laststep} \sum_{A \in robot,B} | distpen_t - sd(hull(A(t), A(t+1)),B) |^+
 \f}
-*/
+ */
 struct ContinuousCollisionCostInfo : public CostInfo {
-  /// first_step and last_step are inclusive
-  int first_step, last_step;
-  /// coeffs.size() = last_step - first_step - 1
-  DblVec coeffs;
-  /// see CollisionCostInfo::dist_pen
-  DblVec dist_pen;
-  void fromJson(const Value& v);
-  void hatch(TrajOptProb& prob);
-  static CostInfoPtr create();
+	/// first_step and last_step are inclusive
+	int first_step, last_step;
+	/// coeffs.size() = last_step - first_step - 1
+	DblVec coeffs;
+	/// see CollisionCostInfo::dist_pen
+	DblVec dist_pen;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CostInfoPtr create();
 };
 /**
 joint-space position constraint
  */
 struct JointConstraintInfo : public CntInfo {
-  /// joint values. list of length 1 automatically gets expanded to list of length n_dof
-  DblVec vals;
-  /// which timestep. default = n_timesteps - 1
-  int timestep;
-  void fromJson(const Value& v);
-  void hatch(TrajOptProb& prob);
-  static CntInfoPtr create();
+	/// joint values. list of length 1 automatically gets expanded to list of length n_dof
+	DblVec vals;
+	/// which timestep. default = n_timesteps - 1
+	int timestep;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CntInfoPtr create();
 };
 
 
