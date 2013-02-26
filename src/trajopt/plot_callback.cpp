@@ -10,37 +10,37 @@ using namespace Eigen;
 using namespace std;
 namespace trajopt {
 
-void PlotTraj(OSGViewer& viewer, BeliefRobotAndDOFPtr rad, const TrajArray& x, vector<GraphHandlePtr>& handles) {
-	for (int i=0; i < x.rows(); ++i) {
-    rad->SetDOFValues(toDblVec(x.row(i)));
+void PlotTraj(OSGViewer& viewer, BeliefRobotAndDOFPtr rad, const TrajArray& traj, vector<GraphHandlePtr>& handles) {
+	const int n_dof = rad->GetDOF();
+	const int theta_size = n_dof + n_dof*(n_dof+1)/2;
+	const int n_steps = traj.rows();
+
+	for (int i=0; i < n_steps; ++i) {
+    rad->SetDOFValues(toDblVec(traj.block(i,0,1,n_dof).transpose()));
     handles.push_back(viewer.PlotKinBody(rad->GetRobot()));
-    SetTransparency(handles.back(), .35);
+		double trans_param = (((double)i)/((double)n_steps-1.0)+0.35)/1.35;
+    SetTransparency(handles.back(), trans_param);
   }
 
-	OR::RobotBasePtr robot = rad->GetRobot();
-	OR::KinBody::LinkPtr link = robot->GetLink("Finger");
-	int n_dof = robot->GetDOF();
-	int n_steps = x.rows();
 	OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(rad.get())->Save();
-	MatrixXd rt_Sigma = MatrixXd::Identity(n_dof,n_dof)*0.1;
+
 	for (int i=0; i < n_steps; ++i) {
-		VectorXd x0 = x.block(i,0,1,n_dof).transpose();
+		VectorXd theta = traj.block(i,0,1,theta_size).transpose();
+		VectorXd x;
+		MatrixXd rt_Sigma;
+		rad->decomposeBelief(theta, x, rt_Sigma);
 
-		MatrixXd jac = rad->EndEffectorJacobian(x0);
+		MatrixXd jac = rad->EndEffectorJacobian(x);
 
-		robot->SetDOFValues(toDblVec(x0), false);
-		OR::Vector trans = link->GetTransform().trans;
+		rad->SetDOFValues(toDblVec(x));
+		OR::Vector trans = rad->link->GetTransform().trans;
 		Vector3d trans_eig(trans.x, trans.y, trans.z);
-		MatrixXd cov = jac * rt_Sigma * rt_Sigma.transpose() * jac.transpose();
+		MatrixXd cov = MatrixXd::Identity(3,3);
+		cov.topLeftCorner(n_dof, n_dof) = jac * rt_Sigma * rt_Sigma.transpose() * jac.transpose();
+		cov(2,2) = 0.00000001; // otherwise, flat ellipsoids have a coloring artifact
 
 		handles.push_back(viewer.PlotEllipsoid(gaussianToTransform(trans_eig,cov), OR::Vector(1,0,0,1)));
-
-		if (i < n_steps-1) {
-			VectorXd x1 = x.block(i+1,0,1,n_dof).transpose();
-			VectorXd u0 = x1-x0;
-			VectorXd x_unused;
-			rad->ekfUpdate(u0, x0, rt_Sigma, x_unused, rt_Sigma);
-		}
+    SetTransparency(handles.back(), 0.35);
 	}
 }
 

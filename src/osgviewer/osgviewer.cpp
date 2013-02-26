@@ -382,7 +382,8 @@ OSGViewer::OSGViewer(EnvironmentBasePtr env) : ViewerBase(env), m_idling(false) 
   m_root = new Group;
 //  m_viewer = new osgViewer::Viewer();
   m_viewer.setSceneData(m_root.get());
-  m_viewer.setUpViewInWindow(0, 0, 640, 480);
+  //m_viewer.setUpViewInWindow(0, 0, 640, 480);
+  m_viewer.setUpViewInWindow(0, 0, 640*2.5, 480*2.5);
   m_viewer.realize();
   m_cam = m_viewer.getCamera();
   m_handler = new EventHandler;
@@ -624,7 +625,7 @@ OpenRAVE::GraphHandlePtr OSGViewer::PlotEllipsoid(const osg::Matrix& T, const Ra
 	geode->addDrawable(sphereDrawable);
 
 	osg::Material* pMaterial = new osg::Material;
-	pMaterial->setDiffuse( osg::Material::FRONT, toOsgVec4(color));
+	pMaterial->setDiffuse( osg::Material::FRONT_AND_BACK, toOsgVec4(color));
 	geode->getOrCreateStateSet()->setAttribute( pMaterial, osg::StateAttribute::OVERRIDE );
 
 	osg::MatrixTransform* mt = new osg::MatrixTransform(T);

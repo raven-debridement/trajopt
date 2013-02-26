@@ -197,6 +197,14 @@ public:
   void Idle() {
     m_viewer->Idle();
   }
+  void SetCameraTransformation(py::list eye, py::list center, py::list up) {
+  	if ((boost::python::len(eye) == 3) && (boost::python::len(center) == 3) && (boost::python::len(up) == 3)) {
+  		osg::Vec3d osg_eye((double)boost::python::extract<double>(eye[0]), (double)boost::python::extract<double>(eye[1]), (double)boost::python::extract<double>(eye[2]));
+  		osg::Vec3d osg_center((double)boost::python::extract<double>(center[0]), (double)boost::python::extract<double>(center[1]), (double)boost::python::extract<double>(center[2]));
+  		osg::Vec3d osg_up((double)boost::python::extract<double>(up[0]), (double)boost::python::extract<double>(up[1]), (double)boost::python::extract<double>(up[2]));
+  		dynamic_cast<OSGViewer::EventHandler*>(m_viewer->GetViewer().getCameraManipulator())->setTransformation(osg_eye, osg_center, osg_up);
+  	}
+  }
 };
 PyOSGViewer PyGetViewer(py::object py_env) {
   EnvironmentBasePtr env = GetCppEnv(py_env);
@@ -243,6 +251,7 @@ BOOST_PYTHON_MODULE(ctrajoptpy) {
      .def("PlotKinBody", &PyOSGViewer::PlotKinBody)
      .def("SetAllTransparency", &PyOSGViewer::SetAllTransparency)
      .def("Idle", &PyOSGViewer::Idle)
+     .def("SetCameraTransformation", &PyOSGViewer::SetCameraTransformation)
     ;
   py::def("GetViewer", &PyGetViewer, "Get OSG viewer for environment or create a new one");
 

@@ -55,6 +55,9 @@ BeliefRobotAndDOFPtr RADFromName(const string& name, RobotBasePtr robot) {
     else if (component == "base") {
       affinedofs |= DOF_X | DOF_Y | DOF_RotationAxis;
     }
+    else if (component == "base_point") {
+      affinedofs |= DOF_X | DOF_Y;
+    }
     else if (KinBody::JointPtr joint = robot->GetJoint(component)) {
       dof_inds.push_back(joint->GetDOFIndex());
     }
@@ -231,7 +234,7 @@ TrajOptResult::TrajOptResult(OptResults& opt, TrajOptProb& prob) :
 TrajOptResultPtr OptimizeProblem(TrajOptProbPtr prob, bool plot) {
   RobotBase::RobotStateSaver saver = prob->GetRAD()->Save();
   BasicTrustRegionSQP opt(prob);
-  opt.max_iter_ = 100;
+  opt.max_iter_ = 1000;
   opt.min_approx_improve_frac_ = .001;
   opt.merit_error_coeff_ = 10;
   if (plot) opt.addCallback(PlotCallback(*prob));
@@ -322,7 +325,7 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
   // belief-alex begin
   for (int i=0; i < n_steps; ++i) {
 		VarVector rtSigma_vars = prob->m_traj_vars.block(0,n_dof,n_steps,theta_size-n_dof).row(i);
-		prob->addCost(CostPtr(new CovarianceCost(rtSigma_vars, MatrixXd::Identity(n_dof,n_dof)*10, prob->GetRAD())));
+		prob->addCost(CostPtr(new CovarianceCost(rtSigma_vars, MatrixXd::Identity(n_dof,n_dof), prob->GetRAD())));
 	}
   for (unsigned i=0; i < n_steps-1; ++i) {
 		VarVector theta0_vars = prob->m_traj_vars.block(0,0,n_steps,theta_size).row(i);
@@ -332,7 +335,9 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
 	}
 
   TrajArray init_data = TrajArray::Zero(n_steps,theta_size+n_dof);
-  MatrixXd rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof);
+  MatrixXd rt_Sigma0;
+  if (n_dof == 3) rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof)*0.1;
+  else rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof)*sqrt(5);
   for (unsigned i=0; i < n_steps-1; ++i) {
   	VectorXd x0 = pci.init_info.data.block(i,0,1,n_dof).transpose();
   	VectorXd x1 = pci.init_info.data.block(i+1,0,1,n_dof).transpose();
@@ -350,6 +355,14 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
 	  	init_data.block(i+1,0,1,theta_size) = theta1.transpose();
 		}
   }
+
+  // fix the initial covariance
+  if (bi.start_fixed) {
+  	for (int j=n_dof; j < theta_size; ++j) {
+			prob->addLinearConstr(exprSub(AffExpr(prob->m_traj_vars(0,j)), init_data(0,j)), EQ);
+		}
+	}
+
   //init_data.block(0,0,n_steps,n_dof) = pci.init_info.data;
   cout << init_data << endl;
   // belief-alex end
@@ -498,7 +511,7 @@ CostInfoPtr JointVelCostInfo::create() {
 }
 void JointVelCostInfo::hatch(TrajOptProb& prob) {
 	// belief-alex take the submatrix because we want joint-vel only on the joint variables
-  prob.addCost(CostPtr(new JointVelCost(prob.GetVars().block(0,0,prob.GetVars().m_nRow, prob.GetRAD()->GetRobot()->GetDOF()), toVectorXd(coeffs))));
+  prob.addCost(CostPtr(new JointVelCost(prob.GetVars().block(0,0,prob.GetVars().m_nRow, prob.GetRAD()->GetDOF()), toVectorXd(coeffs))));
 }
 
 void CollisionCostInfo::fromJson(const Value& v) {

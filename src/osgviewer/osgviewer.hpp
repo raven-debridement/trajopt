@@ -20,6 +20,7 @@ public:
   void Idle(); // should be called ToggleIdle
   void UpdateSceneData();
   const std::string& GetName() const {return m_name;}
+  osgViewer::Viewer& GetViewer() {return m_viewer;}
 
 
   // return false if you want to disable the default TrackballManipulator handling

@@ -10,8 +10,8 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
     
     request = {
         "basic_info" : {
-            "n_steps" : 15,
-            "manip" : manip_name,
+            "n_steps" : 30,
+            "manip" : "base_point",
             "start_fixed" : True
         },
         "costs" : [
@@ -53,9 +53,9 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
 if __name__ == "__main__":
         
     ### Parameters ###
-    ENV_FILE = "../data/three_links.env.xml"
-    MANIP_NAME = "arm"
-    LINK_NAME = "Finger"
+    ENV_FILE = "../data/point.env.xml"
+    MANIP_NAME = "base"
+    LINK_NAME = "Base"
     INTERACTIVE = True
     ##################
     
@@ -69,16 +69,16 @@ if __name__ == "__main__":
     robot.SetDOFValues([ 0 ,0 ,0]);
     manip = robot.GetManipulator(MANIP_NAME)
     viewer = trajoptpy.GetViewer(env)
-    viewer.SetCameraTransformation([0,0,2], [0,0,0], [0,1,0])
+    viewer.SetCameraTransformation([0,0,20], [0,0,0], [0,1,0])
     ##################
-    T_gripper = robot.GetLink(LINK_NAME).GetTransform()
-    T_grasp = T_gripper.copy()
-    T_grasp[:3,3]  += np.array([-0.5,0.2,0])
-    T_grasp = T_grasp.dot(rave.matrixFromAxisAngle([0,0,1],np.pi/2))
+    
+    T_gripper = np.eye(4)
+    T_gripper[:3,3] = np.array([2,2,0])
+    robot.GetLink(LINK_NAME).SetTransform(T_gripper)
+    T_grasp = np.eye(4)
     xyz_targ = T_grasp[:3,3]
-    #success = mk.create_cylinder(env, xyz_targ-np.array([.03,0,0]), .02, .5)
+    mk.create_mesh_box(env, np.array([5+0.01,0,0]), np.array([0.01,10,0.01]))
     quat_targ = rave.quatFromRotationMatrix(T_grasp[:3,:3])
-    #success = mk.create_cylinder(env, T_gripper[:3,3]-np.array([.1,-.1,0]), .02, .5)
 
     request = move_arm_to_grasp(xyz_targ, quat_targ, LINK_NAME, MANIP_NAME)
     s = json.dumps(request)

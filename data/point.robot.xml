@@ -1,0 +1,29 @@
+<Robot name="PointRobot">
+  <KinBody>
+    <!-- Create the base body, it should never move-->
+    <!-- Note that all translations and rotations are with respect to this base-->
+    <!-- For example, the robot at the identity transformation is equivalent to the identity transformation of the first body.-->
+    <Body name="Base" type="dynamic">
+      <Translation>0.0  0.0  0.0</Translation>
+      <Geom type="cylinder">
+        <rotationaxis>1 0 0 90</rotationaxis>
+        <radius>0.03</radius>
+        <height>0.02</height>
+        <diffuseColor>0 0.8 0</diffuseColor>
+      </Geom>
+    </Body>
+  </KinBody>
+  
+  <!-- Specifying the manipulator structure-->
+  <Manipulator name="base">
+    <effector>Base</effector>   <!-- last link where end effector is attached-->
+    <base>Base</base>           <!-- base link-->
+    <!-- the id of the inverse kinematics solver, it is not necessary to-->
+    <!-- specify an ik solver for every robot. But if there is one,-->
+    <!-- use iksolver field to identity it.-->
+    <!-- <iksolver>MyTriDOFSolver</iksolver> -->
+    <!-- joint values of the closed and opened positions-->
+    <!-- grasp goal with respect to the effector-->
+    <Translation>0 0 0</Translation>
+  </Manipulator>
+</Robot>

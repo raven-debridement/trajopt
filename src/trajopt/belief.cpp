@@ -16,15 +16,28 @@ namespace trajopt {
 BeliefRobotAndDOF::BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec& _joint_inds, int _affinedofs, const OR::Vector _rotationaxis) :
 			RobotAndDOF(_robot, _joint_inds, _affinedofs, _rotationaxis),
 			generator(boost::mt19937(time(NULL)+rand()), boost::normal_distribution<>(0, 1))
-{}
+{
+	if (GetDOF() == 3) link = GetRobot()->GetLink("Finger");
+	else link = GetRobot()->GetLink("Base");
+}
 
 MatrixXd BeliefRobotAndDOF::GetDynNoise() {
-	VectorXd diag_noise(3);
-	diag_noise << 0.08, 0.13, 0.18;
+	int n_dof = GetDOF();
+	VectorXd diag_noise(n_dof);
+	if (n_dof == 3)	diag_noise << 0.08, 0.13, 0.18;
+	else diag_noise << 0.005, 0.005;
+	assert(0);
 	return diag_noise.asDiagonal();
 }
 
-MatrixXd BeliefRobotAndDOF::GetObsNoise() { return VectorXd::Constant(3,0.09).asDiagonal(); }
+MatrixXd BeliefRobotAndDOF::GetObsNoise() {
+	int n_dof = GetDOF();
+	VectorXd diag_noise(n_dof);
+	if (n_dof == 3) diag_noise << 0.09, 0.09, 0.09;
+	else diag_noise << 0.005, 0.005;
+	assert(0);
+	return diag_noise.asDiagonal();
+}
 
 double sigmoid(double x,double mean) {
 	double y = (x - mean);
@@ -37,23 +50,29 @@ double sigmoid(double x,double mean) {
 }
 
 VectorXd BeliefRobotAndDOF::Observe(const VectorXd& dofs, const VectorXd& r) {
-	OR::RobotBasePtr robot = GetRobot();
+	int n_dof = GetDOF();
 	OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(this)->Save();
-	robot->SetDOFValues(toDblVec(dofs), false);
-	OR::KinBody::LinkPtr link = robot->GetLink("Finger");
+	SetDOFValues(toDblVec(dofs));
 	OR::Vector trans = link->GetTransform().trans;
 
-	VectorXd z = Vector3d(trans.x, trans.y, trans.z);
-	//z += sigmoid(trans.y, -0.2)*GetObsNoise()*r;
-	z += (0.5*pow(trans.y+0.2,2)+1)*GetObsNoise()*r; // as in the Platt paper
-//	z += ((trans.y+0.2)/0.4)*GetObsNoise()*r;
-//	if (trans.y<-0.2) z += 0.1*GetObsNoise()*r;
-//	else z += 10*GetObsNoise()*r;
+	VectorXd z(n_dof);
+	if (n_dof == 3) {
+		z = Vector3d(trans.x, trans.y, trans.z);
+		//z += sigmoid(trans.y, -0.2)*GetObsNoise()*r;
+		z += (0.5*pow(trans.y+0.2,2)+1)*r; // as in the Platt paper
+		//	z += ((trans.y+0.2)/0.4)*GetObsNoise()*r;
+		//	if (trans.y<-0.2) z += 0.1*GetObsNoise()*r;
+		//	else z += 10*GetObsNoise()*r;
+	} else {
+		z = Vector2d(trans.x, trans.y) + (0.5*pow(5.0 - trans.x,2)+1)*r; // as in the Platt paper
+	}
 	return z;
 }
 
 VectorXd BeliefRobotAndDOF::Dynamics(const VectorXd& dofs, const VectorXd& u, const VectorXd& q) {
-	VectorXd dofs1 = dofs+u + GetDynNoise()*q;
+//	VectorXd dofs1 = dofs+u + GetDynNoise()*q;
+	for (int i=0; i<q.size(); i++) assert(q[i] == 0);
+	VectorXd dofs1 = dofs+u;
 	return dofs1;
 }
 
@@ -82,49 +101,49 @@ VectorXd BeliefRobotAndDOF::VectorXdRand(int size) {
 }
 
 void BeliefRobotAndDOF::composeBelief(const VectorXd& x, const MatrixXd& rt_S, VectorXd& theta) {
-//	int n_dof = GetDOF();
-//	theta.resize(n_dof + n_dof*(n_dof+1)/2);
-//	theta.topRows(n_dof) = x;
-//	int idx = n_dof;
-//	for (int i=0; i<n_dof; i++) {
-//		for (int j=i; j<n_dof; j++) {
-//			theta(idx) = 0.5 * (rt_S(i,j)+rt_S(j,i));
-//			idx++;
-//		}
-//	}
 	int n_dof = GetDOF();
 	theta.resize(n_dof + n_dof*(n_dof+1)/2);
 	theta.topRows(n_dof) = x;
 	int idx = n_dof;
-	for (int j=0; j<n_dof; j++) {
-		for (int i=j; i<n_dof; i++) {
-			theta(idx) = rt_S(i,j);
+	for (int i=0; i<n_dof; i++) {
+		for (int j=i; j<n_dof; j++) {
+			theta(idx) = 0.5 * (rt_S(i,j)+rt_S(j,i));
 			idx++;
 		}
 	}
-}
-
-void BeliefRobotAndDOF::decomposeBelief(const VectorXd& theta, VectorXd& x, MatrixXd& rt_S) {
 //	int n_dof = GetDOF();
-//	x = theta.topRows(n_dof);
+//	theta.resize(n_dof + n_dof*(n_dof+1)/2);
+//	theta.topRows(n_dof) = x;
 //	int idx = n_dof;
-//	rt_S.resize(n_dof, n_dof);
-//	for (int j = 0; j < n_dof; ++j) {
-//		for (int i = j; i < n_dof; ++i) {
-//			rt_S(i,j) = rt_S(j,i) = theta(idx);
+//	for (int j=0; j<n_dof; j++) {
+//		for (int i=j; i<n_dof; i++) {
+//			theta(idx) = rt_S(i,j);
 //			idx++;
 //		}
 //	}
+}
+
+void BeliefRobotAndDOF::decomposeBelief(const VectorXd& theta, VectorXd& x, MatrixXd& rt_S) {
 	int n_dof = GetDOF();
 	x = theta.topRows(n_dof);
 	int idx = n_dof;
-	rt_S = MatrixXd::Zero(n_dof, n_dof);
-	for (int j=0; j<n_dof; j++) {
-		for (int i=j; i<n_dof; i++) {
-			rt_S(i,j) = theta(idx);
+	rt_S.resize(n_dof, n_dof);
+	for (int j = 0; j < n_dof; ++j) {
+		for (int i = j; i < n_dof; ++i) {
+			rt_S(i,j) = rt_S(j,i) = theta(idx);
 			idx++;
 		}
 	}
+//	int n_dof = GetDOF();
+//	x = theta.topRows(n_dof);
+//	int idx = n_dof;
+//	rt_S = MatrixXd::Zero(n_dof, n_dof);
+//	for (int j=0; j<n_dof; j++) {
+//		for (int i=j; i<n_dof; i++) {
+//			rt_S(i,j) = theta(idx);
+//			idx++;
+//		}
+//	}
 }
 
 void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma) {
@@ -148,25 +167,33 @@ void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const 
 	MatrixXd L = solver.solve(C*Gamma0);
 	MatrixXd Sigma = Gamma0 - Gamma0 * C.transpose() * L;
 
-	LLT<MatrixXd> lltofSigma(Sigma);
-	rtSigma = lltofSigma.matrixL();
+//	LLT<MatrixXd> lltofSigma(Sigma);
+//	rtSigma = lltofSigma.matrixL();
+	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd(Sigma, ComputeThinU | ComputeThinV);
+	rtSigma = svd.matrixU() * svd.singularValues().array().sqrt().matrix().asDiagonal() * svd.matrixV().transpose();
 }
 
 Eigen::MatrixXd BeliefRobotAndDOF::EndEffectorJacobian(const Eigen::VectorXd& x0) {
-	Eigen::MatrixXd jac(3,3);
-	double l1 = 0.16;
-	double l2 = 0.16;
-	double l3 = 0.08;
-	double s1 = -l1 * sin(x0(0));
-	double s2 = -l2 * sin(x0(0)+x0(1));
-	double s3 = -l3 * sin(x0(0)+x0(1)+x0(2));
-	double c1 = l1 * cos(x0(0));
-	double c2 = l2 * cos(x0(0)+x0(1));
-	double c3 = l3 * cos(x0(0)+x0(1)+x0(2));
-	jac << s1+s2+s3, s2+s3, s3, c1+c2+c3, c2+c3, c3, 0, 0, 0;
+	int n_dof = GetDOF();
+
+	Eigen::MatrixXd jac(n_dof,n_dof);
+
+	if (n_dof == 3) {
+		double l1 = 0.16;
+		double l2 = 0.16;
+		double l3 = 0.08;
+		double s1 = -l1 * sin(x0(0));
+		double s2 = -l2 * sin(x0(0)+x0(1));
+		double s3 = -l3 * sin(x0(0)+x0(1)+x0(2));
+		double c1 = l1 * cos(x0(0));
+		double c2 = l2 * cos(x0(0)+x0(1));
+		double c3 = l3 * cos(x0(0)+x0(1)+x0(2));
+		jac << s1+s2+s3, s2+s3, s3, c1+c2+c3, c2+c3, c3, 0, 0, 0;
+	} else {
+		jac << 1,0,0,1;
+	}
 
 //		// analytical jacobian computed in openrave
-//		OR::KinBody::LinkPtr link = GetRobot()->GetLink("Finger");
 //		DblMatrix Jxyz = PositionJacobian(link->GetIndex(), link->GetTransform().trans);
 //		cout << "Jxyz" << endl;
 //		std::cout << Jxyz << std::endl;
@@ -283,47 +310,81 @@ CovarianceCost::CovarianceCost(const VarVector& rtSigma_vars, const Eigen::Matri
 	assert(Q_.rows() == n_dof);
 	assert(Q_.cols() == n_dof);
 
-	QuadExpr a;
-	a.coeffs = vector<double>(3,Q_(0,0));
-	a.vars1.push_back(rtSigma_vars_[0]);
-	a.vars1.push_back(rtSigma_vars_[1]);
-	a.vars1.push_back(rtSigma_vars_[2]);
-	a.vars2 = a.vars1;
 
-	QuadExpr e;
-	e.coeffs = vector<double>(2,Q_(1,1));
-	e.vars1.push_back(rtSigma_vars_[3]);
-	e.vars1.push_back(rtSigma_vars_[4]);
-	e.vars2 = e.vars1;
+	if (n_dof == 3) {
+		cout << "runtime_error in belief.cpp at line " << __LINE__ << endl;
+		throw runtime_error("CovarianceCost for DOF=3 is wrong");
 
-	QuadExpr i;
-	i.coeffs = vector<double>(1,Q_(2,2));
-	i.vars1.push_back(rtSigma_vars_[5]);
-	i.vars2 = i.vars1;
+		QuadExpr a;
+		a.coeffs = vector<double>(3,Q_(0,0));
+		a.vars1.push_back(rtSigma_vars_[0]);
+		a.vars1.push_back(rtSigma_vars_[1]);
+		a.vars1.push_back(rtSigma_vars_[2]);
+		a.vars2 = a.vars1;
 
-	QuadExpr bd;
-	bd.coeffs = vector<double>(2,Q_(0,1)+Q_(1,0));
-	bd.vars1.push_back(rtSigma_vars_[1]);
-	bd.vars1.push_back(rtSigma_vars_[2]);
-	bd.vars2.push_back(rtSigma_vars_[3]);
-	bd.vars2.push_back(rtSigma_vars_[4]);
+		QuadExpr e;
+		e.coeffs = vector<double>(2,Q_(1,1));
+		e.vars1.push_back(rtSigma_vars_[3]);
+		e.vars1.push_back(rtSigma_vars_[4]);
+		e.vars2 = e.vars1;
 
-	QuadExpr cg;
-	cg.coeffs = vector<double>(1,Q_(0,2)+Q_(2,0));
-	cg.vars1.push_back(rtSigma_vars_[2]);
-	cg.vars2.push_back(rtSigma_vars_[5]);
+		QuadExpr i;
+		i.coeffs = vector<double>(1,Q_(2,2));
+		i.vars1.push_back(rtSigma_vars_[5]);
+		i.vars2 = i.vars1;
 
-	QuadExpr fh;
-	fh.coeffs = vector<double>(1,Q_(1,2)+Q_(2,1));
-	fh.vars1.push_back(rtSigma_vars_[4]);
-	fh.vars2.push_back(rtSigma_vars_[5]);
+		QuadExpr bd;
+		bd.coeffs = vector<double>(2,Q_(0,1)+Q_(1,0));
+		bd.vars1.push_back(rtSigma_vars_[1]);
+		bd.vars1.push_back(rtSigma_vars_[2]);
+		bd.vars2.push_back(rtSigma_vars_[3]);
+		bd.vars2.push_back(rtSigma_vars_[4]);
 
-	exprInc(expr_,a);
-	exprInc(expr_,e);
-	exprInc(expr_,i);
-	exprInc(expr_,bd);
-	exprInc(expr_,cg);
-	exprInc(expr_,fh);
+		QuadExpr cg;
+		cg.coeffs = vector<double>(1,Q_(0,2)+Q_(2,0));
+		cg.vars1.push_back(rtSigma_vars_[2]);
+		cg.vars2.push_back(rtSigma_vars_[5]);
+
+		QuadExpr fh;
+		fh.coeffs = vector<double>(1,Q_(1,2)+Q_(2,1));
+		fh.vars1.push_back(rtSigma_vars_[4]);
+		fh.vars2.push_back(rtSigma_vars_[5]);
+
+		exprInc(expr_,a);
+		exprInc(expr_,e);
+		exprInc(expr_,i);
+		exprInc(expr_,bd);
+		exprInc(expr_,cg);
+		exprInc(expr_,fh);
+	} else {
+
+		QuadExpr a;
+		a.coeffs = vector<double>(1,Q_(0,0));
+		a.vars1.push_back(rtSigma_vars_[0]);
+		a.vars2 = a.vars1;
+
+		QuadExpr b;
+		b.coeffs = vector<double>(1,Q_(0,0)+Q_(1,1));
+		b.vars1.push_back(rtSigma_vars_[1]);
+		b.vars2 = b.vars1;
+
+		QuadExpr c;
+		c.coeffs = vector<double>(1,Q_(1,1));
+		c.vars1.push_back(rtSigma_vars_[2]);
+		c.vars2 = c.vars1;
+
+		QuadExpr d;
+		d.coeffs = vector<double>(2,Q_(0,1)+Q_(1,0));
+		d.vars1.push_back(rtSigma_vars_[0]);
+		d.vars1.push_back(rtSigma_vars_[1]);
+		d.vars2.push_back(rtSigma_vars_[1]);
+		d.vars2.push_back(rtSigma_vars_[2]);
+
+		exprInc(expr_,a);
+		exprInc(expr_,b);
+		exprInc(expr_,c);
+		exprInc(expr_,d);
+	}
 	expr_ = cleanupQuad(expr_);
 }
 

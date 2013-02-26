@@ -16,11 +16,14 @@ public:
   BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec& _joint_inds, int _affinedofs=0, const OR::Vector _rotationaxis=OR::Vector());
 
   Eigen::MatrixXd GetDynNoise();
-  inline int GetQSize() { return GetDynNoise().cols(); }
+  inline int GetQSize() { return GetDOF(); }
+//  inline int GetQSize() { return GetDynNoise().cols(); }
 
   Eigen::MatrixXd GetObsNoise();
-  inline int GetRSize() { return GetObsNoise().cols(); }
-  inline int GetObsSize() { return GetObsNoise().rows(); }
+  inline int GetRSize() { return GetDOF(); }
+  inline int GetObsSize() { return GetDOF(); }
+//  inline int GetRSize() { return GetObsNoise().cols(); }
+//  inline int GetObsSize() { return GetObsNoise().rows(); }
 
   Eigen::VectorXd Observe(const Eigen::VectorXd& dofs, const Eigen::VectorXd& r);
   Eigen::VectorXd Dynamics(const Eigen::VectorXd& dofs, const Eigen::VectorXd& u, const Eigen::VectorXd& q);
@@ -32,6 +35,8 @@ public:
   void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& xest0, const Eigen::MatrixXd& Vest0, VectorXd& xest, Eigen::MatrixXd& Vest);
 
   Eigen::MatrixXd EndEffectorJacobian(const Eigen::VectorXd& x0);
+
+	OR::KinBody::LinkPtr link;
 };
 typedef boost::shared_ptr<BeliefRobotAndDOF> BeliefRobotAndDOFPtr;
 
