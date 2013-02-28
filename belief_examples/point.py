@@ -12,17 +12,28 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
         "basic_info" : {
             "n_steps" : 30,
             "manip" : "base_point",
-            "start_fixed" : True
+            "start_fixed" : True,
+            "belief_space" : True
         },
         "costs" : [
         #{
         #    "type" : "continuous_collision",
         #    "params" : {"coeffs" : [1],"dist_pen" : [0.01]}
         #},
+#        {
+#            "type" : "joint_vel",
+#            "params": {"coeffs" : [1]}
+#        },
         {
-            "type" : "joint_vel",
-            "params": {"coeffs" : [1]}
-        },        
+            "type" : "control",
+            "params": {"coeffs" : [0.1]}
+        },
+        {
+            "type" : "covariance",
+            "params": {
+                "Q" : (np.eye(2)*1).tolist()
+            }
+        },
         ],
         "constraints" : [
         {
@@ -34,7 +45,14 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
                 "xyz" : list(xyz_targ),
                 "wxyz" : list(quat_targ),
                 "link" : link_name,
-            },
+            }
+        },
+        {
+            "type" : "control",
+            "params": {
+                "u_min" : -0.5,
+                "u_max" : 0.5
+            }
         },
         ],
         "init_info" : {
@@ -86,5 +104,10 @@ if __name__ == "__main__":
     trajoptpy.SetInteractive(INTERACTIVE);
     prob = trajoptpy.ConstructProblem(s, env)
     result = trajoptpy.OptimizeProblem(prob)
+    
+    costs_sum = 0;
+    for cost in result.GetCosts():
+        costs_sum += cost[1]
+    print "Sum of final costs is ",costs_sum
     
 #    np.save("/home/alex/Desktop/traj.npy", result.GetTraj())

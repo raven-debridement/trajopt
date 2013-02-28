@@ -347,8 +347,8 @@ OptStatus BasicTrustRegionSQP::optimize() {
       goto cleanup;
     }
     else {
-      IPI_LOG_INFO("not all constraints are satisfied. increasing penalties");
       merit_error_coeff_ *= merit_coeff_increase_ratio_;
+      IPI_LOG_INFO("not all constraints are satisfied. increasing penalties to %.4f", merit_error_coeff_);
       trust_box_size_ = fmax(trust_box_size_, min_trust_box_size_ * 5);
     }
 

@@ -77,6 +77,7 @@ struct BasicInfo  {
 	string manip;
 	string robot; // optional
 	IntVec dofs_fixed; // optional
+	bool belief_space; // optional
 	void fromJson(const Json::Value& v);
 };
 
@@ -272,6 +273,37 @@ struct JointConstraintInfo : public CntInfo {
 	void fromJson(const Value& v);
 	void hatch(TrajOptProb& prob);
 	static CntInfoPtr create();
+};
+
+struct ControlCostInfo : public CostInfo {
+	bool belief_space;
+	DblVec coeffs;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CostInfoPtr create();
+};
+struct ControlCntInfo : public CntInfo {
+	bool belief_space;
+	double u_min;
+	double u_max;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CntInfoPtr create();
+};
+/**
+\brief trace of covariance
+
+\f{align*}{
+  cost = \sum_{t=0}^{T-1} \Tr(Q \Sigma)
+\f}
+where Q and \Sigma are DOF by DOF matrices.
+ */
+struct CovarianceCostInfo : public CostInfo {
+	bool belief_space;
+	Eigen::MatrixXd Q;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CostInfoPtr create();
 };
 
 
