@@ -15,7 +15,8 @@ namespace trajopt {
 
 BeliefRobotAndDOF::BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec& _joint_inds, int _affinedofs, const OR::Vector _rotationaxis) :
 			RobotAndDOF(_robot, _joint_inds, _affinedofs, _rotationaxis),
-			generator(boost::mt19937(time(NULL)+rand()), boost::normal_distribution<>(0, 1))
+			generator(boost::mt19937(time(NULL)+rand()), boost::normal_distribution<>(0, 1)),
+			n_theta(GetDOF() + GetDOF() * (GetDOF()+1) / 2)
 {
 	if (GetDOF() == 3) link = GetRobot()->GetLink("Finger");
 	else link = GetRobot()->GetLink("Base");
@@ -64,7 +65,7 @@ VectorXd BeliefRobotAndDOF::Observe(const VectorXd& dofs, const VectorXd& r) {
 		//	if (trans.y<-0.2) z += 0.1*GetObsNoise()*r;
 		//	else z += 10*GetObsNoise()*r;
 	} else {
-		z = Vector2d(trans.x, trans.y) + (0.5*pow(5.0 - trans.x,2)+1)*r; // as in the Platt paper
+		z = Vector2d(trans.x, trans.y) + (0.5*pow(5.0 - trans.x,2)+0.001)*r; // as in the Platt paper
 	}
 	return z;
 }
@@ -102,7 +103,7 @@ VectorXd BeliefRobotAndDOF::VectorXdRand(int size) {
 
 void BeliefRobotAndDOF::composeBelief(const VectorXd& x, const MatrixXd& rt_S, VectorXd& theta) {
 	int n_dof = GetDOF();
-	theta.resize(n_dof + n_dof*(n_dof+1)/2);
+	theta.resize(GetNTheta());
 	theta.topRows(n_dof) = x;
 	int idx = n_dof;
 	for (int i=0; i<n_dof; i++) {
@@ -112,7 +113,7 @@ void BeliefRobotAndDOF::composeBelief(const VectorXd& x, const MatrixXd& rt_S, V
 		}
 	}
 //	int n_dof = GetDOF();
-//	theta.resize(n_dof + n_dof*(n_dof+1)/2);
+//	theta.resize(GetNTheta());
 //	theta.topRows(n_dof) = x;
 //	int idx = n_dof;
 //	for (int j=0; j<n_dof; j++) {
@@ -171,6 +172,10 @@ void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const 
 //	rtSigma = lltofSigma.matrixL();
 	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd(Sigma, ComputeThinU | ComputeThinV);
 	rtSigma = svd.matrixU() * svd.singularValues().array().sqrt().matrix().asDiagonal() * svd.matrixV().transpose();
+
+	VectorXd s = svd.singularValues();
+	for (int i=0; i<s.size(); i++)
+		assert(s(i)>=0);
 }
 
 Eigen::MatrixXd BeliefRobotAndDOF::EndEffectorJacobian(const Eigen::VectorXd& x0) {
@@ -194,6 +199,7 @@ Eigen::MatrixXd BeliefRobotAndDOF::EndEffectorJacobian(const Eigen::VectorXd& x0
 	}
 
 //		// analytical jacobian computed in openrave
+//		OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(this)->Save();
 //		DblMatrix Jxyz = PositionJacobian(link->GetIndex(), link->GetTransform().trans);
 //		cout << "Jxyz" << endl;
 //		std::cout << Jxyz << std::endl;
@@ -204,6 +210,23 @@ Eigen::MatrixXd BeliefRobotAndDOF::EndEffectorJacobian(const Eigen::VectorXd& x0
 	return jac;
 }
 
+void BeliefRobotAndDOF::GetEndEffectorNoiseAsGaussian(const VectorXd& theta, VectorXd& mean, MatrixXd& cov) {
+	VectorXd x;
+	MatrixXd rt_Sigma;
+	decomposeBelief(theta, x, rt_Sigma);
+
+	MatrixXd jac = EndEffectorJacobian(x);
+
+	OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(this)->Save();
+	SetDOFValues(toDblVec(x));
+	OR::Vector trans = link->GetTransform().trans;
+	mean = Vector3d(trans.x, trans.y, trans.z);
+	MatrixXd partial_cov = jac * rt_Sigma * rt_Sigma.transpose() * jac.transpose();
+	assert(partial_cov.rows() == partial_cov.cols());
+	assert(partial_cov.rows() == 2 || partial_cov.rows() == 3);
+	cov = MatrixXd::Zero(3,3);
+	cov.topLeftCorner(partial_cov.rows(), partial_cov.cols()) = partial_cov;
+}
 
 BeliefDynamicsConstraint::BeliefDynamicsConstraint(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars, BeliefRobotAndDOFPtr brad) :
     		Constraint("BeliefDynamics"), brad_(brad), theta0_vars_(theta0_vars), theta1_vars_(theta1_vars), u_vars_(u_vars), type_(EQ)
@@ -303,10 +326,53 @@ ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin,
 	return out;
 }
 
+
+
+
+template <typename T>
+vector<T> concat(const vector<T>& a, const vector<T>& b) {
+  vector<T> out;
+  vector<int> x;
+  out.insert(out.end(), a.begin(), a.end());
+  out.insert(out.end(), b.begin(), b.end());
+  return out;
+}
+
+struct BeliefDynamicsErrCalculator : public VectorOfVector {
+  BeliefRobotAndDOFPtr brad_;
+  BeliefDynamicsErrCalculator(BeliefRobotAndDOFPtr brad) :
+  	brad_(brad)
+  {}
+
+  VectorXd operator()(const VectorXd& vals) const {
+  	int n_dof = brad_->GetDOF();
+  	int n_theta = brad_->GetNTheta();
+  	VectorXd theta0 = vals.topRows(n_theta);
+  	VectorXd theta1 = vals.middleRows(n_theta, n_theta);
+  	VectorXd u0 = vals.bottomRows(n_dof);
+  	assert(vals.size() == (2*n_theta + n_dof));
+
+  	VectorXd err = brad_->BeliefDynamics(theta0, u0) - theta1;
+
+    return err;
+  }
+};
+
+BeliefDynamicsConstraint2::BeliefDynamicsConstraint2(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars,
+		BeliefRobotAndDOFPtr brad, const BoolVec& enabled) :
+    ConstraintFromNumDiff(VectorOfVectorPtr(new BeliefDynamicsErrCalculator(brad)),
+    		concat(concat(theta0_vars, theta1_vars), u_vars), EQ, "BeliefDynamics2", enabled)
+{
+}
+
+
+
+
+
 CovarianceCost::CovarianceCost(const VarVector& rtSigma_vars, const Eigen::MatrixXd& Q, BeliefRobotAndDOFPtr brad) :
     Cost("Covariance"), rtSigma_vars_(rtSigma_vars), Q_(Q), brad_(brad) {
 	int n_dof = brad_->GetDOF();
-	assert(rtSigma_vars_.size() == (n_dof*(n_dof+1)/2));
+	assert(rtSigma_vars_.size() == (brad_->GetNTheta() - n_dof));
 	assert(Q_.rows() == n_dof);
 	assert(Q_.cols() == n_dof);
 
@@ -407,6 +473,28 @@ ConvexObjectivePtr CovarianceCost::convex(const vector<double>& x, Model* model)
 }
 
 
+ControlCost::ControlCost(const VarArray& vars, const VectorXd& coeffs) :
+    Cost("Control"), vars_(vars), coeffs_(coeffs) {
+  for (int i=0; i < vars.rows(); ++i) {
+  	QuadExpr expr;
+		expr.vars1 = vars_.row(i);
+		expr.vars2 = vars_.row(i);
+		expr.coeffs = toDblVec(coeffs);
+		exprInc(expr_, expr);
+  }
+}
+double ControlCost::value(const vector<double>& xvec) {
+  MatrixXd traj = getTraj(xvec, vars_);
+  return (traj.array().square().matrix() * coeffs_.asDiagonal()).sum();
+}
+ConvexObjectivePtr ControlCost::convex(const vector<double>& x, Model* model) {
+  ConvexObjectivePtr out(new ConvexObjective(model));
+  out->addQuadExpr(expr_);
+
+  return out;
+}
+
+
 MatrixXd calcNumJac(VectorOfVectorFun f, const VectorXd& x, double epsilon) {
 	VectorXd y = f(x);
 	MatrixXd out(y.size(), x.size());
@@ -424,7 +512,7 @@ MatrixXd calcNumJac(VectorOfVectorFun f, const VectorXd& x, double epsilon) {
 	return out;
 }
 
-osg::Matrix gaussianToTransform(const Eigen::Vector3d& mean, const Eigen::Matrix3d& cov) {
+osg::Matrix gaussianAsTransform(const Eigen::Vector3d& mean, const Eigen::Matrix3d& cov) {
 	//	Eigen::Matrix3d cov;
 	//	cov << 0.025, 0.0075, 0.00175, 0.0075, 0.0070, 0.00135, 0.00175, 0.00135, 0.00043;
 	//	Eigen::Vector3d mean(0,0,0.1);

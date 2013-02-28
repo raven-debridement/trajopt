@@ -1,17 +1,22 @@
 #pragma once
+#include "ipi/sco/modeling.hpp"
+#include "ipi/sco/modeling_utils.hpp"
+#include "ipi/sco/sco_fwd.hpp"
+#include <Eigen/Core>
 #include "trajopt/common.hpp"
+
 #include "osgviewer/osgviewer.hpp"
 #include "robot_and_dof.hpp"
 #include <boost/random/normal_distribution.hpp>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/variate_generator.hpp>
-#include <Eigen/Core>
 
 namespace trajopt {
 
 class BeliefRobotAndDOF : public RobotAndDOF {
 private:
   boost::variate_generator<boost::mt19937, boost::normal_distribution<> > generator;
+  int n_theta;
 public:
   BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec& _joint_inds, int _affinedofs=0, const OR::Vector _rotationaxis=OR::Vector());
 
@@ -35,6 +40,9 @@ public:
   void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& xest0, const Eigen::MatrixXd& Vest0, VectorXd& xest, Eigen::MatrixXd& Vest);
 
   Eigen::MatrixXd EndEffectorJacobian(const Eigen::VectorXd& x0);
+  void GetEndEffectorNoiseAsGaussian(const Eigen::VectorXd& theta, Eigen::VectorXd& mean, Eigen::MatrixXd& cov);
+
+  inline int GetNTheta() { return n_theta; }
 
 	OR::KinBody::LinkPtr link;
 };
@@ -55,6 +63,12 @@ protected:
   ConstraintType type_;
 };
 
+class BeliefDynamicsConstraint2 : public ConstraintFromNumDiff {
+public:
+	BeliefDynamicsConstraint2(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars,
+			BeliefRobotAndDOFPtr brad, const BoolVec& enabled=BoolVec());
+};
+
 class CovarianceCost : public Cost {
 public:
 	CovarianceCost(const VarVector& rtSigma_vars, const Eigen::MatrixXd& Q, BeliefRobotAndDOFPtr brad);
@@ -67,9 +81,20 @@ private:
   BeliefRobotAndDOFPtr brad_;
 };
 
+class ControlCost : public Cost {
+public:
+	ControlCost(const VarArray& traj, const VectorXd& coeffs);
+  virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
+  virtual double value(const vector<double>&);
+private:
+  VarArray vars_;
+  VectorXd coeffs_;
+  QuadExpr expr_;
+};
+
 typedef boost::function<VectorXd(VectorXd)> VectorOfVectorFun;
 typedef boost::shared_ptr<VectorOfVectorFun> VectorOfVectorFunPtr;
 Eigen::MatrixXd calcNumJac(VectorOfVectorFun f, const VectorXd& x, double epsilon=0.00048828125);
-osg::Matrix gaussianToTransform(const Eigen::Vector3d& mean, const Eigen::Matrix3d& cov);
+osg::Matrix gaussianAsTransform(const Eigen::Vector3d& mean, const Eigen::Matrix3d& cov);
 
 }

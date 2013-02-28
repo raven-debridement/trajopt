@@ -43,6 +43,7 @@ public:
 
   OpenRAVE::GraphHandlePtr PlotAxes(const OpenRAVE::Transform& T, float size);
   OpenRAVE::GraphHandlePtr PlotEllipsoid(const osg::Matrix& T, const RaveVectorf& color);
+  OpenRAVE::GraphHandlePtr PlotEllipseXYContour(const osg::Matrix& T, const RaveVectorf& color, bool dotted=false);
   OpenRAVE::GraphHandlePtr PlotSphere(const OpenRAVE::Vector& x, float radius, const RaveVectorf& color);
 
   /** copy current state of kinbody or link */

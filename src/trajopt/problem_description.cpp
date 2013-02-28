@@ -33,6 +33,11 @@ void RegisterMakers() {
   CntInfo::RegisterMaker("pose", &PoseCntInfo::create);
   CntInfo::RegisterMaker("cart_vel", &CartVelCntInfo::create);
 
+  // belief costs and controls
+  CostInfo::RegisterMaker("control", &ControlCostInfo::create);
+  CostInfo::RegisterMaker("covariance", &CovarianceCostInfo::create);
+
+  CntInfo::RegisterMaker("control", &ControlCntInfo::create);
 
   gRegisteredMakers = true;
 }
@@ -103,6 +108,7 @@ void BasicInfo::fromJson(const Json::Value& v) {
   childFromJson(v, manip, "manip");
   childFromJson(v, robot, "robot", string(""));
   childFromJson(v, dofs_fixed, "dofs_fixed", IntVec());
+  childFromJson(v, belief_space, "belief_space", false);
 }
 
 
@@ -237,6 +243,8 @@ TrajOptResultPtr OptimizeProblem(TrajOptProbPtr prob, bool plot) {
   opt.max_iter_ = 1000;
   opt.min_approx_improve_frac_ = .001;
   opt.merit_error_coeff_ = 10;
+  opt.max_merit_coeff_increases_ = 15;
+
   if (plot) opt.addCallback(PlotCallback(*prob));
   //  opt.addCallback(boost::bind(&PlotCosts, boost::ref(prob->getCosts()),boost::ref(*prob->GetRAD()), boost::ref(prob->GetVars()), _1));
   opt.initialize(trajToDblVec(prob->GetInitTraj()));
@@ -280,8 +288,8 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
   }
   prob->createVariables(names, vlower, vupper);
   //belief-alex
-  int theta_size = n_dof + n_dof*(n_dof+1)/2;
-  prob->m_traj_vars = VarArray(n_steps, theta_size+n_dof, prob->vars_.data());
+  int n_theta = prob->m_rad->GetNTheta();
+  prob->m_traj_vars = VarArray(n_steps, n_theta+n_dof, prob->vars_.data());
 
   DblVec cur_dofvals = prob->m_rad->GetDOFValues();
 
@@ -322,50 +330,46 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
   BOOST_FOREACH(const CostPtr& cost, prob->getCosts()) cost->setName(cost_names[iCost++]);
   BOOST_FOREACH(const ConstraintPtr& cnt, prob->getConstraints()) cnt->setName(cnt_names[iCnt++]);
 
-  // belief-alex begin
-  for (int i=0; i < n_steps; ++i) {
-		VarVector rtSigma_vars = prob->m_traj_vars.block(0,n_dof,n_steps,theta_size-n_dof).row(i);
-		prob->addCost(CostPtr(new CovarianceCost(rtSigma_vars, MatrixXd::Identity(n_dof,n_dof), prob->GetRAD())));
-	}
-  for (unsigned i=0; i < n_steps-1; ++i) {
-		VarVector theta0_vars = prob->m_traj_vars.block(0,0,n_steps,theta_size).row(i);
-		VarVector theta1_vars = prob->m_traj_vars.block(0,0,n_steps,theta_size).row(i+1);
-		VarVector u_vars = prob->m_traj_vars.block(0,theta_size,n_steps,n_dof).row(i);
-		prob->addConstr(ConstraintPtr(new BeliefDynamicsConstraint(theta0_vars, theta1_vars, u_vars, prob->GetRAD())));
-	}
-
-  TrajArray init_data = TrajArray::Zero(n_steps,theta_size+n_dof);
-  MatrixXd rt_Sigma0;
-  if (n_dof == 3) rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof)*0.1;
-  else rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof)*sqrt(5);
-  for (unsigned i=0; i < n_steps-1; ++i) {
-  	VectorXd x0 = pci.init_info.data.block(i,0,1,n_dof).transpose();
-  	VectorXd x1 = pci.init_info.data.block(i+1,0,1,n_dof).transpose();
-  	VectorXd u0 = x1-x0;
-  	VectorXd theta0;
-  	prob->GetRAD()->composeBelief(x0, rt_Sigma0, theta0);
-  	init_data.block(i,0,1,theta_size) = theta0.transpose();
-  	init_data.block(i,theta_size,1,n_dof) = u0.transpose();
-		VectorXd x_unused;
-		prob->GetRAD()->ekfUpdate(u0, x0, rt_Sigma0, x_unused, rt_Sigma0);
-
-		if (i == n_steps-2) {
-	  	VectorXd theta1;
-	  	prob->GetRAD()->composeBelief(x1, rt_Sigma0, theta1);
-	  	init_data.block(i+1,0,1,theta_size) = theta1.transpose();
+  TrajArray init_data = TrajArray::Zero(n_steps,n_theta+n_dof);
+  init_data.block(0,0,n_steps,n_dof) = pci.init_info.data;
+  if (bi.belief_space) {
+		for (int i=0; i < n_steps-1; ++i) {
+			VarVector theta0_vars = prob->m_traj_vars.block(0,0,n_steps,n_theta).row(i);
+			VarVector theta1_vars = prob->m_traj_vars.block(0,0,n_steps,n_theta).row(i+1);
+			VarVector u_vars = prob->m_traj_vars.block(0,n_theta,n_steps,n_dof).row(i);
+			prob->addConstr(ConstraintPtr(new BeliefDynamicsConstraint(theta0_vars, theta1_vars, u_vars, prob->GetRAD())));
 		}
+
+		MatrixXd rt_Sigma0;
+		if (n_dof == 3) rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof)*0.1;
+		else rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof)*sqrt(5);
+		for (unsigned i=0; i < n_steps-1; ++i) {
+			VectorXd x0 = pci.init_info.data.block(i,0,1,n_dof).transpose();
+			VectorXd x1 = pci.init_info.data.block(i+1,0,1,n_dof).transpose();
+			VectorXd u0 = x1-x0;
+			VectorXd theta0;
+			prob->GetRAD()->composeBelief(x0, rt_Sigma0, theta0);
+			init_data.block(i,0,1,n_theta) = theta0.transpose();
+			init_data.block(i,n_theta,1,n_dof) = u0.transpose();
+			VectorXd x_unused;
+			prob->GetRAD()->ekfUpdate(u0, x0, rt_Sigma0, x_unused, rt_Sigma0);
+
+			if (i == n_steps-2) {
+				VectorXd theta1;
+				prob->GetRAD()->composeBelief(x1, rt_Sigma0, theta1);
+				init_data.block(i+1,0,1,n_theta) = theta1.transpose();
+			}
+		}
+
+		// fix the initial covariance
+		if (bi.start_fixed) {
+			for (int j=n_dof; j < n_theta; ++j) {
+				prob->addLinearConstr(exprSub(AffExpr(prob->m_traj_vars(0,j)), init_data(0,j)), EQ);
+			}
+		}
+
+		cout << init_data << endl;
   }
-
-  // fix the initial covariance
-  if (bi.start_fixed) {
-  	for (int j=n_dof; j < theta_size; ++j) {
-			prob->addLinearConstr(exprSub(AffExpr(prob->m_traj_vars(0,j)), init_data(0,j)), EQ);
-		}
-	}
-
-  //init_data.block(0,0,n_steps,n_dof) = pci.init_info.data;
-  cout << init_data << endl;
-  // belief-alex end
 
   prob->SetInitTraj(init_data);
 
@@ -400,7 +404,6 @@ TrajOptProb::TrajOptProb(int n_steps, BeliefRobotAndDOFPtr rad) : m_rad(rad) {
 
 TrajOptProb::TrajOptProb() {
 }
-
 
 void PoseCostInfo::fromJson(const Value& v) {
   FAIL_IF_FALSE(v.isMember("params"));
@@ -598,6 +601,92 @@ CntInfoPtr JointConstraintInfo::create() {
   return CntInfoPtr(new JointConstraintInfo());
 }
 
+
+
+void ControlCostInfo::fromJson(const Value& v) {
+	belief_space = gPCI->basic_info.belief_space;
+	if (!belief_space) {
+		IPI_LOG_WARNING("control cost can only be used in belief space. ignoring.");
+		return;
+	}
+  FAIL_IF_FALSE(v.isMember("params"));
+  const Value& params = v["params"];
+
+  childFromJson(params, coeffs,"coeffs");
+  int n_dof = gPCI->rad->GetDOF();
+  if (coeffs.size() == 1) coeffs = DblVec(n_dof, coeffs[0]);
+  else if (coeffs.size() != n_dof) {
+    PRINT_AND_THROW( boost::format("wrong number of coeffs. expected %i got %i")%n_dof%coeffs.size());
+  }
+}
+CostInfoPtr ControlCostInfo::create() {
+  return CostInfoPtr(new ControlCostInfo());
+}
+void ControlCostInfo::hatch(TrajOptProb& prob) {
+  if (!belief_space) return;
+  prob.addCost(CostPtr(new ControlCost(prob.GetVars().block(0,prob.GetRAD()->GetNTheta(),prob.GetVars().m_nRow-1, prob.GetRAD()->GetDOF()), toVectorXd(coeffs))));
+}
+
+void ControlCntInfo::fromJson(const Value& v) {
+	belief_space = gPCI->basic_info.belief_space;
+	if (!belief_space) {
+		IPI_LOG_WARNING("control constraint can only be used in belief space. ignoring.");
+		return;
+	}
+  FAIL_IF_FALSE(v.isMember("params"));
+  const Value& params = v["params"];
+  childFromJson(params, u_min, "u_min");
+  childFromJson(params, u_max, "u_max");
+}
+CntInfoPtr ControlCntInfo::create() {
+  return CntInfoPtr(new ControlCntInfo());
+}
+void ControlCntInfo::hatch(TrajOptProb& prob) {
+	if (!belief_space) return;
+	int n_dof = prob.GetRAD()->GetDOF();
+	int n_theta = prob.GetRAD()->GetNTheta();
+	for (int i=0; i < prob.GetVars().m_nRow-1; i++) {
+	  for (int j=n_theta; j < n_theta+n_dof; j++) {
+	  	prob.addLinearConstr(exprSub(AffExpr(prob.GetVars()(i,j)), u_max), INEQ);
+	  	prob.addLinearConstr(exprMult(exprSub(AffExpr(prob.GetVars()(i,j)), u_min), -1), INEQ);
+	  }
+	}
+}
+
+void CovarianceCostInfo::fromJson(const Value& v) {
+	belief_space = gPCI->basic_info.belief_space;
+	if (!belief_space) {
+		IPI_LOG_WARNING("covariance cost can only be used in belief space. ignoring.");
+		return;
+	}
+  FAIL_IF_FALSE(v.isMember("params"));
+  const Value& params = v["params"];
+
+  FAIL_IF_FALSE(params.isMember("Q"));
+	const Value& Q_array = params["Q"];
+  int n_dof = gPCI->rad->GetDOF();
+	if (Q_array.size() != n_dof) PRINT_AND_THROW("cost matrix for the covariance has wrong number of rows");
+	Q = MatrixXd(n_dof,n_dof);
+	for (int i=0; i < n_dof; i++) {
+		if (Q_array[i].size() != n_dof) PRINT_AND_THROW("cost matrix for the covariance has wrong number of columns");
+		DblVec row;
+		fromJsonArray(Q_array[i], row, n_dof);
+		Q.row(i) = toVectorXd(row).transpose();
+	}
+}
+CostInfoPtr CovarianceCostInfo::create() {
+  return CostInfoPtr(new CovarianceCostInfo());
+}
+void CovarianceCostInfo::hatch(TrajOptProb& prob) {
+	if (!belief_space) return;
+	int n_dof = prob.GetRAD()->GetDOF();
+	int n_theta = prob.GetRAD()->GetNTheta();
+	int n_steps = prob.GetVars().m_nRow;
+	for (int i=0; i < n_steps; ++i) {
+		VarVector rtSigma_vars = prob.GetVars().rblock(i,n_dof,n_theta-n_dof);
+		prob.addCost(CostPtr(new CovarianceCost(rtSigma_vars, Q, prob.GetRAD())));
+	}
+}
 
 }
 
