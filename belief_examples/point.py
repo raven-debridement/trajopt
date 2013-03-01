@@ -16,10 +16,10 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
             "belief_space" : True
         },
         "costs" : [
-        #{
-        #    "type" : "continuous_collision",
-        #    "params" : {"coeffs" : [1],"dist_pen" : [0.01]}
-        #},
+#        {
+#            "type" : "continuous_collision",
+#            "params" : {"coeffs" : [1],"dist_pen" : [0.5]}
+#        },
 #        {
 #            "type" : "joint_vel",
 #            "params": {"coeffs" : [1]}
@@ -96,6 +96,8 @@ if __name__ == "__main__":
     T_grasp = np.eye(4)
     xyz_targ = T_grasp[:3,3]
     mk.create_mesh_box(env, np.array([5+0.01,0,0]), np.array([0.01,10,0.01]))
+#    mk.create_mesh_box(env, np.array([3.5,3,0]), np.array([1,1,2]), "box1")
+#    mk.create_mesh_box(env, np.array([3.5,-0.5,0]), np.array([1,1,2]), "box2")
     quat_targ = rave.quatFromRotationMatrix(T_grasp[:3,:3])
 
     request = move_arm_to_grasp(xyz_targ, quat_targ, LINK_NAME, MANIP_NAME)

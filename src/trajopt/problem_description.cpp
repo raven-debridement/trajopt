@@ -535,7 +535,7 @@ void CollisionCostInfo::fromJson(const Value& v) {
 }
 void CollisionCostInfo::hatch(TrajOptProb& prob) {
   for (int i=0; i < prob.GetNumSteps(); ++i) {
-    prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVarRow(i))));
+  	prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()))));
   }
   CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
   cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
@@ -567,7 +567,8 @@ void ContinuousCollisionCostInfo::fromJson(const Value& v) {
 }
 void ContinuousCollisionCostInfo::hatch(TrajOptProb& prob) {
   for (int i=first_step; i < last_step; ++i) {
-    prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+1))));
+    prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()), prob.GetVars().rblock(i+1,0,prob.GetRAD()->GetDOF()))));
+//    prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()), prob.GetVars().rblock(i+1,0,prob.GetRAD()->GetDOF()), true)));
   }
   CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
   cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);

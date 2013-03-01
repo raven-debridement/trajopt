@@ -31,6 +31,7 @@ public:
 //  inline int GetObsSize() { return GetObsNoise().rows(); }
 
   // UKF update functions
+  MatrixXd sigmaPoints(const VectorXd& theta);
   MatrixXd sigmaPoints(const VectorXd& mean, const MatrixXd& cov);
   VectorXd sigmaPoint(const VectorXd& mean, const MatrixXd& cov, int idx);
   void ukfUpdate(const VectorXd& u0, const VectorXd& xest0, const MatrixXd& Vest0, VectorXd& xest, MatrixXd& Vest);

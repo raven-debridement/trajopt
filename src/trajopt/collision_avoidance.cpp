@@ -49,7 +49,7 @@ void CollisionsToDistanceExpressions(const vector<Collision>& collisions, RobotA
     Link2Int::const_iterator itB = m_link2ind.find(col.linkB);
     if (itB != m_link2ind.end()) {
       VectorXd dist_grad = -toVector3d(col.normalB2A).transpose()*rad.PositionJacobian(itB->second, col.ptB);
-      exprInc(dist, varDot(dist_grad, m_vars));
+			exprInc(dist, varDot(dist_grad, m_vars));
       exprInc(dist, -dist_grad.dot(toVectorXd(dofvals)));
     }
     if (itA != m_link2ind.end() || itB != m_link2ind.end()) {
@@ -158,7 +158,53 @@ void CastCollisionEvaluator::CalcDists(const DblVec& x, DblVec& exprs, DblVec& w
 
 
 //////////////////////////////////////////
-
+//SigmaPtsCollisionEvaluator::SigmaPtsCollisionEvaluator(RobotAndDOFPtr rad, const VarVector& theta_vars) :
+//  m_env(rad->GetRobot()->GetEnv()),
+//  m_cc(CollisionChecker::GetOrCreate(*m_env)),
+//  m_rad(rad),
+//  m_theta_vars(theta_vars),
+//  m_link2ind(),
+//  m_links() {
+//  RobotBasePtr robot = rad->GetRobot();
+//  const vector<KinBody::LinkPtr>& robot_links = robot->GetLinks();
+//  vector<KinBody::LinkPtr> links;
+//  vector<int> inds;
+//  rad->GetAffectedLinks(m_links, true, inds);
+//  for (int i=0; i < m_links.size(); ++i) {
+//    m_link2ind[m_links[i].get()] = inds[i];
+//  }
+//}
+//
+//void SigmaPtsCollisionEvaluator::CalcCollisions(const DblVec& x, vector<Collision>& collisions) {
+//  DblVec theta = getDblVec(x, m_theta_vars);
+//  BeliefRobotAndDOFPtr brad = boost::dynamic_pointer_cast<BeliefRobotAndDOF>(m_rad);
+//  MatrixXd sigma_pts = brad->sigmaPoints(theta);
+//  m_rad->SetDOFValues(toDblVec(sigma_pts.col(0).transpose())); // is this necessary?
+//  vector<DblVec> dofvals(simga_pts.rows());
+//  for (int i=0; i<sigma_pts.rows(); i++) {
+//  	dofvals[i] = toDblVec(sigma_pts.col(i).transpose());
+//  }
+//  m_cc->MultiCastVsAll(*m_rad, m_links, dofvals, collisions);
+//}
+//void SigmaPtsCollisionEvaluator::CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights) {
+//  vector<Collision> collisions;
+//  GetCollisionsCached(x, collisions);
+//  DblVec theta = getDblVec(x, m_theta_vars);
+//
+//  DblVec dofvals = getDblVec(x, m_vars0);
+//  CollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_vars0, dofvals, exprs, weights);
+//  dofvals = getDblVec(x, m_vars1);
+//  CollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_vars1, dofvals, exprs, weights);
+//}
+//void SigmaPtsCollisionEvaluator::CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights) {
+//  vector<Collision> collisions;
+//  GetCollisionsCached(x, collisions);
+//  DblVec dofvals = getDblVec(x, m_vars0);
+//  CollisionsToDistances(collisions, m_link2ind, exprs, weights);
+//  dofvals = getDblVec(x, m_vars1);
+//  CollisionsToDistances(collisions, m_link2ind, exprs, weights);
+//}
+//////////////////////////////////////////
 
 
 typedef OpenRAVE::RaveVector<float> RaveVectorf;
@@ -183,6 +229,10 @@ CollisionCost::CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, 
     m_calc(new CastCollisionEvaluator(rad, vars0, vars1)), m_dist_pen(dist_pen), m_coeff(coeff)
 {}
 
+//CollisionCost::CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1, bool multi) :
+//    Cost("multi_cast_collision"),
+//    m_calc(new SigmaPtsCollisionEvaluator(rad, vars0, vars1)), m_dist_pen(dist_pen), m_coeff(coeff)
+//{}
 
 ConvexObjectivePtr CollisionCost::convex(const vector<double>& x, Model* model) {
   ConvexObjectivePtr out(new ConvexObjective(model));

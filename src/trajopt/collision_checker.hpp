@@ -45,6 +45,7 @@ public:
 
   virtual void ContinuousCheckTrajectory(const TrajArray& traj, RobotAndDOF& rad, vector<Collision>& collisions) {throw std::runtime_error("not implemented");}
   virtual void CastVsAll(RobotAndDOF& rad, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions) {throw std::runtime_error("not implemented");}
+  virtual void MultiCastVsAll(RobotAndDOF& rad, const vector<KinBody::LinkPtr>& links, const vector<DblVec>& multi_joints, vector<Collision>& collisions) {throw std::runtime_error("not implemented");}
 
   void IgnoreZeroStateSelfCollisions();
   void IgnoreZeroStateSelfCollisions(OpenRAVE::KinBodyPtr body);

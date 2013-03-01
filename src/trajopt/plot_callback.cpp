@@ -22,33 +22,51 @@ void PlotTraj(OSGViewer& viewer, BeliefRobotAndDOFPtr rad, const TrajArray& traj
     SetTransparency(handles.back(), trans_param);
   }
 
-	OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(rad.get())->Save();
+	if (traj.cols() >= n_dof) {
+		OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(rad.get())->Save();
 
-	for (int i=0; i < n_steps; ++i) {
-		VectorXd theta = traj.block(i,0,1,n_theta).transpose();
-		VectorXd mean;
-		MatrixXd cov;
-		rad->GetEndEffectorNoiseAsGaussian(theta, mean, cov);
+		for (int i=0; i < n_steps; ++i) {
+			VectorXd theta = traj.block(i,0,1,n_theta).transpose();
+			VectorXd mean;
+			MatrixXd cov;
+			rad->GetEndEffectorNoiseAsGaussian(theta, mean, cov);
 
-		//handles.push_back(viewer.PlotEllipsoid(gaussianToTransform(trans_eig,cov), OR::Vector(1,0,0,1)));
-    //SetTransparency(handles.back(), 0.35);
-		double color_param = ((double)i)/((double)n_steps-1.0);
-		handles.push_back(viewer.PlotEllipseXYContour(gaussianAsTransform(mean,cov), OR::Vector(0.0,color_param,1.0-color_param,1.0)));
+			//handles.push_back(viewer.PlotEllipsoid(gaussianToTransform(trans_eig,cov), OR::Vector(1,0,0,1)));
+			//SetTransparency(handles.back(), 0.35);
+			double color_param = ((double)i)/((double)n_steps-1.0);
+			handles.push_back(viewer.PlotEllipseXYContour(gaussianAsTransform(mean,cov), OR::Vector(0.0,color_param,1.0-color_param,1.0)));
+		}
 
-	}
+		for (int i=0; i<n_steps; i++) {
+			VectorXd theta = traj.block(i,0,1,n_theta).transpose();
+			VectorXd x;
+			MatrixXd rt_Sigma;
+			rad->decomposeBelief(theta, x, rt_Sigma);
 
-	VectorXd theta = traj.block(0,0,1,n_theta).transpose();
-	for (int i=0; i<n_steps; i++) {
-		VectorXd mean;
-		MatrixXd cov;
-		rad->GetEndEffectorNoiseAsGaussian(theta, mean, cov);
+			MatrixXd sigma_pts = rad->sigmaPoints(x, rt_Sigma*rt_Sigma. transpose());
+			double trans_param = (((double)i)/((double)n_steps-1.0)+0.35)/1.35;
+			for (int j=1; j<sigma_pts.cols(); j++) {
+				rad->SetDOFValues(toDblVec(sigma_pts.col(j)));
+				handles.push_back(viewer.PlotKinBody(rad->GetRobot()));
+				SetColor(handles.back(), osg::Vec4f(0.8,0,0,1));
+				SetTransparency(handles.back(), trans_param);
+			}
+		}
 
-		double color_param = ((double)i)/((double)n_steps-1.0);
-		handles.push_back(viewer.PlotEllipseXYContour(gaussianAsTransform(mean,cov), OR::Vector(0.0,color_param,1.0-color_param,1.0), true));
 
-		if (i != (n_steps-1)) {
-			VectorXd u = traj.block(i,n_theta,1,n_dof).transpose();
-			theta = rad->BeliefDynamics(theta,u);
+		VectorXd theta = traj.block(0,0,1,n_theta).transpose();
+		for (int i=0; i<n_steps; i++) {
+			VectorXd mean;
+			MatrixXd cov;
+			rad->GetEndEffectorNoiseAsGaussian(theta, mean, cov);
+
+			double color_param = ((double)i)/((double)n_steps-1.0);
+			handles.push_back(viewer.PlotEllipseXYContour(gaussianAsTransform(mean,cov), OR::Vector(0.0,color_param,1.0-color_param,1.0), true));
+
+			if (i != (n_steps-1)) {
+				VectorXd u = traj.block(i,n_theta,1,n_dof).transpose();
+				theta = rad->BeliefDynamics(theta,u);
+			}
 		}
 	}
 }

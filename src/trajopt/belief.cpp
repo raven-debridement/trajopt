@@ -24,14 +24,14 @@ BeliefRobotAndDOF::BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec
 	// UKF vars
 	alpha = 0.5;
 	beta = 2.0;
-	kappa = 50.0;
+	kappa = 5.0;
 }
 
 MatrixXd BeliefRobotAndDOF::GetDynNoise() {
 	int n_dof = GetDOF();
 	VectorXd diag_noise(n_dof);
 	if (n_dof == 3)	diag_noise << 0.08, 0.13, 0.18;
-	else diag_noise << 0.1, 0.1;
+	else diag_noise << 0.05, 0.05;
 	return diag_noise.asDiagonal();
 }
 
@@ -151,12 +151,19 @@ void BeliefRobotAndDOF::decomposeBelief(const VectorXd& theta, VectorXd& x, Matr
 //	}
 }
 
+MatrixXd BeliefRobotAndDOF::sigmaPoints(const VectorXd& theta) {
+	VectorXd x;
+	MatrixXd rtSigma;
+	decomposeBelief(theta, x, rtSigma);
+	return sigmaPoints(x, rtSigma*rtSigma.transpose());
+}
+
 MatrixXd BeliefRobotAndDOF::sigmaPoints(const VectorXd& mean, const MatrixXd& cov)
 {
 	int n_dof = GetDOF();
-	int n_q = GetQSize();
+	int n_r = GetRSize();
 
-	int L = n_dof + n_q;
+	int L = n_dof + n_r;
 
 	double lambda = alpha*alpha*(L + kappa) - L;
 	double w = 1 / (2*(L + lambda));

@@ -284,6 +284,7 @@ public:
   virtual void LinkVsAll(const KinBody::Link& link, vector<Collision>& collisions);
   virtual void ContinuousCheckTrajectory(const TrajArray& traj, RobotAndDOF& rad, vector<Collision>&);
   virtual void CastVsAll(RobotAndDOF& rad, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions);
+  virtual void MultiCastVsAll(RobotAndDOF& rad, const vector<KinBody::LinkPtr>& links, const vector<DblVec>& multi_joints, vector<Collision>& collisions);
   ////
   ///////
 
@@ -303,8 +304,8 @@ public:
   void SetLinkIndices();
   void CheckShapeCast(btCollisionShape* shape, const btTransform& tf0, const btTransform& tf1,
       CollisionObjectWrapper* cow, btCollisionWorld* world, vector<Collision>& collisions);
-
-
+  void CheckShapeMultiCast(btCollisionShape* shape, const vector<btTransform>& tfi,
+      CollisionObjectWrapper* cow, btCollisionWorld* world, vector<Collision>& collisions);
 };
 
 struct CollisionCollector : public btCollisionWorld::ContactResultCallback {
@@ -786,8 +787,6 @@ public:
 
 };
 
-
-
 void BulletCollisionChecker::CheckShapeCast(btCollisionShape* shape, const btTransform& tf0, const btTransform& tf1,
     CollisionObjectWrapper* cow, btCollisionWorld* world, vector<Collision>& collisions) {
   if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
@@ -839,9 +838,121 @@ void BulletCollisionChecker::CastVsAll(RobotAndDOF& rad, const vector<KinBody::L
   RAVELOG_DEBUG("CastVsAll checked %i links and found %i collisions\n", links.size(), collisions.size());
 }
 
+/////////////////////////////////
+
+class MultiCastHullShape : public btConvexShape {
+public:
+  btConvexShape* m_shape;
+  vector<btTransform> m_t0i; // T_0_i = T_w_0^-1 * T_w_i
+  MultiCastHullShape(btConvexShape* shape, const vector<btTransform>& t0i) : m_shape(shape), m_t0i(t0i) {
+    m_shapeType = CUSTOM_CONVEX_SHAPE_TYPE;
+  }
+  btVector3   localGetSupportingVertex(const btVector3& vec)const {
+  	vector<btVector3> svi (m_t0i.size());
+  	double max_vec_dot_sv = -INFINITY;
+  	int max_ind = -1;
+  	m_shape->localGetSupportingVertex(vec);
+  	for (int i=0; i<m_t0i.size(); i++) {
+  		svi[i] = m_t0i[i]*m_shape->localGetSupportingVertex(vec*m_t0i[i].getBasis());
+  		double vec_dot_sv = vec.dot(svi[i]);
+  		if (vec_dot_sv > max_vec_dot_sv) {
+  			max_vec_dot_sv = vec_dot_sv;
+  			max_ind = i;
+  		}
+  	}
+  	assert(max_vec_dot_sv != -INFINITY);
+  	assert(max_ind != -1);
+  	return svi[max_ind];
+  }
+  //notice that the vectors should be unit length
+  void    batchedUnitVectorGetSupportingVertexWithoutMargin(const btVector3* vectors,btVector3* supportVerticesOut,int numVectors) const {
+    throw std::runtime_error("not implemented");
+  }
+  ///getAabb's default implementation is brute force, expected derived classes to implement a fast dedicated version
+  void getAabb(const btTransform& t_w0,btVector3& aabbMin,btVector3& aabbMax) const {
+    m_shape->getAabb(t_w0, aabbMin, aabbMax);
+    btVector3 min_i, max_i;
+    for (int i=0; i<m_t0i.size(); i++) {
+    	m_shape->getAabb(t_w0*m_t0i[i], min_i, max_i );
+			aabbMin.setMin(min_i);
+			aabbMax.setMax(max_i);
+    }
+  }
+  virtual void getAabbSlow(const btTransform& t,btVector3& aabbMin,btVector3& aabbMax) const {
+    throw std::runtime_error("shouldn't happen");
+  }
+  virtual void    setLocalScaling(const btVector3& scaling) {}
+  virtual const btVector3& getLocalScaling() const {
+    static btVector3 out(1,1,1);
+    return out;
+  }
+  virtual void    setMargin(btScalar margin) {}
+  virtual btScalar    getMargin() const {return 0;}
+  virtual int     getNumPreferredPenetrationDirections() const {return 0;}
+  virtual void    getPreferredPenetrationDirection(int index, btVector3& penetrationVector) const {throw std::runtime_error("not implemented");}
+  virtual void calculateLocalInertia(btScalar, btVector3&) const {throw std::runtime_error("not implemented");}
+  virtual const char* getName() const {return "MultiCastHullShape";}
+  virtual btVector3 localGetSupportingVertexWithoutMargin(const btVector3& v) const {return localGetSupportingVertex(v);}
+};
+
+void BulletCollisionChecker::CheckShapeMultiCast(btCollisionShape* shape, const vector<btTransform>& tfi,
+    CollisionObjectWrapper* cow, btCollisionWorld* world, vector<Collision>& collisions) {
+  if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
+  	vector<btTransform> t0i(tfi.size());
+  	// transform all the points with respect to the first transform
+  	for (int i=0; i<tfi.size(); i++) t0i[i] = tfi[0].inverseTimes(tfi[i]);
+    MultiCastHullShape* shape = new MultiCastHullShape(convex, t0i);
+    CollisionObjectWrapper* obj = new CollisionObjectWrapper(cow->m_link);
+    obj->setCollisionShape(shape);
+    obj->setWorldTransform(tfi[0]);
+    obj->m_index = cow->m_index;
+    CollisionCollector cc(collisions, obj, this);
+    cc.m_collisionFilterMask = KinBodyFilter;
+    cc.m_collisionFilterGroup = RobotFilter;
+    world->contactTest(obj, cc);
+    delete obj;
+    delete shape;
+  }
+  else if (btCompoundShape* compound = dynamic_cast<btCompoundShape*>(shape)) {
+    for (int child_ind = 0; child_ind < compound->getNumChildShapes(); ++child_ind) {
+    	vector<btTransform> tfi_child(tfi.size());
+    	for (int i=0; i<tfi.size(); i++) tfi_child[i] = tfi[i]*compound->getChildTransform(child_ind);
+    	CheckShapeMultiCast(compound->getChildShape(child_ind), tfi_child, cow, world, collisions);
+    }
+  }
+  else {
+    throw std::runtime_error("I can only continuous collision check convex shapes and compound shapes made of convex shapes");
+  }
 }
 
+// multi_joints is a vector where each element is a vector of joint angles
+void BulletCollisionChecker::MultiCastVsAll(RobotAndDOF& rad, const vector<KinBody::LinkPtr>& links,
+		const vector<DblVec>& multi_joints, vector<Collision>& collisions) {
+  OR::RobotBase::RobotStateSaver saver = rad.Save();
+  int nlinks = links.size();
+  // multi_tf[i_link][i_multi]
+  vector<vector<btTransform> > multi_tf(nlinks, vector<btTransform>(multi_joints.size()));
+  for (int i_multi=0; i_multi<multi_joints.size(); i_multi++) {
+		rad.SetDOFValues(multi_joints[i_multi]);
+		for (int i_link=0; i_link < nlinks; ++i_link) {
+			multi_tf[i_link][i_multi] = toBt(links[i_link]->GetTransform());
+		}
+  }
+  rad.SetDOFValues(multi_joints[0]); // is this necessary?
+  UpdateBulletFromRave();
+  m_world->updateAabbs();
 
+  for (int i_link=0; i_link < nlinks; ++i_link) {
+    assert(m_link2cow[links[i_link].get()] != NULL);
+    CollisionObjectWrapper* cow = m_link2cow[links[i_link].get()];
+    CheckShapeMultiCast(cow->getCollisionShape(), multi_tf[i_link], cow, m_world, collisions);
+  }
+  RAVELOG_DEBUG("MultiCastVsAll checked %i links and found %i collisions\n", links.size(), collisions.size());
+}
+
+}
+
+//////////////////////////////////
 
 
 

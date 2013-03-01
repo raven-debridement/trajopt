@@ -86,6 +86,23 @@ public:
 
 };
 
+//struct SigmaPtsCollisionEvaluator : public CollisionEvaluator {
+//public:
+//	SigmaPtsCollisionEvaluator(RobotAndDOFPtr rad, const VarVector& theta_vars);
+//  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights); // appends to this vector
+//  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights); // appends to this vector
+//  void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
+//
+//  // parameters:
+//  OR::EnvironmentBasePtr m_env;
+//  CollisionCheckerPtr m_cc;
+//  RobotAndDOFPtr m_rad;
+//  VarVector m_theta_vars;
+//  typedef std::map<const OR::KinBody::Link*, int> Link2Int;
+//  Link2Int m_link2ind;
+//  vector<OR::KinBody::LinkPtr> m_links;
+//};
+
 
 class CollisionCost : public Cost, public Plotter {
 public:
@@ -93,6 +110,7 @@ public:
   CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars);
   /* constructor for cast cost */
   CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1);
+//  CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1, bool multi);
   virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
   virtual double value(const vector<double>&);
   virtual void Plot(const DblVec& x, OR::EnvironmentBase&, std::vector<OR::GraphHandlePtr>& handles);
