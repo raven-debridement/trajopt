@@ -30,6 +30,11 @@ public:
 //  inline int GetRSize() { return GetObsNoise().cols(); }
 //  inline int GetObsSize() { return GetObsNoise().rows(); }
 
+  // UKF update functions
+  MatrixXd sigmaPoints(const VectorXd& mean, const MatrixXd& cov);
+  VectorXd sigmaPoint(const VectorXd& mean, const MatrixXd& cov, int idx);
+  void ukfUpdate(const VectorXd& u0, const VectorXd& xest0, const MatrixXd& Vest0, VectorXd& xest, MatrixXd& Vest);
+
   Eigen::VectorXd Observe(const Eigen::VectorXd& dofs, const Eigen::VectorXd& r);
   Eigen::VectorXd Dynamics(const Eigen::VectorXd& dofs, const Eigen::VectorXd& u, const Eigen::VectorXd& q);
   Eigen::VectorXd BeliefDynamics(const Eigen::VectorXd& theta0, const Eigen::VectorXd& u0);
@@ -37,7 +42,7 @@ public:
 
   void composeBelief(const Eigen::VectorXd& x, const Eigen::MatrixXd& rt_S, VectorXd& theta);
   void decomposeBelief(const Eigen::VectorXd& theta, VectorXd& x, Eigen::MatrixXd& rt_S);
-  void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& xest0, const Eigen::MatrixXd& Vest0, VectorXd& xest, Eigen::MatrixXd& Vest);
+  void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& x0, const Eigen::MatrixXd& rtSigma0, VectorXd& xest, Eigen::MatrixXd& Vest);
 
   Eigen::MatrixXd EndEffectorJacobian(const Eigen::VectorXd& x0);
   void GetEndEffectorNoiseAsGaussian(const Eigen::VectorXd& theta, Eigen::VectorXd& mean, Eigen::MatrixXd& cov);
@@ -45,6 +50,8 @@ public:
   inline int GetNTheta() { return n_theta; }
 
 	OR::KinBody::LinkPtr link;
+	// Scaled UKF update vars
+	double alpha, beta, kappa;
 };
 typedef boost::shared_ptr<BeliefRobotAndDOF> BeliefRobotAndDOFPtr;
 

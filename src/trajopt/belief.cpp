@@ -20,6 +20,11 @@ BeliefRobotAndDOF::BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec
 {
 	if (GetDOF() == 3) link = GetRobot()->GetLink("Finger");
 	else link = GetRobot()->GetLink("Base");
+
+	// UKF vars
+	alpha = 0.5;
+	beta = 2.0;
+	kappa = 50.0;
 }
 
 MatrixXd BeliefRobotAndDOF::GetDynNoise() {
@@ -145,6 +150,132 @@ void BeliefRobotAndDOF::decomposeBelief(const VectorXd& theta, VectorXd& x, Matr
 //			idx++;
 //		}
 //	}
+}
+
+MatrixXd BeliefRobotAndDOF::sigmaPoints(const VectorXd& mean, const MatrixXd& cov)
+{
+	int n_dof = GetDOF();
+
+	int L = n_dof;
+
+	double lambda = alpha*alpha*(L + kappa) - L;
+	double w = 1 / (2*(L + lambda));
+	double mw = lambda / (L + lambda);
+	double vw = mw + (1 - alpha*alpha + beta);
+
+	MatrixXd sigmapts(2*n_dof+1, n_dof);
+	sigmapts[0] = mean; // check
+
+	Matrix<3,3> V, D;
+	jacobi((dim + lambda) * cov, V, D);
+	for (int i = 0; i < 3; ++i) {
+		D(i,i) = sqrt(D(i,i));
+	}
+	V = V*D;
+
+	for(int i = 0; i < n_dof; ++i){
+		sigmapts[i] = (mean + V.subMatrix<3,1>(0, i));
+		sigmapts[i] = (mean - V.subMatrix<3,1>(0, i));
+	}
+
+	return sigmapts;
+}
+
+void BeliefRobotAndDOF::ukfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma)
+{
+	int n_dof = GetDOF();
+	int u_dim = u0.rows();
+	int z_dim = n_dof; // hack for now, no reason why the dimension of the measurement should be the same as the state dimension
+
+	int L = n_dof + z_dim;
+
+	double lambda = alpha*alpha*(L + kappa) - L;
+	double w = 1 / (2*(L + lambda));
+	double mw = lambda / (L + lambda);
+	double vw = mw + (1 - alpha*alpha + beta);
+
+	// Control Update -- O(xDim^3)
+
+	// propagate sigma points through f
+	MatrixXd simgaPts(2*n_dof+1, n_dof);
+	sigmaPts[0] = f(xHat, u, zeros(mDim);
+
+	Matrix V(xDim,xDim), D(xDim,xDim); // O(xDim^3)
+	jacobi((L + lambda) * Sigma, V, D);
+	for (size_t i = 0; i < xDim; ++i) {
+		D(i,i) = sqrt(D(i,i));
+	}
+	V = V*D; // or V*D*~V ?
+
+	for (size_t i = 0; i < xDim; ++i) { // O(xDim^2)
+		X.push_back(f(xHat + V.subMatrix(0, i, xDim, 1), u, zeros(mDim) ));
+		X.push_back(f(xHat - V.subMatrix(0, i, xDim, 1), u, zeros(mDim) ));
+	}
+
+	Matrix m = zeros(mDim);
+	double sigma = sqrt(L + lambda);
+	for (size_t i = 0; i < mDim; ++i) {
+		m[i] = sigma;
+		X.push_back(f(xHat, u, m));
+		m[i] = -sigma;
+		X.push_back(f(xHat, u, m));
+		m[i] = 0;
+	}
+
+	// calculate mean -- O(xDim^2)
+	xHat = (mw + 2*nDim*w) * X[0];
+	for (size_t i = 1; i < X.size(); ++i) {
+		xHat += w * X[i];
+	}
+
+	// calculate variance -- O(xDim^3)
+	Sigma = (vw + 2*nDim*w) * (X[0] - xHat)*~(X[0] - xHat);
+	for (size_t i = 1; i < X.size(); ++i) {
+		Sigma += w * (X[i] - xHat)*~(X[i] - xHat);
+	}
+
+	// Measurement Update
+
+	// propagate sigma points through h -- O(xDim * zDim)
+	std::vector<Matrix> Z;
+	for (size_t i = 0; i < X.size(); ++i) {
+		Z.push_back(h(X[i], zeros(nDim)));
+	}
+
+	Matrix n = zeros(nDim); // O(zDim^2)
+	for (size_t i = 0; i < nDim; ++i) {
+		n[i] = sigma;
+		Z.push_back(h(X[0], n));
+		n[i] = -sigma;
+		Z.push_back(h(X[0], n));
+		n[i] = 0;
+	}
+
+	// calculate mean -- O(xDim*zDim + zDim^2)
+	Matrix zHat(zDim);
+	zHat = mw * Z[0];
+	for (size_t i = 1; i < Z.size(); ++i) {
+		zHat += w * Z[i];
+	}
+
+	// calculate variance -- O(zDim^3 + xDim*zDim^2)
+	Matrix Pzz = vw * (Z[0] - zHat)*~(Z[0] - zHat);
+	for (size_t i = 1; i < Z.size(); ++i) {
+		Pzz += w * (Z[i] - zHat)*~(Z[i] - zHat);
+	}
+
+	// calculate cross-covariance -- O(xDim^2*zDim + xDim*zDim^2)
+	Matrix Pxz = vw * (X[0] - xHat)*~(Z[0] - zHat);
+	for (size_t i = 1; i < X.size(); ++i) {
+		Pxz += w * (X[i] - xHat)*~(Z[i] - zHat);
+	}
+	for (size_t i = X.size(); i < Z.size(); ++i) {
+		Pxz += w * (X[0] - xHat)*~(Z[i] - zHat);
+	}
+
+	Matrix K = Pxz / Pzz; // O(zDim^2*xDim + zDim^3)
+	xHat += K*(z - zHat); // O(xDim*zDim)
+	Sigma -= Pxz*~K; // O(xDim^2*zDim)
 }
 
 void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma) {
