@@ -155,127 +155,121 @@ void BeliefRobotAndDOF::decomposeBelief(const VectorXd& theta, VectorXd& x, Matr
 MatrixXd BeliefRobotAndDOF::sigmaPoints(const VectorXd& mean, const MatrixXd& cov)
 {
 	int n_dof = GetDOF();
+	int n_q = GetQSize();
 
-	int L = n_dof;
+	int L = n_dof + n_q;
 
 	double lambda = alpha*alpha*(L + kappa) - L;
 	double w = 1 / (2*(L + lambda));
 	double mw = lambda / (L + lambda);
 	double vw = mw + (1 - alpha*alpha + beta);
 
-	MatrixXd sigmapts(2*n_dof+1, n_dof);
-	sigmapts[0] = mean; // check
+	MatrixXd sigmapts(n_dof, 2*n_dof+1);
+	sigmapts.col(0) = mean;
 
-	Matrix<3,3> V, D;
-	jacobi((dim + lambda) * cov, V, D);
-	for (int i = 0; i < 3; ++i) {
-		D(i,i) = sqrt(D(i,i));
-	}
-	V = V*D;
+	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd((n_dof+lambda)*cov, ComputeThinU | ComputeThinV);
+	MatrixXd rt_scaled_cov = svd.matrixU() * svd.singularValues().array().sqrt().matrix().asDiagonal() * svd.matrixV().transpose();
 
 	for(int i = 0; i < n_dof; ++i){
-		sigmapts[i] = (mean + V.subMatrix<3,1>(0, i));
-		sigmapts[i] = (mean - V.subMatrix<3,1>(0, i));
+		sigmapts.col(2*i+1) = (mean + rt_scaled_cov.col(i));
+		sigmapts.col(2*i+2) = (mean - rt_scaled_cov.col(i));
 	}
 
 	return sigmapts;
 }
 
+// TODO add motion noise
 void BeliefRobotAndDOF::ukfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma)
 {
 	int n_dof = GetDOF();
-	int u_dim = u0.rows();
-	int z_dim = n_dof; // hack for now, no reason why the dimension of the measurement should be the same as the state dimension
+	int n_u = u0.rows();
+	int n_r = GetRSize();
+	int n_z = GetObsSize();
 
-	int L = n_dof + z_dim;
+ 	int L = n_dof + n_r;
 
 	double lambda = alpha*alpha*(L + kappa) - L;
 	double w = 1 / (2*(L + lambda));
 	double mw = lambda / (L + lambda);
 	double vw = mw + (1 - alpha*alpha + beta);
 
-	// Control Update -- O(xDim^3)
+	MatrixXd Sigma0 = rtSigma0 * rtSigma0.transpose();
 
 	// propagate sigma points through f
-	MatrixXd simgaPts(2*n_dof+1, n_dof);
-	sigmaPts[0] = f(xHat, u, zeros(mDim);
+	VectorXd q = VectorXd::Zero(GetQSize());
+	MatrixXd sigmapts(n_dof, 2*n_dof+1);
 
-	Matrix V(xDim,xDim), D(xDim,xDim); // O(xDim^3)
-	jacobi((L + lambda) * Sigma, V, D);
-	for (size_t i = 0; i < xDim; ++i) {
-		D(i,i) = sqrt(D(i,i));
-	}
-	V = V*D; // or V*D*~V ?
+	sigmapts.col(0) = Dynamics(x0, u0, q);
 
-	for (size_t i = 0; i < xDim; ++i) { // O(xDim^2)
-		X.push_back(f(xHat + V.subMatrix(0, i, xDim, 1), u, zeros(mDim) ));
-		X.push_back(f(xHat - V.subMatrix(0, i, xDim, 1), u, zeros(mDim) ));
-	}
+	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd_Sigma0((L+lambda)*Sigma0, ComputeThinU | ComputeThinV);
+	MatrixXd rt_scaled_Sigma0 = svd_Sigma0.matrixU() * svd_Sigma0.singularValues().array().sqrt().matrix().asDiagonal() * svd_Sigma0.matrixV().transpose();
 
-	Matrix m = zeros(mDim);
-	double sigma = sqrt(L + lambda);
-	for (size_t i = 0; i < mDim; ++i) {
-		m[i] = sigma;
-		X.push_back(f(xHat, u, m));
-		m[i] = -sigma;
-		X.push_back(f(xHat, u, m));
-		m[i] = 0;
+	for (int i = 0; i < n_dof; ++i) {
+		sigmapts.col(2*i+1) = Dynamics(x0 + rt_scaled_Sigma0.col(i), u0, q);
+		sigmapts.col(2*i+2) = Dynamics(x0 - rt_scaled_Sigma0.col(i), u0, q);
 	}
 
 	// calculate mean -- O(xDim^2)
-	xHat = (mw + 2*nDim*w) * X[0];
-	for (size_t i = 1; i < X.size(); ++i) {
-		xHat += w * X[i];
+	x = mw * sigmapts.col(0);
+	for (int i = 1; i < sigmapts.cols(); ++i) {
+		x += w * sigmapts.col(i);
 	}
 
 	// calculate variance -- O(xDim^3)
-	Sigma = (vw + 2*nDim*w) * (X[0] - xHat)*~(X[0] - xHat);
-	for (size_t i = 1; i < X.size(); ++i) {
-		Sigma += w * (X[i] - xHat)*~(X[i] - xHat);
+	MatrixXd Sigma = vw * (sigmapts.col(0) - x)*(sigmapts.col(0) - x).transpose();
+	for (int i = 1; i < sigmapts.cols(); ++i) {
+		Sigma += w * (sigmapts.col(i) - x)*(sigmapts.col(i) - x).transpose();
 	}
 
 	// Measurement Update
+	MatrixXd Z(n_z, 2*(n_dof+n_z)+1);
+	VectorXd r = VectorXd::Zero(GetRSize());
 
-	// propagate sigma points through h -- O(xDim * zDim)
-	std::vector<Matrix> Z;
-	for (size_t i = 0; i < X.size(); ++i) {
-		Z.push_back(h(X[i], zeros(nDim)));
+	int idx = 0;
+	for (int i = 0; i < sigmapts.cols(); ++i) {
+		Z.col(idx) = Observe(sigmapts.col(i), r);
+		++idx;
 	}
 
-	Matrix n = zeros(nDim); // O(zDim^2)
-	for (size_t i = 0; i < nDim; ++i) {
-		n[i] = sigma;
-		Z.push_back(h(X[0], n));
-		n[i] = -sigma;
-		Z.push_back(h(X[0], n));
-		n[i] = 0;
+	double factor = sqrt(L + lambda);
+	for (int i = sigmapts.cols(); i < 2*(n_dof+n_z)+1; ++i) {
+		r(i) = factor;
+		Z.col(idx) = Observe(sigmapts.col(0), r);
+		++idx;
+		r(i) = -factor;
+		Z.col(idx) = Observe(sigmapts.col(0), r);
+		++idx;
+		r(i) = 0;
 	}
 
 	// calculate mean -- O(xDim*zDim + zDim^2)
-	Matrix zHat(zDim);
-	zHat = mw * Z[0];
-	for (size_t i = 1; i < Z.size(); ++i) {
-		zHat += w * Z[i];
+	VectorXd z0(n_z);
+	z0 = mw * Z.col(0);
+	for (int i = 1; i < Z.cols(); ++i) {
+		z0 += w * Z.col(i);
 	}
 
 	// calculate variance -- O(zDim^3 + xDim*zDim^2)
-	Matrix Pzz = vw * (Z[0] - zHat)*~(Z[0] - zHat);
-	for (size_t i = 1; i < Z.size(); ++i) {
-		Pzz += w * (Z[i] - zHat)*~(Z[i] - zHat);
+	MatrixXd Pzz = vw * (Z.col(0) - z0)*(Z.col(0) - z0).transpose();
+	for (int i = 1; i < Z.cols(); ++i) {
+		Pzz += w * (Z.col(i) - z0)*(Z.col(i) - z0).transpose();
 	}
-
 	// calculate cross-covariance -- O(xDim^2*zDim + xDim*zDim^2)
-	Matrix Pxz = vw * (X[0] - xHat)*~(Z[0] - zHat);
-	for (size_t i = 1; i < X.size(); ++i) {
-		Pxz += w * (X[i] - xHat)*~(Z[i] - zHat);
+	MatrixXd Pxz = vw * (sigmapts.col(0) - x0)*(Z.col(0) - z0).transpose();
+	for (int i = 1; i < sigmapts.cols(); ++i) {
+		Pxz += w * (sigmapts.col(i) - x0)*(Z.col(i) - z0).transpose();
 	}
-	for (size_t i = X.size(); i < Z.size(); ++i) {
-		Pxz += w * (X[0] - xHat)*~(Z[i] - zHat);
+	for (int i = sigmapts.cols(); i < Z.cols(); ++i) {
+		Pxz += w * (sigmapts.col(i) - x0)*(Z.col(i) - z0).transpose();
 	}
 
-	Matrix K = Pxz / Pzz; // O(zDim^2*xDim + zDim^3)
-	xHat += K*(z - zHat); // O(xDim*zDim)
-	Sigma -= Pxz*~K; // O(xDim^2*zDim)
+	PartialPivLU<MatrixXd> solver(Pxz);
+	MatrixXd K = solver.solve(Pzz); // Pxz/Pzz? Check.
+	x += K*(Z.col(0) - z0); // O(xDim*zDim)
+	Sigma -= Pxz*K.transpose(); // O(xDim^2*zDim)
+
+	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd_Sigma(Sigma, ComputeThinU | ComputeThinV);
+	rtSigma = svd_Sigma.matrixU() * svd_Sigma.singularValues().array().sqrt().matrix().asDiagonal() * svd_Sigma.matrixV().transpose();
 }
 
 void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma) {
@@ -287,7 +281,8 @@ void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const 
 	MatrixXd Sigma0 = rtSigma0 * rtSigma0.transpose();
 
 	MatrixXd A = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, _1, u0, q), x0);
-	MatrixXd Gamma0 = A * Sigma0 * A.transpose();
+	MatrixXd Q = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, x0, u0, _1), q);
+	MatrixXd Gamma0 = A * Sigma0 * A.transpose() + Q*Q.transpose();
 
 	VectorXd r = VectorXd::Zero(GetRSize());
 	MatrixXd C = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, _1, r), x0);
