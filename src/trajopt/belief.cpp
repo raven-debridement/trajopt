@@ -31,8 +31,7 @@ MatrixXd BeliefRobotAndDOF::GetDynNoise() {
 	int n_dof = GetDOF();
 	VectorXd diag_noise(n_dof);
 	if (n_dof == 3)	diag_noise << 0.08, 0.13, 0.18;
-	else diag_noise << 0.005, 0.005;
-	assert(0);
+	else diag_noise << 0.1, 0.1;
 	return diag_noise.asDiagonal();
 }
 
@@ -76,9 +75,9 @@ VectorXd BeliefRobotAndDOF::Observe(const VectorXd& dofs, const VectorXd& r) {
 }
 
 VectorXd BeliefRobotAndDOF::Dynamics(const VectorXd& dofs, const VectorXd& u, const VectorXd& q) {
-//	VectorXd dofs1 = dofs+u + GetDynNoise()*q;
-	for (int i=0; i<q.size(); i++) assert(q[i] == 0);
-	VectorXd dofs1 = dofs+u;
+	VectorXd dofs1 = dofs+u + GetDynNoise()*q;
+	//for (int i=0; i<q.size(); i++) assert(q[i] == 0);
+	//VectorXd dofs1 = dofs+u;
 	return dofs1;
 }
 
