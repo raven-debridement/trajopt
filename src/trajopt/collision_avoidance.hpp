@@ -9,11 +9,13 @@
 namespace trajopt {
 
 typedef std::map<const OR::KinBody::Link*, int> Link2Int;
+typedef std::vector< std::pair<string, string> > NamePairs;
+typedef std::map<string, double> Str2Dbl;
 
 
 struct CollisionEvaluator {
-  virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights) = 0;
-  virtual void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights) = 0;
+  virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights, NamePairs& bodyNames) = 0;
+  virtual void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights, NamePairs& bodyNames) = 0;
   virtual void CalcCollisions(const DblVec& x, vector<Collision>& collisions) = 0;
   void GetCollisionsCached(const DblVec& x, vector<Collision>&);
   virtual ~CollisionEvaluator() {}
@@ -34,11 +36,11 @@ public:
   the contacts are associated with weights so that each pair of links are associated with a single cost term.
   In particular, if a pair of bodies have k contacts, then the contacts each have weight 1/k.
   */
-  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights); // appends to this vector
+  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights, NamePairs& bodyNames); // appends to this vector
   /**
    * Same as CalcDistExpressions, but just the distances--not the expressions
    */
-  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights); // appends to this vector
+  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights, NamePairs& bodyNames); // appends to this vector
   void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
 
   OR::EnvironmentBasePtr m_env;
@@ -70,8 +72,8 @@ public:
 struct CastCollisionEvaluator : public CollisionEvaluator {
 public:
   CastCollisionEvaluator(RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1);
-  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights); // appends to this vector
-  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights); // appends to this vector
+  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights, NamePairs& bodyNames); // appends to this vector
+  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights, NamePairs& bodyNames); // appends to this vector
   void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
 
   // parameters:
@@ -100,6 +102,19 @@ private:
   CollisionEvaluatorPtr m_calc;
   double m_dist_pen;
   double m_coeff;
+};
+
+class CollisionTaggedCost : public Cost, public Plotter {
+public:
+  CollisionTaggedCost(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, RobotAndDOFPtr rad, const VarVector& vars);
+  CollisionTaggedCost(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1);
+  virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
+  virtual double value(const vector<double>&);
+  virtual void Plot(const DblVec& x, OR::EnvironmentBase&, std::vector<OR::GraphHandlePtr>& handles);
+private:
+  CollisionEvaluatorPtr m_calc;
+  Str2Dbl m_tag2dist_pen;
+  Str2Dbl m_tag2coeff;
 };
 
 }

@@ -27,6 +27,7 @@ void RegisterMakers() {
   CostInfo::RegisterMaker("joint_pos", &JointPosCostInfo::create);
   CostInfo::RegisterMaker("joint_vel", &JointVelCostInfo::create);
   CostInfo::RegisterMaker("collision", &CollisionCostInfo::create);
+  CostInfo::RegisterMaker("collision_tagged_coeffs", &CollisionTaggedCoeffsCostInfo::create);
   CostInfo::RegisterMaker("continuous_collision", &ContinuousCollisionCostInfo::create);
 
   CntInfo::RegisterMaker("joint", &JointConstraintInfo::create);
@@ -473,6 +474,68 @@ CostInfoPtr CollisionCostInfo::create() {
   return CostInfoPtr(new CollisionCostInfo());
 }
 
+void CollisionTaggedCoeffsCostInfo::fromJson(const Value& v) {
+    FAIL_IF_FALSE(v.isMember("params"));
+    const Value& params = v["params"];
+    cout << "from json start" << endl;
+
+    int n_steps = gPCI->basic_info.n_steps;
+    Value::Members tag_names = params.getMemberNames();
+    tag2coeffs.resize(n_steps);
+    tag2dist_pen.resize(n_steps);
+    for (int i = 0; i < tag_names.size(); ++i) {
+        cout << "inserting coeff1" << endl;
+        const string& tag_name = tag_names[i];
+        const Value& tag_params = params[tag_name];
+        cout << "inserting coeff2" << endl;
+        DblVec coeffs;
+        childFromJson(tag_params, coeffs, "coeffs");
+        cout << "inserting coeff3" << endl;
+        if (coeffs.size() == 1) coeffs = DblVec(n_steps, coeffs[0]);
+        else if (coeffs.size() != n_steps) {
+            PRINT_AND_THROW( boost::format("wrong size: coeffs. expected %i got %i")%n_steps%coeffs.size() );
+        }
+        cout << "inserting coeff4" << endl;
+        for (int j = 0; j < n_steps; ++j) {
+            tag2coeffs[j].insert( std::pair<string, double>(tag_name, coeffs[j]) );
+        }
+        cout << "inserting coeff" << endl;
+        DblVec dist_pen;
+        childFromJson(tag_params, dist_pen, "dist_pen");
+        if (dist_pen.size() == 1) dist_pen = DblVec(n_steps, dist_pen[0]);
+        else if (dist_pen.size() != n_steps) {
+            PRINT_AND_THROW( boost::format("wrong size: dist_pen. expected %i got %i")%n_steps%dist_pen.size() );
+        }
+        for (int j = 0; j < n_steps; ++j) {
+            tag2dist_pen[j].insert( std::pair<string, double>(tag_name, dist_pen[j]) );
+        }
+        cout << "inserting dist pen" << endl;
+    }
+    cout << "from json ended" << endl;
+}
+
+void CollisionTaggedCoeffsCostInfo::hatch(TrajOptProb& prob) {
+  cout << "hatch start" << endl; 
+  for (int i = 0; i < prob.GetNumSteps(); ++i) {
+        prob.addCost(CostPtr(new CollisionTaggedCost(tag2dist_pen[i], tag2coeffs[i], prob.GetRAD(), prob.GetVarRow(i))));
+        prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
+  }
+  CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
+  double max_dist_pen = 0;
+  for (int i = 0; i < tag2dist_pen.size(); ++i) {
+    for (Str2Dbl::iterator it = tag2dist_pen[i].begin(); it != tag2dist_pen[i].end(); ++it) {
+        if (it->second > max_dist_pen) {
+            max_dist_pen = it->second;
+        }
+    }
+  }
+  cout << "hatch end" << endl;
+  cc->SetContactDistance(max_dist_pen + .04);
+}
+
+CostInfoPtr CollisionTaggedCoeffsCostInfo::create() {
+    return CostInfoPtr(new CollisionTaggedCoeffsCostInfo());
+}
 
 void ContinuousCollisionCostInfo::fromJson(const Value& v) {
   FAIL_IF_FALSE(v.isMember("params"));

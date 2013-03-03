@@ -10,6 +10,7 @@ using namespace json_marshal;
 using namespace Json;
 typedef Json::Value TrajOptRequest;
 typedef Json::Value TrajOptResponse;
+typedef std::map<string, double> Str2Dbl;
 using std::string;
 
 class CostInfo;
@@ -250,6 +251,15 @@ struct CollisionCostInfo : public CostInfo {
   void hatch(TrajOptProb& prob);
   static CostInfoPtr create();
 };
+
+struct CollisionTaggedCoeffsCostInfo : public CostInfo {
+   std::vector<Str2Dbl> tag2coeffs;
+   std::vector<Str2Dbl> tag2dist_pen;
+   void fromJson(const Value& v);
+   void hatch(TrajOptProb& prob);
+   static CostInfoPtr create();
+};
+
 /**
 \brief continuous-time collision penalty
 
@@ -280,7 +290,5 @@ struct JointConstraintInfo : public CntInfo {
   void hatch(TrajOptProb& prob);
   static CntInfoPtr create();
 };
-
-
 
 }
