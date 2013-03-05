@@ -103,7 +103,6 @@ void SingleTimestepCollisionEvaluator::CalcCollisions(const DblVec& x, vector<Co
 void SingleTimestepCollisionEvaluator::CalcDists(const DblVec& x, DblVec& dists, DblVec& weights, NamePairs& bodyNames) {
   vector<Collision> collisions;
   GetCollisionsCached(x, collisions);
-  cout << "calculating single time step dist instead of expressions" << endl;
   CollisionsToDistances(collisions, m_link2ind, dists, weights, bodyNames);
 }
 
@@ -111,7 +110,6 @@ void SingleTimestepCollisionEvaluator::CalcDistExpressions(const DblVec& x, vect
   vector<Collision> collisions;
   GetCollisionsCached(x, collisions);
   DblVec dofvals = getDblVec(x, m_vars);
-  cout << "calculating single time step dist expressions" << endl;
   CollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_vars, dofvals, exprs, weights, bodyNames);
 }
 
@@ -145,7 +143,6 @@ void CastCollisionEvaluator::CalcDistExpressions(const DblVec& x, vector<AffExpr
   vector<Collision> collisions;
   GetCollisionsCached(x, collisions);
   DblVec dofvals = getDblVec(x, m_vars0);
-  cout << "calculating cast collision evaluator dist expressions" << endl;
   CollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_vars0, dofvals, exprs, weights, bodyNames);
   dofvals = getDblVec(x, m_vars1);
   CollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_vars1, dofvals, exprs, weights, bodyNames);
@@ -205,7 +202,6 @@ double CollisionCost::value(const vector<double>& x) {
   m_calc->CalcDists(x, dists, weights, bodyNames);
   double out = 0;
   for (int i=0; i < dists.size(); ++i) {
-    cout << "calculating collision cost value " << m_coeff << endl;
     out += pospart(m_dist_pen - dists[i]) * m_coeff * weights[i];
   }
   return out;
@@ -235,8 +231,11 @@ ConvexObjectivePtr CollisionTaggedCost::convex(const vector<double>& x, Model* m
   NamePairs bodyNames;
   m_calc->CalcDistExpressions(x, exprs, weights, bodyNames);
   for (int i=0; i < exprs.size(); ++i) {
+    cout << "bodyNames: " << bodyNames[i].first << " " << bodyNames[i].second << endl;
     double dist_pen = min(m_tag2dist_pen[bodyNames[i].first], m_tag2dist_pen[bodyNames[i].second]);
     double coeff = (m_tag2coeff[bodyNames[i].first] + m_tag2coeff[bodyNames[i].second]);
+    cout << "dist pen: " << dist_pen << endl;
+    cout << "coeff: " << coeff << endl;
     AffExpr viol = exprSub(AffExpr(dist_pen), exprs[i]);
     out->addHinge(viol, coeff*weights[i]);
   }

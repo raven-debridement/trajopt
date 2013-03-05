@@ -247,17 +247,12 @@ struct CollisionCostInfo : public CostInfo {
   DblVec coeffs;
   /// safety margin: contacts with distance < dist_pen are penalized
   DblVec dist_pen;
+  std::vector<Str2Dbl> tag2coeffs;
+  std::vector<Str2Dbl> tag2dist_pen;
+  bool use_same_cost;
   void fromJson(const Value& v);
   void hatch(TrajOptProb& prob);
   static CostInfoPtr create();
-};
-
-struct CollisionTaggedCoeffsCostInfo : public CostInfo {
-   std::vector<Str2Dbl> tag2coeffs;
-   std::vector<Str2Dbl> tag2dist_pen;
-   void fromJson(const Value& v);
-   void hatch(TrajOptProb& prob);
-   static CostInfoPtr create();
 };
 
 /**
@@ -274,6 +269,9 @@ struct ContinuousCollisionCostInfo : public CostInfo {
   DblVec coeffs;
   /// see CollisionCostInfo::dist_pen
   DblVec dist_pen;
+  std::vector<Str2Dbl> tag2coeffs;
+  std::vector<Str2Dbl> tag2dist_pen;
+  bool use_same_cost;
   void fromJson(const Value& v);
   void hatch(TrajOptProb& prob);
   static CostInfoPtr create();

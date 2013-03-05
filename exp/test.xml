@@ -9,29 +9,26 @@
   <camtrans>1.327509 -0.765386 1.225026</camtrans>
   <camrotationaxis>-0.916210 -0.318647 0.242947 138.160983</camrotationaxis>
 
-  <KinBody name="Table1" file="data/ikeatable.kinbody.xml">
-	<RotationAxis>0 0 1 0</RotationAxis>
-	<Translation>0.9 0 0.74</Translation>
+  <KinBody name="mug-shelf" file="data/mug2.kinbody.xml">
+    <Translation>0 1.1 0.79</Translation>
+    <quat>0.75 0 0 0.5</quat>
   </KinBody>
-  
-  <KinBody name="TibitsBox1">
-	<Translation>0.9 0 0.74</Translation>
-    <Body type="dynamic">
-      <Mass type="mimicgeom">
-        <total>0.285</total>
-	  </Mass>
-      <!-- Reference point will be at the base of the box -->
-	  <Geom type="box">
-	    <Extents>0.025 0.05 0.05</Extents>
-	    <Translation>0 0 0.066</Translation>
-	    <diffuseColor>0.0 1.0 0.0</diffuseColor>
-	  </Geom>
-    </Body>
+  <KinBody name="mug-shelf1" file="data/mug2.kinbody.xml">
+    <Translation>0.106 1.1 0.81</Translation>
+    <quat>0.75 0 0 0.5</quat>
+  </KinBody>
+  <KinBody name="mug-shelf2" file="data/mug2.kinbody.xml">
+    <Translation>-0.106 1.1 0.79</Translation>
+    <quat>0.75 0 0 0.5</quat>
   </KinBody>
 
   <Robot name="PR2" file="robots/pr2-beta-static.zae">
-	<translation>0 0 0.05</translation>
-
-	<!---<jointvalues>0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.832 -0.332 -1.011 -1.437 -1.1 -2.106 3.074 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0</jointvalues>-->
+	  <translation>0 0.13 0</translation>
+    <quat> 0.7 0 0 0.73 </quat>
   </Robot>
+  <KinBody name="bookshelf" file= "data/ikeashelf.kinbody.xml">
+    <Translation>0 1.2 0</Translation>
+    <quat>-0.75 0 0 0.65</quat>
+  </KinBody>
 </Environment>
+

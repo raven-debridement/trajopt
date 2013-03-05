@@ -9,17 +9,19 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
     
     dynamic_objects = ["mug-table-cluttered", "obstacle", "obstacle2"]
     static_objects = ["floor", "windows", "whiteboard", "table"]
-    cost_params = {}
+    cost_params = []
     for name in dynamic_objects:
-        cost_params[name] = {
+        cost_params.append({
+            "name" : name,
             "coeffs" : [0],
             "dist_pen" : [0.025],
-        }
+        })
     for name in static_objects:
-        cost_params[name] = {
+        cost_params.append({
+            "name" : name,
             "coeffs" : [0],
             "dist_pen" : [0.025],
-        }       
+        }) 
             
     request = {
         "basic_info" : {
@@ -29,7 +31,7 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
         },
         "costs" : [
             {
-                "type" : "collision_tagged_coeffs",
+                "type" : "collision",
                 #"params": {
                 #    "coeffs" : [10],
                 #    "dist_pen" : [0.025]              
