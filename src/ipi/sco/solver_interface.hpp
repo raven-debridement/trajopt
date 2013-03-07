@@ -5,6 +5,7 @@
 #include "sco_fwd.hpp"
 #include <iosfwd>
 #include <limits>
+#include "utils/basic_array.hpp"
 /**
 @file solver_interface.hpp
 @brief Interface to convex solvers
@@ -38,6 +39,7 @@ enum CvxOptStatus {
 typedef vector<Var> VarVector;
 typedef vector<AffExpr> AffExprVector;
 typedef vector<QuadExpr> QuadExprVector;
+typedef util::BasicArray<QuadExpr> QuadExprArray;
 
 /** @Brief Convex optimization problem
  
@@ -91,7 +93,7 @@ struct Var {
   Var(const Var& other) : var_rep(other.var_rep) {}
   double value(const double* x) const {return x[var_rep->index];}
   double value(const vector<double>& x) const {assert(var_rep->index < (int)x.size()); return x[var_rep->index];}
-};
+ };
 
 struct CntRep {
   CntRep(int _index, void* _creator) : index(_index), removed(false), creator(_creator){}

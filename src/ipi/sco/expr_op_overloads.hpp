@@ -111,6 +111,17 @@ inline QuadExpr operator*(const QuadExpr& a, double b) {
   return exprMult(a, b);
 }
 
+inline QuadExpr operator*(const Var& a, const Var& b) {
+	return exprMult(a,b);
+}
+inline BasicArray<QuadExpr> operator*(const BasicArray<Var>& A, const BasicArray<Var>& B) {
+	return exprMult(A,B);
+}
+inline BasicArray<QuadExpr> operator*(const Eigen::MatrixXd& A, const BasicArray<QuadExpr>& B) {
+	return exprMult(A,B);
+}
+
+
 inline AffExpr operator-(const Var& a) {
   return exprMult(a, -1);
 }

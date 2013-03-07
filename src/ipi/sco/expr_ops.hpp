@@ -2,10 +2,11 @@
 
 #include "sco_fwd.hpp"
 #include "solver_interface.hpp"
+#include <Eigen/Core>
 
 namespace ipi {
 namespace sco {
-
+using namespace util;
 
 
 ////// In-place operations ///////
@@ -163,6 +164,10 @@ inline QuadExpr exprSub(QuadExpr a, const QuadExpr& b) {
 
 QuadExpr exprSquare(const Var&);
 QuadExpr exprSquare(const AffExpr&);
+
+QuadExpr exprMult(const Var& a, const Var& b);
+BasicArray<QuadExpr> exprMult(const BasicArray<Var>& A, const BasicArray<Var>& B);
+BasicArray<QuadExpr> exprMult(const Eigen::MatrixXd& A, const BasicArray<QuadExpr>& B);
 
 AffExpr cleanupAff(const AffExpr&);
 QuadExpr cleanupQuad(const QuadExpr&); //warning: might make it non-psd!

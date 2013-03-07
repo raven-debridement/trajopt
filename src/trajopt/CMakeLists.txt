@@ -13,12 +13,13 @@ add_library(trajopt SHARED
 	bullet_collision_checker.cpp 
 	kinematic_constraints.cpp 
 	robot_and_dof.cpp 
+	belief_constraints.cpp 
+	belief.cpp
 	utils.cpp
 	rave_utils.cpp
 	collision_checker.cpp
 	plot_callback.cpp
 	bullet_unity.cpp
-	belief.cpp
 )
 target_link_libraries(trajopt ${OpenRAVE_BOTH_LIBRARIES} ${Boost_SYSTEM_LIBRARY} sco utils json osgviewer)
 

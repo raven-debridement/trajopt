@@ -102,6 +102,23 @@ struct BasicArray {
     return std::vector<T>(m_data.begin(), m_data.end());
   }
 
+  BasicArray transpose() {
+  	BasicArray B(cols(), rows());
+  	for (int i = 0; i < rows(); i++)
+  		for (int j = 0; j < cols(); j++)
+  			B(j,i) = at(i,j);
+  	return B;
+  }
+
+  T trace() {
+  	int n = std::min(rows(), cols());
+  	T out = at(0,0);
+		for (int i=1; i<n; i++) {
+			out = out+ at(i,i);
+		}
+  	return out;
+  }
+
   T* data() {
     return m_data.data();
   }

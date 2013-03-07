@@ -1,7 +1,6 @@
 #include "trajopt/common.hpp"
 #include "json_marshal.hpp"
 #include <boost/function.hpp>
-#include "trajopt/belief.hpp"
 
 namespace ipi{namespace sco{struct OptResults;}}
 

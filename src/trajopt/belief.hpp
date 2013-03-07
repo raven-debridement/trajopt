@@ -1,12 +1,7 @@
 #pragma once
-#include "ipi/sco/modeling.hpp"
-#include "ipi/sco/modeling_utils.hpp"
-#include "ipi/sco/sco_fwd.hpp"
-#include <Eigen/Core>
-#include "trajopt/common.hpp"
+#include "trajopt/robot_and_dof.hpp"
 
 #include "osgviewer/osgviewer.hpp"
-#include "robot_and_dof.hpp"
 #include <boost/random/normal_distribution.hpp>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/variate_generator.hpp>
@@ -31,18 +26,67 @@ public:
 //  inline int GetObsSize() { return GetObsNoise().rows(); }
 
   // UKF update functions
-  MatrixXd sigmaPoints(const VectorXd& theta);
-  MatrixXd sigmaPoints(const VectorXd& mean, const MatrixXd& cov);
-  VectorXd sigmaPoint(const VectorXd& mean, const MatrixXd& cov, int idx);
-  void ukfUpdate(const VectorXd& u0, const VectorXd& xest0, const MatrixXd& Vest0, VectorXd& xest, MatrixXd& Vest);
+  Eigen::MatrixXd sigmaPoints(const VectorXd& theta);
+  Eigen::MatrixXd sigmaPoints(const VectorXd& mean, const Eigen::MatrixXd& cov);
+  VectorXd sigmaPoint(const VectorXd& mean, const Eigen::MatrixXd& cov, int idx);
+  void ukfUpdate(const VectorXd& u0, const VectorXd& xest0, const Eigen::MatrixXd& Vest0, VectorXd& xest, Eigen::MatrixXd& Vest);
 
   Eigen::VectorXd Observe(const Eigen::VectorXd& dofs, const Eigen::VectorXd& r);
   Eigen::VectorXd Dynamics(const Eigen::VectorXd& dofs, const Eigen::VectorXd& u, const Eigen::VectorXd& q);
   Eigen::VectorXd BeliefDynamics(const Eigen::VectorXd& theta0, const Eigen::VectorXd& u0);
   Eigen::VectorXd VectorXdRand(int size);
 
-  void composeBelief(const Eigen::VectorXd& x, const Eigen::MatrixXd& rt_S, VectorXd& theta);
-  void decomposeBelief(const Eigen::VectorXd& theta, VectorXd& x, Eigen::MatrixXd& rt_S);
+//  void composeBelief(const Eigen::VectorXd& x, const Eigen::MatrixXd& rt_S, VectorXd& theta);
+//  void decomposeBelief(const Eigen::VectorXd& theta, VectorXd& x, Eigen::MatrixXd& rt_S);
+
+  template <typename T> Eigen::Matrix<T,Eigen::Dynamic,1> toSigmaVec(const Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>& rt_S) {
+  	Eigen::Matrix<T,Eigen::Dynamic,1> rt_S_vec(GetNTheta()-GetDOF());
+		int idx = 0;
+		for (int i=0; i<GetDOF(); i++) {
+			for (int j=i; j<GetDOF(); j++) {
+				rt_S_vec(idx) = 0.5 * (rt_S(i,j)+rt_S(j,i));
+				idx++;
+			}
+		}
+		return rt_S_vec;
+	}
+  template <typename T> Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic> toSigmaMatrix(const Eigen::Matrix<T,Eigen::Dynamic,1>& rt_S_vec) {
+  	Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic> rt_S(GetDOF(), GetDOF());
+		int idx = 0;
+		for (int j = 0; j < GetDOF(); ++j) {
+			for (int i = j; i < GetDOF(); ++i) {
+				rt_S(i,j) = rt_S(j,i) = rt_S_vec(idx);
+				idx++;
+			}
+		}
+		return rt_S;
+	}
+  template <typename T> void composeBelief(const Eigen::Matrix<T,Eigen::Dynamic,1>& x, const Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>& rt_S,
+  		Eigen::Matrix<T,Eigen::Dynamic,1>& theta) {
+  	theta.resize(GetNTheta());
+  	theta.topRows(GetDOF()) = x;
+  	theta.bottomRows(GetNTheta()-GetDOF()) = toSigmaVec(rt_S);
+//  	int idx = n_dof;
+//  	for (int i=0; i<n_dof; i++) {
+//  		for (int j=i; j<n_dof; j++) {
+//  			theta(idx) = 0.5 * (rt_S(i,j)+rt_S(j,i));
+//  			idx++;
+//  		}
+//  	}
+  }
+  template <typename T> void decomposeBelief(const Eigen::Matrix<T,Eigen::Dynamic,1>& theta,
+  		Eigen::Matrix<T,Eigen::Dynamic,1>& x, Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>& rt_S) {
+  	x = theta.topRows(GetDOF());
+  	rt_S = toSigmaMatrix((Eigen::Matrix<T,Eigen::Dynamic,1>) theta.bottomRows(GetNTheta()-GetDOF()));
+//  	int idx = n_dof;
+//  	rt_S.resize(n_dof, n_dof);
+//  	for (int j = 0; j < n_dof; ++j) {
+//  		for (int i = j; i < n_dof; ++i) {
+//  			rt_S(i,j) = rt_S(j,i) = theta(idx);
+//  			idx++;
+//  		}
+//  	}
+  }
   void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& x0, const Eigen::MatrixXd& rtSigma0, VectorXd& xest, Eigen::MatrixXd& Vest);
 
   Eigen::MatrixXd EndEffectorJacobian(const Eigen::VectorXd& x0);
@@ -55,50 +99,6 @@ public:
 	double alpha, beta, kappa;
 };
 typedef boost::shared_ptr<BeliefRobotAndDOF> BeliefRobotAndDOFPtr;
-
-class BeliefDynamicsConstraint: public Constraint {
-public:
-	BeliefDynamicsConstraint(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars, BeliefRobotAndDOFPtr brad);
-  vector<double> value(const vector<double>& x);
-  ConvexConstraintsPtr convex(const vector<double>& x, Model* model);
-  ConstraintType type() {return type_;}
-//  void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
-protected:
-  BeliefRobotAndDOFPtr brad_;
-  VarVector theta0_vars_;
-  VarVector theta1_vars_;
-  VarVector u_vars_;
-  ConstraintType type_;
-};
-
-class BeliefDynamicsConstraint2 : public ConstraintFromNumDiff {
-public:
-	BeliefDynamicsConstraint2(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars,
-			BeliefRobotAndDOFPtr brad, const BoolVec& enabled=BoolVec());
-};
-
-class CovarianceCost : public Cost {
-public:
-	CovarianceCost(const VarVector& rtSigma_vars, const Eigen::MatrixXd& Q, BeliefRobotAndDOFPtr brad);
-  virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
-  virtual double value(const vector<double>&);
-private:
-  VarVector rtSigma_vars_;
-  Eigen::MatrixXd Q_;
-  QuadExpr expr_;
-  BeliefRobotAndDOFPtr brad_;
-};
-
-class ControlCost : public Cost {
-public:
-	ControlCost(const VarArray& traj, const VectorXd& coeffs);
-  virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
-  virtual double value(const vector<double>&);
-private:
-  VarArray vars_;
-  VectorXd coeffs_;
-  QuadExpr expr_;
-};
 
 typedef boost::function<VectorXd(VectorXd)> VectorOfVectorFun;
 typedef boost::shared_ptr<VectorOfVectorFun> VectorOfVectorFunPtr;

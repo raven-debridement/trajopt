@@ -11,6 +11,18 @@ using namespace Eigen;
 using namespace OpenRAVE;
 using namespace util;
 
+namespace {
+	double sigmoid(double x,double mean) {
+		double y = (x - mean);
+		double s = (y/sqrt(1+y*y))+1.0;
+
+		if (x < mean)
+			return s*0.1;
+		else
+			return s*7.0;
+	}
+}
+
 namespace trajopt {
 
 BeliefRobotAndDOF::BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec& _joint_inds, int _affinedofs, const OR::Vector _rotationaxis) :
@@ -42,16 +54,6 @@ MatrixXd BeliefRobotAndDOF::GetObsNoise() {
 	else diag_noise << 0.005, 0.005;
 	assert(0);
 	return diag_noise.asDiagonal();
-}
-
-double sigmoid(double x,double mean) {
-	double y = (x - mean);
-	double s = (y/sqrt(1+y*y))+1.0;
-
-	if (x < mean)
-		return s*0.1;
-	else
-		return s*7.0;
 }
 
 VectorXd BeliefRobotAndDOF::Observe(const VectorXd& dofs, const VectorXd& r) {
@@ -103,52 +105,6 @@ VectorXd BeliefRobotAndDOF::VectorXdRand(int size) {
 	VectorXd v(size);
 	for (int i=0; i<size; i++) v(i) = generator();
 	return v;
-}
-
-void BeliefRobotAndDOF::composeBelief(const VectorXd& x, const MatrixXd& rt_S, VectorXd& theta) {
-	int n_dof = GetDOF();
-	theta.resize(GetNTheta());
-	theta.topRows(n_dof) = x;
-	int idx = n_dof;
-	for (int i=0; i<n_dof; i++) {
-		for (int j=i; j<n_dof; j++) {
-			theta(idx) = 0.5 * (rt_S(i,j)+rt_S(j,i));
-			idx++;
-		}
-	}
-//	int n_dof = GetDOF();
-//	theta.resize(GetNTheta());
-//	theta.topRows(n_dof) = x;
-//	int idx = n_dof;
-//	for (int j=0; j<n_dof; j++) {
-//		for (int i=j; i<n_dof; i++) {
-//			theta(idx) = rt_S(i,j);
-//			idx++;
-//		}
-//	}
-}
-
-void BeliefRobotAndDOF::decomposeBelief(const VectorXd& theta, VectorXd& x, MatrixXd& rt_S) {
-	int n_dof = GetDOF();
-	x = theta.topRows(n_dof);
-	int idx = n_dof;
-	rt_S.resize(n_dof, n_dof);
-	for (int j = 0; j < n_dof; ++j) {
-		for (int i = j; i < n_dof; ++i) {
-			rt_S(i,j) = rt_S(j,i) = theta(idx);
-			idx++;
-		}
-	}
-//	int n_dof = GetDOF();
-//	x = theta.topRows(n_dof);
-//	int idx = n_dof;
-//	rt_S = MatrixXd::Zero(n_dof, n_dof);
-//	for (int j=0; j<n_dof; j++) {
-//		for (int i=j; i<n_dof; i++) {
-//			rt_S(i,j) = theta(idx);
-//			idx++;
-//		}
-//	}
 }
 
 MatrixXd BeliefRobotAndDOF::sigmaPoints(const VectorXd& theta) {
@@ -358,272 +314,6 @@ void BeliefRobotAndDOF::GetEndEffectorNoiseAsGaussian(const VectorXd& theta, Vec
 	assert(partial_cov.rows() == 2 || partial_cov.rows() == 3);
 	cov = MatrixXd::Zero(3,3);
 	cov.topLeftCorner(partial_cov.rows(), partial_cov.cols()) = partial_cov;
-}
-
-BeliefDynamicsConstraint::BeliefDynamicsConstraint(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars, BeliefRobotAndDOFPtr brad) :
-    		Constraint("BeliefDynamics"), brad_(brad), theta0_vars_(theta0_vars), theta1_vars_(theta1_vars), u_vars_(u_vars), type_(EQ)
-{}
-
-vector<double> BeliefDynamicsConstraint::value(const vector<double>& xin) {
-	VectorXd theta0_hat = getVec(xin, theta0_vars_);
-	VectorXd theta1_hat = getVec(xin, theta1_vars_);
-	VectorXd u_hat = getVec(xin, u_vars_);
-
-//	cout << "theta0_hat inside:\n" << theta0_hat.transpose() << endl;
-//	cout << "theta1_hat inside:\n" << theta1_hat.transpose() << endl;
-//	cout << "u_hat inside:\n" << u_hat.transpose() << endl;
-	return toDblVec(brad_->BeliefDynamics(theta0_hat, u_hat) - theta1_hat);
-}
-
-///**
-// *
-// * y = f(x)
-// * linearize around x0 to get
-// * f(x) \approx y0 + grad f(x)|x0 *(x - x0)
-// */
-//AffExpr exprFromValGrad(double y0, const VectorXd& grad, const VarVector& vars, const VectorXd& x0) {
-//	AffExpr y(y0);
-//	exprInc(y, varDot(grad, vars));
-//	exprDec(y, grad.dot(x0));
-//	return y;
-//}
-
-ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin, Model* model) {
-	VectorXd theta0_hat = getVec(xin, theta0_vars_);
-	VectorXd theta1_hat = getVec(xin, theta1_vars_);
-	VectorXd u_hat = getVec(xin, u_vars_);
-
-//	cout << "theta0_hat:\n" << theta0_hat.transpose() << endl;
-//	cout << "theta1_hat:\n" << theta1_hat.transpose() << endl;
-//	cout << "u_hat:\n" << u_hat.transpose() << endl;
-
-	// linearize belief dynamics around theta0_hat and u_hat
-	MatrixXd A = calcNumJac(boost::bind(&BeliefRobotAndDOF::BeliefDynamics, brad_.get(), _1, u_hat), theta0_hat);
-
-	/*
-	VectorXd theta_plus = theta0_hat, theta_minus = theta0_hat;
-	double eps = 0.00048828125;
-	theta_plus(1) += eps;
-	theta_minus(1) -= eps;
-	cout << (brad_.get()->BeliefDynamics(theta_plus, u_hat).transpose() - brad_.get()->BeliefDynamics(theta_minus, u_hat).transpose())/(2*eps) << endl;
-	*/
-
-	MatrixXd B = calcNumJac(boost::bind(&BeliefRobotAndDOF::BeliefDynamics, brad_.get(), theta0_hat, _1), u_hat);
-	VectorXd c = brad_->BeliefDynamics(theta0_hat, u_hat);
-
-//	cout << "A matrix:\n" << A << endl;
-//	cout << "B matrix:\n" << B << endl;
-//	cout << "c vector:\n" << c.transpose() << endl;
-
-//	  // test convexification
-//	  VectorXd theta0 = theta0_hat + brad_->VectorXdRand(9)*0.1;
-//	  cout << "theta0" << theta0.transpose() << endl;
-//	  VectorXd u = u_hat +brad_->VectorXdRand(3)*0.1;
-//	  cout << "u "<< u.transpose() << endl;
-//	  VectorXd diff1_approx = A * (theta0 - theta0_hat) + B * (u - u_hat) + c - theta1_hat;
-//	  cout << "diff1_approx" << diff1_approx.transpose() << endl;
-//		VectorXd diff1 = brad_->BeliefDynamics(theta0_hat, u_hat) - theta1_hat;
-//	  cout << "diff1 " << diff1.transpose() << endl;
-
-	// equality constraint
-	// theta1_vars_ = A * (theta0_vars_ - theta0_hat) + B * (u_vars_ - u_hat) + c
-	// 0 = A * (theta0_vars_ - theta0_hat) + B * (u_vars_ - u_hat) + c - theta1_vars_
-	ConvexConstraintsPtr out(new ConvexConstraints(model));
-	assert(A.rows() == B.rows());
-	for (int i=0; i < A.rows(); ++i) {
-		AffExpr aff_theta0;
-		aff_theta0.constant = c[i] - A.row(i).dot(theta0_hat);
-		aff_theta0.coeffs = toDblVec(A.row(i));
-		aff_theta0.vars = theta0_vars_;
-		AffExpr aff_u;
-		aff_u.constant = - B.row(i).dot(u_hat);
-		aff_u.coeffs = toDblVec(B.row(i));
-		aff_u.vars = u_vars_;
-		AffExpr aff_theta1;
-		aff_theta1.constant = 0;
-		aff_theta1.coeffs = vector<double>(theta1_vars_.size(),0);
-		aff_theta1.coeffs[i] = 1;
-		aff_theta1.vars = theta1_vars_;
-		AffExpr aff_theta0_u = exprAdd(aff_theta0, aff_u);
-		AffExpr aff = exprSub(aff_theta0_u, aff_theta1);
-		aff = cleanupAff(aff);
-		//cout << aff << "\n\n";
-
-		//cout << aff.value(xin) << "\t" << value(xin)[i] << endl;
-
-		out->addEqCnt(aff);
-	}
-	//cout << "-----------------" << endl;
-
-	return out;
-}
-
-
-
-
-template <typename T>
-vector<T> concat(const vector<T>& a, const vector<T>& b) {
-  vector<T> out;
-  vector<int> x;
-  out.insert(out.end(), a.begin(), a.end());
-  out.insert(out.end(), b.begin(), b.end());
-  return out;
-}
-
-struct BeliefDynamicsErrCalculator : public VectorOfVector {
-  BeliefRobotAndDOFPtr brad_;
-  BeliefDynamicsErrCalculator(BeliefRobotAndDOFPtr brad) :
-  	brad_(brad)
-  {}
-
-  VectorXd operator()(const VectorXd& vals) const {
-  	int n_dof = brad_->GetDOF();
-  	int n_theta = brad_->GetNTheta();
-  	VectorXd theta0 = vals.topRows(n_theta);
-  	VectorXd theta1 = vals.middleRows(n_theta, n_theta);
-  	VectorXd u0 = vals.bottomRows(n_dof);
-  	assert(vals.size() == (2*n_theta + n_dof));
-
-  	VectorXd err = brad_->BeliefDynamics(theta0, u0) - theta1;
-
-    return err;
-  }
-};
-
-BeliefDynamicsConstraint2::BeliefDynamicsConstraint2(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars,
-		BeliefRobotAndDOFPtr brad, const BoolVec& enabled) :
-    ConstraintFromNumDiff(VectorOfVectorPtr(new BeliefDynamicsErrCalculator(brad)),
-    		concat(concat(theta0_vars, theta1_vars), u_vars), EQ, "BeliefDynamics2", enabled)
-{
-}
-
-
-
-
-
-CovarianceCost::CovarianceCost(const VarVector& rtSigma_vars, const Eigen::MatrixXd& Q, BeliefRobotAndDOFPtr brad) :
-    Cost("Covariance"), rtSigma_vars_(rtSigma_vars), Q_(Q), brad_(brad) {
-	int n_dof = brad_->GetDOF();
-	assert(rtSigma_vars_.size() == (brad_->GetNTheta() - n_dof));
-	assert(Q_.rows() == n_dof);
-	assert(Q_.cols() == n_dof);
-
-
-	if (n_dof == 3) {
-		cout << "runtime_error in belief.cpp at line " << __LINE__ << endl;
-		throw runtime_error("CovarianceCost for DOF=3 is wrong");
-
-		QuadExpr a;
-		a.coeffs = vector<double>(3,Q_(0,0));
-		a.vars1.push_back(rtSigma_vars_[0]);
-		a.vars1.push_back(rtSigma_vars_[1]);
-		a.vars1.push_back(rtSigma_vars_[2]);
-		a.vars2 = a.vars1;
-
-		QuadExpr e;
-		e.coeffs = vector<double>(2,Q_(1,1));
-		e.vars1.push_back(rtSigma_vars_[3]);
-		e.vars1.push_back(rtSigma_vars_[4]);
-		e.vars2 = e.vars1;
-
-		QuadExpr i;
-		i.coeffs = vector<double>(1,Q_(2,2));
-		i.vars1.push_back(rtSigma_vars_[5]);
-		i.vars2 = i.vars1;
-
-		QuadExpr bd;
-		bd.coeffs = vector<double>(2,Q_(0,1)+Q_(1,0));
-		bd.vars1.push_back(rtSigma_vars_[1]);
-		bd.vars1.push_back(rtSigma_vars_[2]);
-		bd.vars2.push_back(rtSigma_vars_[3]);
-		bd.vars2.push_back(rtSigma_vars_[4]);
-
-		QuadExpr cg;
-		cg.coeffs = vector<double>(1,Q_(0,2)+Q_(2,0));
-		cg.vars1.push_back(rtSigma_vars_[2]);
-		cg.vars2.push_back(rtSigma_vars_[5]);
-
-		QuadExpr fh;
-		fh.coeffs = vector<double>(1,Q_(1,2)+Q_(2,1));
-		fh.vars1.push_back(rtSigma_vars_[4]);
-		fh.vars2.push_back(rtSigma_vars_[5]);
-
-		exprInc(expr_,a);
-		exprInc(expr_,e);
-		exprInc(expr_,i);
-		exprInc(expr_,bd);
-		exprInc(expr_,cg);
-		exprInc(expr_,fh);
-	} else {
-
-		QuadExpr a;
-		a.coeffs = vector<double>(1,Q_(0,0));
-		a.vars1.push_back(rtSigma_vars_[0]);
-		a.vars2 = a.vars1;
-
-		QuadExpr b;
-		b.coeffs = vector<double>(1,Q_(0,0)+Q_(1,1));
-		b.vars1.push_back(rtSigma_vars_[1]);
-		b.vars2 = b.vars1;
-
-		QuadExpr c;
-		c.coeffs = vector<double>(1,Q_(1,1));
-		c.vars1.push_back(rtSigma_vars_[2]);
-		c.vars2 = c.vars1;
-
-		QuadExpr d;
-		d.coeffs = vector<double>(2,Q_(0,1)+Q_(1,0));
-		d.vars1.push_back(rtSigma_vars_[0]);
-		d.vars1.push_back(rtSigma_vars_[1]);
-		d.vars2.push_back(rtSigma_vars_[1]);
-		d.vars2.push_back(rtSigma_vars_[2]);
-
-		exprInc(expr_,a);
-		exprInc(expr_,b);
-		exprInc(expr_,c);
-		exprInc(expr_,d);
-	}
-	expr_ = cleanupQuad(expr_);
-}
-
-double CovarianceCost::value(const vector<double>& xin) {
-	int n_dof = brad_->GetDOF();
-	VectorXd rtSigma_vec = getVec(xin, rtSigma_vars_);
-	MatrixXd rtSigma(n_dof, n_dof);
-	VectorXd x_unused(n_dof);
-	VectorXd theta(n_dof+rtSigma_vec.size());
-	theta.bottomRows(rtSigma_vec.size()) = rtSigma_vec;
-	brad_->decomposeBelief(theta, x_unused, rtSigma);
-
-	return (Q_ * rtSigma.transpose() * rtSigma).trace();
-}
-
-ConvexObjectivePtr CovarianceCost::convex(const vector<double>& x, Model* model) {
-  ConvexObjectivePtr out(new ConvexObjective(model));
-  out->addQuadExpr(expr_);
-  return out;
-}
-
-
-ControlCost::ControlCost(const VarArray& vars, const VectorXd& coeffs) :
-    Cost("Control"), vars_(vars), coeffs_(coeffs) {
-  for (int i=0; i < vars.rows(); ++i) {
-  	QuadExpr expr;
-		expr.vars1 = vars_.row(i);
-		expr.vars2 = vars_.row(i);
-		expr.coeffs = toDblVec(coeffs);
-		exprInc(expr_, expr);
-  }
-}
-double ControlCost::value(const vector<double>& xvec) {
-  MatrixXd traj = getTraj(xvec, vars_);
-  return (traj.array().square().matrix() * coeffs_.asDiagonal()).sum();
-}
-ConvexObjectivePtr ControlCost::convex(const vector<double>& x, Model* model) {
-  ConvexObjectivePtr out(new ConvexObjective(model));
-  out->addQuadExpr(expr_);
-
-  return out;
 }
 
 

@@ -1,4 +1,5 @@
 #include "expr_ops.hpp"
+#include "expr_op_overloads.hpp"
 #include <cmath>
 
 static inline double sq(double x) {return x*x;}
@@ -40,6 +41,41 @@ QuadExpr exprSquare(const AffExpr& affexpr) {
   return out;
 }
 
+QuadExpr exprMult(const Var& a, const Var& b) {
+	QuadExpr expr;
+	expr.coeffs.push_back(1);
+	expr.vars1.push_back(a);
+	expr.vars2.push_back(b);
+	return expr;
+}
+
+BasicArray<QuadExpr> exprMult(const BasicArray<Var>& A, const BasicArray<Var>& B) {
+	BasicArray<QuadExpr> C(A.rows(), B.cols());
+	assert(A.cols() == B.rows());
+	int m = A.cols();
+	for (int i=0; i<A.rows(); i++) {
+		for (int j=0; j<B.cols(); j++) {
+			C(i,j) = QuadExpr();
+			for (int k=0; k<m; k++)
+				C(i,j) = C(i,j) + A(i,k)*B(k,j);
+		}
+	}
+	return C;
+}
+
+BasicArray<QuadExpr> exprMult(const Eigen::MatrixXd& A, const BasicArray<QuadExpr>& B) {
+	BasicArray<QuadExpr> C(A.rows(), B.cols());
+	assert(A.cols() == B.rows());
+	int m = A.cols();
+	for (int i=0; i<A.rows(); i++) {
+		for (int j=0; j<B.cols(); j++) {
+			C(i,j) = QuadExpr();
+			for (int k=0; k<m; k++)
+				C(i,j) = C(i,j) + A(i,k)*B(k,j);
+		}
+	}
+	return C;
+}
 
 AffExpr cleanupAff(const AffExpr& a) {
   AffExpr out;

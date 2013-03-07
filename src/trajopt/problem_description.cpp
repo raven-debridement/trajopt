@@ -4,6 +4,7 @@
 #include "ipi/logging.hpp"
 #include "ipi/sco/expr_ops.hpp"
 #include "trajopt/kinematic_constraints.hpp"
+#include "trajopt/belief_constraints.hpp"
 #include "trajopt/collision_avoidance.hpp"
 #include "trajopt/rave_utils.hpp"
 #include "trajopt/plot_callback.hpp"
