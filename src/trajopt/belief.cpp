@@ -1,12 +1,12 @@
 #include "trajopt/belief.hpp"
 #include <time.h>
 #include <boost/bind.hpp>
-#include "ipi/sco/expr_ops.hpp"
-#include "ipi/sco/modeling_utils.hpp"
+#include "sco/expr_ops.hpp"
+#include "sco/modeling_utils.hpp"
 #include "utils/eigen_conversions.hpp"
 
 using namespace std;
-using namespace ipi::sco;
+using namespace sco;
 using namespace Eigen;
 using namespace OpenRAVE;
 using namespace util;
@@ -341,8 +341,15 @@ osg::Matrix gaussianAsTransform(const Eigen::Vector3d& mean, const Eigen::Matrix
 
 	Eigen::EigenSolver<Eigen::Matrix3d> es(cov);
 	Eigen::Matrix4d t = Eigen::Matrix4d::Identity();
+	cout << "es.eigenvectors().real()" << endl;
+	cout << es.eigenvectors().real() << endl;
+	cout << "es.eigenvalues().real()" << endl;
+	cout << es.eigenvalues().real() << endl;
 	t.block(0,0,3,3) = es.eigenvectors().real() * es.eigenvalues().real().cwiseSqrt().asDiagonal();
 	t.block(0,3,3,1) = mean;
+
+	cout << "t" << endl;
+	cout << t << endl;
 
 	osg::Matrix osg_t;
 	osg_t.set(t.data());

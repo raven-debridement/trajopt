@@ -1,11 +1,11 @@
 #pragma once
 #include "trajopt/belief.hpp"
-#include "ipi/sco/modeling.hpp"
-#include "ipi/sco/modeling_utils.hpp"
-#include "ipi/sco/sco_fwd.hpp"
+#include "sco/modeling.hpp"
+#include "sco/modeling_utils.hpp"
+#include "sco/sco_fwd.hpp"
 
 namespace trajopt {
-using namespace ipi::sco;
+using namespace sco;
 
 class BeliefDynamicsConstraint: public Constraint {
 public:
@@ -22,7 +22,7 @@ protected:
   ConstraintType type_;
 };
 
-class BeliefDynamicsConstraint2 : public ConstraintFromNumDiff {
+class BeliefDynamicsConstraint2 : public ConstraintFromFunc {
 public:
 	BeliefDynamicsConstraint2(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars,
 			BeliefRobotAndDOFPtr brad, const BoolVec& enabled=BoolVec());

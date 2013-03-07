@@ -2,7 +2,7 @@
 #include "json_marshal.hpp"
 #include <boost/function.hpp>
 
-namespace ipi{namespace sco{struct OptResults;}}
+namespace sco{struct OptResults;}
 
 namespace trajopt {
 
@@ -22,13 +22,9 @@ class ProblemConstructionInfo;
 class TrajOptResult;
 typedef boost::shared_ptr<TrajOptResult> TrajOptResultPtr;
 
-
 TrajOptProbPtr TRAJOPT_API ConstructProblem(const ProblemConstructionInfo&);
 TrajOptProbPtr TRAJOPT_API ConstructProblem(const Json::Value&, OpenRAVE::EnvironmentBasePtr env);
 TrajOptResultPtr TRAJOPT_API OptimizeProblem(TrajOptProbPtr, bool plot);
-void TRAJOPT_API HandlePlanningRequest(OR::EnvironmentBasePtr env, TrajOptRequest&, TrajOptResponse&);
-
-
 
 
 /**
@@ -69,7 +65,6 @@ struct TRAJOPT_API TrajOptResult {
 	TrajOptResult(OptResults& opt, TrajOptProb& prob);
 };
 
-
 struct BasicInfo  {
 	bool start_fixed;
 	int n_steps;
@@ -80,6 +75,9 @@ struct BasicInfo  {
 	void fromJson(const Json::Value& v);
 };
 
+/**
+Initialization info read from json
+*/
 struct InitInfo {
 	enum Type {
 		STATIONARY,
@@ -90,6 +88,10 @@ struct InitInfo {
 	void fromJson(const Json::Value& v);
 };
 
+/**
+When cost element of JSON doc is read, one of these guys gets constructed to hold the parameters.
+Then it later gets converted to a Cost object by the hatch method
+*/
 struct TRAJOPT_API CostInfo  {
 
 	string name;
@@ -110,6 +112,9 @@ private:
 	static std::map<string, MakerFunc> name2maker;
 };
 
+/**
+See CostInfo
+*/
 struct TRAJOPT_API CntInfo  {
 	string name;
 	virtual void fromJson(const Json::Value& v) = 0;
@@ -128,6 +133,9 @@ private:
 void fromJson(const Json::Value& v, CostInfoPtr&);
 void fromJson(const Json::Value& v, CntInfoPtr&);
 
+/**
+This object holds all the data that's read from the JSON document
+*/
 struct TRAJOPT_API ProblemConstructionInfo {
 public:
 	BasicInfo basic_info;

@@ -4,6 +4,10 @@
 
 namespace trajopt {
 
+
+/**
+Stores an OpenRAVE robot and the active degrees of freedom  
+*/
 class TRAJOPT_API RobotAndDOF {
 public:
   RobotAndDOF(OR::RobotBasePtr _robot, const IntVec& _joint_inds, int _affinedofs=0, const OR::Vector _rotationaxis=OR::Vector()) :
@@ -29,6 +33,6 @@ private:
   int affinedofs;
   OR::Vector rotationaxis;
 };
-typedef shared_ptr<RobotAndDOF> RobotAndDOFPtr;
+typedef boost::shared_ptr<RobotAndDOF> RobotAndDOFPtr;
 
 }

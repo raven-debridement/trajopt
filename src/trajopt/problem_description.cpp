@@ -1,8 +1,8 @@
 #include "trajopt/problem_description.hpp"
 #include "trajopt/common.hpp"
 #include <boost/foreach.hpp>
-#include "ipi/logging.hpp"
-#include "ipi/sco/expr_ops.hpp"
+#include "utils/logging.hpp"
+#include "sco/expr_ops.hpp"
 #include "trajopt/kinematic_constraints.hpp"
 #include "trajopt/belief_constraints.hpp"
 #include "trajopt/collision_avoidance.hpp"
@@ -146,7 +146,7 @@ void CostInfo::RegisterMaker(const std::string& type, MakerFunc f) {
 void fromJson(const Json::Value& v, CntInfoPtr& cnt) {
   string type;
   childFromJson(v, type, "type");
-  IPI_LOG_DEBUG("reading constraint: %s", type);
+  LOG_DEBUG("reading constraint: %s", type.c_str());
   cnt = CntInfo::fromName(type);
   if (!cnt) PRINT_AND_THROW( boost::format("failed to construct constraint named %s")%type );
   cnt->fromJson(v);
@@ -311,25 +311,12 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
     }
   }
 
-  vector<string> cost_names;
   BOOST_FOREACH(const CostInfoPtr& ci, pci.cost_infos) {
-    int n_costs_before = prob->getNumCosts();
     ci->hatch(*prob);
-    int n_costs_after = prob->getNumCosts();
-    for (int i=0; i < n_costs_after - n_costs_before; ++i) cost_names.push_back(ci->name);
   }
-
-  vector<string> cnt_names;
   BOOST_FOREACH(const CntInfoPtr& ci, pci.cnt_infos) {
-    int n_cnts_before = prob->getNumConstraints();
     ci->hatch(*prob);
-    int n_cnts_after = prob->getNumConstraints();
-    for (int i=0; i < n_cnts_after - n_cnts_before; ++i) cnt_names.push_back(ci->name);
   }
-
-  int iCost=0, iCnt=0;
-  BOOST_FOREACH(const CostPtr& cost, prob->getCosts()) cost->setName(cost_names[iCost++]);
-  BOOST_FOREACH(const ConstraintPtr& cnt, prob->getConstraints()) cnt->setName(cnt_names[iCnt++]);
 
   TrajArray init_data = TrajArray::Zero(n_steps,n_theta+n_dof);
   init_data.block(0,0,n_steps,n_dof) = pci.init_info.data;
@@ -427,6 +414,7 @@ CostInfoPtr PoseCostInfo::create() {
 }
 void PoseCostInfo::hatch(TrajOptProb& prob) {
   prob.addCost(CostPtr(new CartPoseCost(prob.GetVarRow(timestep), toRaveTransform(wxyz, xyz), rot_coeffs, pos_coeffs, prob.GetRAD(), link)));
+  prob.getCosts().back()->setName(name);
 }
 
 void PoseCntInfo::fromJson(const Value& v) {
@@ -462,6 +450,7 @@ void JointPosCostInfo::fromJson(const Value& v) {
 }
 void JointPosCostInfo::hatch(TrajOptProb& prob) {
   prob.addCost(CostPtr(new JointPosCost(prob.GetVarRow(timestep), toVectorXd(vals), toVectorXd(coeffs))));
+  prob.getCosts().back()->setName(name);  
 }
 CostInfoPtr JointPosCostInfo::create() {
   return CostInfoPtr(new JointPosCostInfo());
@@ -473,7 +462,8 @@ CntInfoPtr PoseCntInfo::create() {
 }
 void PoseCntInfo::hatch(TrajOptProb& prob) {
   VectorXd coeffs(6); coeffs << rot_coeffs, pos_coeffs;
-  prob.addConstr(ConstraintPtr(new CartPoseConstraint(prob.GetVarRow(timestep), toRaveTransform(wxyz, xyz), prob.GetRAD(), link, toMask(coeffs))));
+  prob.addConstr(ConstraintPtr(new CartPoseConstraint(prob.GetVarRow(timestep), toRaveTransform(wxyz, xyz), prob.GetRAD(), link, coeffs)));
+  prob.getEqConstraints().back()->setName(name);
 }
 
 void CartVelCntInfo::fromJson(const Value& v) {
@@ -482,6 +472,9 @@ void CartVelCntInfo::fromJson(const Value& v) {
   childFromJson(params, first_step, "first_step");
   childFromJson(params, last_step, "last_step");
   childFromJson(params, distance_limit,"distance_limit");
+
+  FAIL_IF_FALSE((first_step >= 0) && (first_step <= gPCI->basic_info.n_steps-1) && (first_step < last_step));
+  FAIL_IF_FALSE((last_step > 0) && (last_step <= gPCI->basic_info.n_steps-1));
 
   string linkstr;
   childFromJson(params, linkstr, "link");
@@ -496,6 +489,7 @@ CntInfoPtr CartVelCntInfo::create() {
 void CartVelCntInfo::hatch(TrajOptProb& prob) {
   for (int iStep = first_step; iStep < last_step; ++iStep) {
     prob.addConstr(ConstraintPtr(new CartVelConstraint(prob.GetVarRow(iStep), prob.GetVarRow(iStep+1), prob.GetRAD(), link, distance_limit)));
+    prob.getIneqConstraints().back()->setName(name);
   }
 }
 
@@ -516,6 +510,7 @@ CostInfoPtr JointVelCostInfo::create() {
 void JointVelCostInfo::hatch(TrajOptProb& prob) {
 	// belief-alex take the submatrix because we want joint-vel only on the joint variables
   prob.addCost(CostPtr(new JointVelCost(prob.GetVars().block(0,0,prob.GetVars().m_nRow, prob.GetRAD()->GetDOF()), toVectorXd(coeffs))));
+  prob.getCosts().back()->setName(name);
 }
 
 void CollisionCostInfo::fromJson(const Value& v) {
@@ -537,6 +532,7 @@ void CollisionCostInfo::fromJson(const Value& v) {
 void CollisionCostInfo::hatch(TrajOptProb& prob) {
   for (int i=0; i < prob.GetNumSteps(); ++i) {
   	prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()))));
+    prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
   }
   CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
   cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
@@ -555,7 +551,6 @@ void ContinuousCollisionCostInfo::fromJson(const Value& v) {
   childFromJson(params, last_step, "last_step", n_steps-1);
   childFromJson(params, coeffs, "coeffs");
   int n_terms = last_step - first_step;
-  cout << "n terms: " << n_terms << endl;
   if (coeffs.size() == 1) coeffs = DblVec(n_terms, coeffs[0]);
   else if (coeffs.size() != n_terms) {
     PRINT_AND_THROW (boost::format("wrong size: coeffs. expected %i got %i")%n_terms%coeffs.size());
@@ -570,6 +565,7 @@ void ContinuousCollisionCostInfo::hatch(TrajOptProb& prob) {
   for (int i=first_step; i < last_step; ++i) {
     prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()), prob.GetVars().rblock(i+1,0,prob.GetRAD()->GetDOF()))));
 //    prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()), prob.GetVars().rblock(i+1,0,prob.GetRAD()->GetDOF()), true)));
+    prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
   }
   CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
   cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
@@ -596,7 +592,7 @@ void JointConstraintInfo::hatch(TrajOptProb& prob) {
   VarVector vars = prob.GetVarRow(timestep);
   int n_dof = vars.size();
   for (int j=0; j < n_dof; ++j) {
-    prob.addLinearConstr(exprSub(AffExpr(vars[j]), vals[j]), EQ);
+    prob.addLinearConstr(exprSub(AffExpr(vars[j]), vals[j]), EQ);    
   }
 }
 CntInfoPtr JointConstraintInfo::create() {
@@ -608,7 +604,7 @@ CntInfoPtr JointConstraintInfo::create() {
 void ControlCostInfo::fromJson(const Value& v) {
 	belief_space = gPCI->basic_info.belief_space;
 	if (!belief_space) {
-		IPI_LOG_WARNING("control cost can only be used in belief space. ignoring.");
+		LOG_WARN("control cost can only be used in belief space. ignoring.");
 		return;
 	}
   FAIL_IF_FALSE(v.isMember("params"));
@@ -632,7 +628,7 @@ void ControlCostInfo::hatch(TrajOptProb& prob) {
 void ControlCntInfo::fromJson(const Value& v) {
 	belief_space = gPCI->basic_info.belief_space;
 	if (!belief_space) {
-		IPI_LOG_WARNING("control constraint can only be used in belief space. ignoring.");
+		LOG_WARN("control constraint can only be used in belief space. ignoring.");
 		return;
 	}
   FAIL_IF_FALSE(v.isMember("params"));
@@ -658,7 +654,7 @@ void ControlCntInfo::hatch(TrajOptProb& prob) {
 void CovarianceCostInfo::fromJson(const Value& v) {
 	belief_space = gPCI->basic_info.belief_space;
 	if (!belief_space) {
-		IPI_LOG_WARNING("covariance cost can only be used in belief space. ignoring.");
+		LOG_WARN("covariance cost can only be used in belief space. ignoring.");
 		return;
 	}
   FAIL_IF_FALSE(v.isMember("params"));

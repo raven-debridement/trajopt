@@ -100,7 +100,7 @@ Optimizer::Callback PlotCallback(TrajOptProb& prob) {
                       cnts,
                       prob.GetRAD(),
                       boost::ref(prob.GetVars()),
-                      _1);
+                      _2);
 }
 
 }

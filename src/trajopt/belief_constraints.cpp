@@ -1,12 +1,12 @@
 #include "trajopt/belief_constraints.hpp"
 #include "trajopt/utils.hpp"
 #include <boost/bind.hpp>
-#include "ipi/sco/expr_ops.hpp"
-#include "ipi/sco/expr_op_overloads.hpp"
+#include "sco/expr_ops.hpp"
+#include "sco/expr_op_overloads.hpp"
 #include "utils/eigen_conversions.hpp"
 
 using namespace std;
-using namespace ipi::sco;
+using namespace sco;
 using namespace Eigen;
 using namespace OpenRAVE;
 using namespace util;
@@ -115,11 +115,10 @@ struct BeliefDynamicsErrCalculator : public VectorOfVector {
 
 BeliefDynamicsConstraint2::BeliefDynamicsConstraint2(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars,
 		BeliefRobotAndDOFPtr brad, const BoolVec& enabled) :
-    ConstraintFromNumDiff(VectorOfVectorPtr(new BeliefDynamicsErrCalculator(brad)),
-    		concat(concat(theta0_vars, theta1_vars), u_vars), EQ, "BeliefDynamics2", enabled)
+    ConstraintFromFunc(VectorOfVectorPtr(new BeliefDynamicsErrCalculator(brad)),
+    		concat(concat(theta0_vars, theta1_vars), u_vars), EQ, "BeliefDynamics2")
 {
 }
-
 
 CovarianceCost::CovarianceCost(const VarVector& rtSigma_vars, const Eigen::MatrixXd& Q, BeliefRobotAndDOFPtr brad) :
     Cost("Covariance"), rtSigma_vars_(rtSigma_vars), Q_(Q), brad_(brad) {

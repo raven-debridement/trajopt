@@ -4,10 +4,13 @@
 #include <osgViewer/Viewer>
 #include <boost/function.hpp>
 #include <osgGA/TrackballManipulator>
-
+#include "macros.h"
 typedef OpenRAVE::RaveVector<float> RaveVectorf;
 
-class OSGViewer : public OpenRAVE::ViewerBase {
+/**
+Viewer class with some extras for rendering whole robots.
+*/
+class TRAJOPT_API OSGViewer : public OpenRAVE::ViewerBase {
 public:
 
   static boost::shared_ptr<OSGViewer> GetOrCreate(OpenRAVE::EnvironmentBasePtr env);
@@ -75,5 +78,5 @@ public:
 typedef boost::shared_ptr<OSGViewer> OSGViewerPtr;
 
 
-void SetColor(OpenRAVE::GraphHandlePtr handle, const osg::Vec4& color);
-void SetTransparency(OpenRAVE::GraphHandlePtr handle, float alpha);
+void TRAJOPT_API SetColor(OpenRAVE::GraphHandlePtr handle, const osg::Vec4& color);
+void TRAJOPT_API SetTransparency(OpenRAVE::GraphHandlePtr handle, float alpha);

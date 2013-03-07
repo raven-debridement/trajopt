@@ -5,7 +5,7 @@
 #include <boost/shared_ptr.hpp>
 #include <openrave/openrave.h>
 
-#include "ipi/sco/modeling.hpp"
+#include "sco/modeling.hpp"
 #include "utils/basic_array.hpp"
 #include "macros.h"
 
@@ -17,7 +17,7 @@ using OR::KinBody;
 using OR::RobotBase;
 using std::vector;
 using std::map;
-using namespace ipi::sco;
+using namespace sco;
 using namespace util;
 
 typedef BasicArray<Var> VarArray;
@@ -32,7 +32,9 @@ using Eigen::Vector4d;
 using Eigen::VectorXd;
 typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> TrajArray;
 
-
+/**
+Interface for objects that know how to plot themselves given solution vector x
+*/
 class Plotter {
 public:
   virtual void Plot(const DblVec& x, OR::EnvironmentBase&, std::vector<OR::GraphHandlePtr>& handles) = 0;
