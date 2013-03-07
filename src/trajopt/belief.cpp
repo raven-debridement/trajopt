@@ -341,18 +341,12 @@ osg::Matrix gaussianAsTransform(const Eigen::Vector3d& mean, const Eigen::Matrix
 
 	Eigen::EigenSolver<Eigen::Matrix3d> es(cov);
 	Eigen::Matrix4d t = Eigen::Matrix4d::Identity();
-	cout << "es.eigenvectors().real()" << endl;
-	cout << es.eigenvectors().real() << endl;
-	cout << "es.eigenvalues().real()" << endl;
-	cout << es.eigenvalues().real() << endl;
 	t.block(0,0,3,3) = es.eigenvectors().real() * es.eigenvalues().real().cwiseSqrt().asDiagonal();
 	t.block(0,3,3,1) = mean;
-
-	cout << "t" << endl;
-	cout << t << endl;
+	Eigen::Matrix4d t_transpose = t.transpose();
 
 	osg::Matrix osg_t;
-	osg_t.set(t.data());
+	osg_t.set(t_transpose.data());
 	return osg_t;
 }
 
