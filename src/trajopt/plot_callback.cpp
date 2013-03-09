@@ -4,6 +4,8 @@
 #include "utils/eigen_conversions.hpp"
 #include <boost/foreach.hpp>
 #include "trajopt/problem_description.hpp"
+#include "trajopt/collision_checker.hpp"
+#include "trajopt/collision_avoidance.hpp"
 using namespace OpenRAVE;
 using namespace util;
 using namespace Eigen;
@@ -12,7 +14,6 @@ namespace trajopt {
 
 void PlotTraj(OSGViewer& viewer, BeliefRobotAndDOFPtr rad, const TrajArray& traj, vector<GraphHandlePtr>& handles) {
 	const int n_dof = rad->GetDOF();
-	const int n_theta = rad->GetNTheta();
 	const int n_steps = traj.rows();
 
 	for (int i=0; i < n_steps; ++i) {
@@ -22,7 +23,12 @@ void PlotTraj(OSGViewer& viewer, BeliefRobotAndDOFPtr rad, const TrajArray& traj
     SetTransparency(handles.back(), trans_param);
   }
 
-	if (traj.cols() >= n_dof) {
+	boost::shared_ptr<CollisionChecker> cc = CollisionChecker::GetOrCreate(*rad->GetRobot()->GetEnv());
+//	cc->PlotCollisionGeometry(handles);
+	cc->PlotCastCollisionGeometry(handles);
+
+	if (traj.cols() > n_dof) { // if belief space?
+		const int n_theta = rad->GetNTheta();
 		OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(rad.get())->Save();
 
 		for (int i=0; i < n_steps; ++i) {
@@ -78,7 +84,7 @@ void PlotCosts(OSGViewer& viewer, vector<CostPtr>& costs, vector<ConstraintPtr>&
     if (Plotter* plotter = dynamic_cast<Plotter*>(cost.get())) {
       plotter->Plot(x, *rad->GetRobot()->GetEnv(), handles);
     }
-  }
+	}
   BOOST_FOREACH(ConstraintPtr& cnt, cnts) {
     if (Plotter* plotter = dynamic_cast<Plotter*>(cnt.get())) {
       plotter->Plot(x, *rad->GetRobot()->GetEnv(), handles);

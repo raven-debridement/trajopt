@@ -86,22 +86,22 @@ public:
 
 };
 
-//struct SigmaPtsCollisionEvaluator : public CollisionEvaluator {
-//public:
-//	SigmaPtsCollisionEvaluator(RobotAndDOFPtr rad, const VarVector& theta_vars);
-//  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights); // appends to this vector
-//  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights); // appends to this vector
-//  void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
-//
-//  // parameters:
-//  OR::EnvironmentBasePtr m_env;
-//  CollisionCheckerPtr m_cc;
-//  RobotAndDOFPtr m_rad;
-//  VarVector m_theta_vars;
-//  typedef std::map<const OR::KinBody::Link*, int> Link2Int;
-//  Link2Int m_link2ind;
-//  vector<OR::KinBody::LinkPtr> m_links;
-//};
+struct SigmaPtsCollisionEvaluator : public CollisionEvaluator {
+public:
+	SigmaPtsCollisionEvaluator(BeliefRobotAndDOFPtr rad, const VarVector& theta_vars);
+  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights); // appends to this vector
+  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights); // appends to this vector
+  void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
+
+  // parameters:
+  OR::EnvironmentBasePtr m_env;
+  CollisionCheckerPtr m_cc;
+  BeliefRobotAndDOFPtr m_rad;
+  VarVector m_theta_vars;
+  typedef std::map<const OR::KinBody::Link*, int> Link2Int;
+  Link2Int m_link2ind;
+  vector<OR::KinBody::LinkPtr> m_links;
+};
 
 
 class CollisionCost : public Cost, public Plotter {

@@ -12,17 +12,28 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
         "basic_info" : {
             "n_steps" : 15,
             "manip" : manip_name,
-            "start_fixed" : True
+            "start_fixed" : True,
+            "belief_space" : True
         },
         "costs" : [
         #{
         #    "type" : "continuous_collision",
         #    "params" : {"coeffs" : [1],"dist_pen" : [0.01]}
         #},
+#        {
+#            "type" : "joint_vel",
+#            "params": {"coeffs" : [1]}
+#        },
         {
-            "type" : "joint_vel",
+            "type" : "control",
             "params": {"coeffs" : [1]}
-        },        
+        },
+        {
+            "type" : "covariance",
+            "params": {
+                "Q" : (np.eye(3)*1).tolist()
+            }
+        },
         ],
         "constraints" : [
         {

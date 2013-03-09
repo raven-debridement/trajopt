@@ -137,18 +137,35 @@ TEST(continuous_collisions, boxes) {
   {
     TrajArray traj(2,2);
     traj << 0, .9,  0,2;
-    TRAJ_TEST_BOILERPLATE    
+    TRAJ_TEST_BOILERPLATE
     EXPECT_VECTOR_NEAR(robot_normal, Vector(0,1,0), 1e-4);
     EXPECT_NEAR(col.time, 0, 1e-6);
   }
   {
     TrajArray traj(2,2);
     traj << 0,2,  0,.9;
-    TRAJ_TEST_BOILERPLATE    
+    TRAJ_TEST_BOILERPLATE
     EXPECT_VECTOR_NEAR(robot_normal, Vector(0,1,0), 1e-4);
     EXPECT_NEAR(col.time, 1, 1e-6);
   }
-
+  {
+		RobotAndDOFPtr rad(new RobotAndDOF(boxbot, IntVec(), DOF_X | DOF_Y | DOF_Z, Vector()));
+		vector<Collision> collisions;
+		vector<DblVec> multi_joints;
+		multi_joints.push_back(toDblVec(Eigen::Vector3d(0,1.9,5)));
+		multi_joints.push_back(toDblVec(Eigen::Vector3d(-1.9,0,5)));
+		multi_joints.push_back(toDblVec(Eigen::Vector3d(0,-2,5)));
+		multi_joints.push_back(toDblVec(Eigen::Vector3d(2,0,5)));
+		multi_joints.push_back(toDblVec(Eigen::Vector3d(0,1.9,-5)));
+		multi_joints.push_back(toDblVec(Eigen::Vector3d(-1.9,0,-5)));
+		multi_joints.push_back(toDblVec(Eigen::Vector3d(0,-2,-5)));
+		multi_joints.push_back(toDblVec(Eigen::Vector3d(2,0,-5)));
+		checker->MultiCastVsAll(*rad, rad->GetRobot()->GetLinks(), multi_joints, collisions);
+		ASSERT_EQ(collisions.size(), 1);
+		Collision col = collisions[0];
+		Vector robot_normal = (float)(col.linkA == boxbot->GetLinks()[0].get() ? 1. : -1.) * col.normalB2A;
+    EXPECT_VECTOR_NEAR(robot_normal, Vector(1/sqrtf(2), -1/sqrtf(2), 0), 1e-4);
+	}
 
 }
 

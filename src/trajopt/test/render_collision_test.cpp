@@ -37,14 +37,16 @@ int main() {
   env = RaveCreateEnvironment();
   env->StopSimulation();
 //  bool success = env->Load("data/pr2test2.env.xml");
-  {
-    bool success = env->Load("/home/joschu/Proj/drc/gfe.xml");
-    assert(success);
-  }
-  {
-    bool success = env->Load("/home/joschu/Proj/trajopt/data/test2.env.xml");
-    assert(success);
-  }
+//  {
+//    bool success = env->Load("/home/joschu/Proj/drc/gfe.xml");
+//    assert(success);
+//  }
+//  {
+//    bool success = env->Load("/home/joschu/Proj/trajopt/data/test2.env.xml");
+//    assert(success);
+//  }
+  env->Load("/home/alex/rll/trajopt/data/point.env.xml");
+
   vector<RobotBasePtr> robots;
   env->GetRobots(robots);
   RobotBasePtr robot = robots[0];

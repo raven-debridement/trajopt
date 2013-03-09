@@ -201,7 +201,7 @@ COWPtr CollisionObjectFromLink(OR::KinBody::LinkPtr link, bool useTrimesh) {
 
 
 void RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
-    OpenRAVE::EnvironmentBase& env, vector<OpenRAVE::GraphHandlePtr>& handles) {
+    OpenRAVE::EnvironmentBase& env, vector<OpenRAVE::GraphHandlePtr>& handles, OR::RaveVector<float> color = OR::RaveVector<float>(1,1,1,.1)) {
 
   typedef map<btCollisionShape*, HullResult > Shape2Inds;
   Shape2Inds gHullCache;
@@ -248,7 +248,7 @@ void RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
 
 
       handles.push_back(env.drawtrimesh((float*)&tverts[0], 16,
-          (int*) &hr.m_Indices[0], hr.mNumFaces, OR::RaveVector<float>(1,1,1,.1)));
+          (int*) &hr.m_Indices[0], hr.mNumFaces, color));
     }
     break;
 
@@ -256,8 +256,21 @@ void RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
   }
 
   default:
-    LOG_INFO("not rendering shape of type %i", shape->getShapeType());
-    break;
+  	if (shape->getShapeType() <= CUSTOM_CONVEX_SHAPE_TYPE) {
+  		btConvexShape* convex = dynamic_cast<btConvexShape*>(shape);
+			btShapeHull* hull = new btShapeHull(convex);
+			hull->buildHull(convex->getMargin());
+			int num_triangles = hull->numTriangles();
+			const unsigned int* indices = hull->getIndexPointer();
+			const btVector3* vertices = hull->getVertexPointer();
+			btVector3 tf_vertices[hull->numVertices()];
+			for (int i=0; i<hull->numVertices(); i++) tf_vertices[i] = tf * vertices[i];
+
+			handles.push_back(env.drawtrimesh((float*)tf_vertices, 16, (int*) indices, num_triangles, color));
+  	} else {
+  		LOG_INFO("not rendering shape of type %i", shape->getShapeType());
+  	}
+  	break;
   }
 }
 
@@ -274,6 +287,7 @@ class BulletCollisionChecker : public CollisionChecker {
   typedef std::pair<const KinBody::Link*, const KinBody::Link*> LinkPair;
   set< LinkPair > m_excludedPairs;
   Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> m_allowedCollisionMatrix;
+  vector<OpenRAVE::GraphHandlePtr> custom_handles;
 
 public:
   BulletCollisionChecker(OR::EnvironmentBaseConstPtr env);
@@ -283,6 +297,7 @@ public:
   virtual void SetContactDistance(float distance);
   virtual double GetContactDistance() {return m_contactDistance;}
   virtual void PlotCollisionGeometry(vector<OpenRAVE::GraphHandlePtr>& handles);
+  virtual void PlotCastCollisionGeometry(vector<OpenRAVE::GraphHandlePtr>&);
   virtual void ExcludeCollisionPair(const KinBody::Link& link0, const KinBody::Link& link1) {
     m_excludedPairs.insert(LinkPair(&link0, &link1));
     m_allowedCollisionMatrix(GetCow(&link0)->m_index, GetCow(&link1)->m_index) = 0;
@@ -584,7 +599,10 @@ void BulletCollisionChecker::PlotCollisionGeometry(vector<OpenRAVE::GraphHandleP
   }
 }
 
-
+void BulletCollisionChecker::PlotCastCollisionGeometry(vector<OpenRAVE::GraphHandlePtr>& handles) {
+	handles.insert(handles.end(), custom_handles.begin(), custom_handles.end());
+  custom_handles.clear();
+}
 
 
 ////////// Continuous collisions ////////////////////////
@@ -817,7 +835,7 @@ btScalar CastCollisionCollector::addSingleResult(btManifoldPoint& cp,
       float retval = CollisionCollector::addSingleResult(cp, colObj0Wrap,partId0,index0, colObj1Wrap,partId1,index1); // call base class func
       if (retval == 1) { // if contact was added
         bool castShapeIsFirst =  (colObj0Wrap->getCollisionObject() == m_cow);
-        btVector3 normalWorldFromCast = -(castShapeIsFirst ? 1 : -1) * cp.m_normalWorldOnB;          
+        btVector3 normalWorldFromCast = -(castShapeIsFirst ? 1 : -1) * cp.m_normalWorldOnB;
         const CastHullShape* shape = dynamic_cast<const CastHullShape*>((castShapeIsFirst ? colObj0Wrap : colObj1Wrap)->getCollisionObject()->getCollisionShape());
         assert(!!shape);
         btTransform tfWorld0 = m_cow->getWorldTransform();
@@ -864,6 +882,9 @@ void BulletCollisionChecker::CheckShapeCast(btCollisionShape* shape, const btTra
     cc.m_collisionFilterMask = KinBodyFilter;
     cc.m_collisionFilterGroup = RobotFilter;
     world->contactTest(obj, cc);
+
+    RenderCollisionShape(obj->getCollisionShape(), obj->getWorldTransform(), const_cast<EnvironmentBase&>(*m_env), custom_handles, OR::RaveVector<float>(0,0.4,0.4,0.5));
+
     delete obj;
     delete shape;
   }
@@ -960,6 +981,89 @@ public:
   virtual btVector3 localGetSupportingVertexWithoutMargin(const btVector3& v) const {return localGetSupportingVertex(v);}
 };
 
+
+btVector3 barycentricCoordinates(const btVector3& a, const btVector3& b, const btVector3& c, const btVector3& p) {
+	btVector3 n = (b-a).cross(c-a);
+	btVector3 na = (c-b).cross(p-b);
+	btVector3 nb = (a-c).cross(p-c);
+	btVector3 nc = (b-a).cross(p-a);
+	float n_length2_inv = 1.0/n.length2();
+	return btVector3(n.dot(na)*n_length2_inv, n.dot(nb)*n_length2_inv, n.dot(nc)*n_length2_inv);
+}
+void computeSupportingWeights(const vector<btVector3>& v, const btVector3& p, vector<float>& alpha) {
+	alpha.resize(v.size());
+	switch ( v.size() )
+	{
+	case 1:
+	{
+		alpha[0] = 1;
+		break;
+	}
+	case 2:
+	{
+		float l0p = (p-v[0]).length();
+		float l01 = (v[1]-v[0]).length();
+		alpha[0] = l01 > 0  ?  fmin(l0p/l01, 1) : .5;
+		alpha[1] = 1 - alpha[0];
+		break;
+	}
+	case 3:
+	{
+		btVector3 bary = barycentricCoordinates(v[0], v[1], v[2], p);
+		alpha[0] = bary[0];
+		alpha[1] = bary[1];
+		alpha[2] = bary[2];
+		break;
+	}
+	default:
+		throw runtime_error("Unsupported case for computeSupportingWeights");
+	}
+}
+
+struct MultiCastCollisionCollector : public CollisionCollector {
+	MultiCastCollisionCollector(vector<Collision>& collisions, CollisionObjectWrapper* cow, BulletCollisionChecker* cc) :
+    CollisionCollector(collisions, cow, cc) {}
+  virtual btScalar addSingleResult(btManifoldPoint& cp,
+      const btCollisionObjectWrapper* colObj0Wrap,int partId0,int index0,
+      const btCollisionObjectWrapper* colObj1Wrap,int partId1,int index1);
+};
+btScalar MultiCastCollisionCollector::addSingleResult(btManifoldPoint& cp,
+	const btCollisionObjectWrapper* colObj0Wrap,int partId0,int index0,
+	const btCollisionObjectWrapper* colObj1Wrap,int partId1,int index1) {
+	float retval = CollisionCollector::addSingleResult(cp, colObj0Wrap,partId0,index0, colObj1Wrap,partId1,index1); // call base class func
+	if (retval == 1) { // if contact was added
+		bool castShapeIsFirst =  (colObj0Wrap->getCollisionObject() == m_cow);
+		btVector3 normalWorldFromCast = -(castShapeIsFirst ? 1 : -1) * cp.m_normalWorldOnB;
+		const MultiCastHullShape* shape = dynamic_cast<const MultiCastHullShape*>(m_cow->getCollisionShape());
+		assert(!!shape);
+		vector<float> sup(shape->m_t0i.size());
+		vector<btVector3> ptWorld(shape->m_t0i.size());
+		for (int i=0; i<sup.size(); i++) {
+			btTransform tfWorld = m_cow->getWorldTransform() * shape->m_t0i[i];
+			btVector3 normalLocal = normalWorldFromCast * tfWorld.getBasis();
+			ptWorld[i] = tfWorld * shape->localGetSupportingVertex(normalLocal);
+			sup[i] = normalWorldFromCast.dot(ptWorld[i]);
+		}
+
+		const float SUPPORT_FUNC_TOLERANCE = 1e-5;
+		float max_sup = *max_element(sup.begin(), sup.end());
+		vector<float> max_sups;
+		vector<btVector3> max_ptWorlds;
+		for (int i=0; i<sup.size(); i++) {
+			if (max_sup-sup[i] < SUPPORT_FUNC_TOLERANCE) {
+				max_sups.push_back(max_sup);
+				max_ptWorlds.push_back(ptWorld[i]);
+			}
+		}
+		assert(max_sups.size()>0);
+		assert(max_sups.size()<4);
+
+		const btVector3& ptOnCast = castShapeIsFirst ? cp.m_positionWorldOnA : cp.m_positionWorldOnB;
+		computeSupportingWeights(max_ptWorlds, ptOnCast, m_collisions.back().alpha);
+	}
+	return retval;
+}
+
 void BulletCollisionChecker::CheckShapeMultiCast(btCollisionShape* shape, const vector<btTransform>& tfi,
     CollisionObjectWrapper* cow, btCollisionWorld* world, vector<Collision>& collisions) {
   if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
@@ -971,7 +1075,7 @@ void BulletCollisionChecker::CheckShapeMultiCast(btCollisionShape* shape, const 
     obj->setCollisionShape(shape);
     obj->setWorldTransform(tfi[0]);
     obj->m_index = cow->m_index;
-    CollisionCollector cc(collisions, obj, this);
+    MultiCastCollisionCollector cc(collisions, obj, this);
     cc.m_collisionFilterMask = KinBodyFilter;
     cc.m_collisionFilterGroup = RobotFilter;
     world->contactTest(obj, cc);
@@ -1012,7 +1116,7 @@ void BulletCollisionChecker::MultiCastVsAll(RobotAndDOF& rad, const vector<KinBo
     CollisionObjectWrapper* cow = m_link2cow[links[i_link].get()];
     CheckShapeMultiCast(cow->getCollisionShape(), multi_tf[i_link], cow, m_world, collisions);
   }
-  RAVELOG_DEBUG("MultiCastVsAll checked %i links and found %i collisions\n", links.size(), collisions.size());
+  LOG_DEBUG("MultiCastVsAll checked %i links and found %i collisions\n", links.size(), collisions.size());
 }
 
 }

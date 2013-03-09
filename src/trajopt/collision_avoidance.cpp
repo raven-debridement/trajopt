@@ -178,52 +178,64 @@ void CastCollisionEvaluator::CalcDists(const DblVec& x, DblVec& dists, DblVec& w
 
 
 //////////////////////////////////////////
-//SigmaPtsCollisionEvaluator::SigmaPtsCollisionEvaluator(RobotAndDOFPtr rad, const VarVector& theta_vars) :
-//  m_env(rad->GetRobot()->GetEnv()),
-//  m_cc(CollisionChecker::GetOrCreate(*m_env)),
-//  m_rad(rad),
-//  m_theta_vars(theta_vars),
-//  m_link2ind(),
-//  m_links() {
-//  RobotBasePtr robot = rad->GetRobot();
-//  const vector<KinBody::LinkPtr>& robot_links = robot->GetLinks();
-//  vector<KinBody::LinkPtr> links;
-//  vector<int> inds;
-//  rad->GetAffectedLinks(m_links, true, inds);
-//  for (int i=0; i < m_links.size(); ++i) {
-//    m_link2ind[m_links[i].get()] = inds[i];
-//  }
-//}
+SigmaPtsCollisionEvaluator::SigmaPtsCollisionEvaluator(BeliefRobotAndDOFPtr rad, const VarVector& theta_vars) :
+  m_env(rad->GetRobot()->GetEnv()),
+  m_cc(CollisionChecker::GetOrCreate(*m_env)),
+  m_rad(rad),
+  m_theta_vars(theta_vars),
+  m_link2ind(),
+  m_links() {
+  RobotBasePtr robot = rad->GetRobot();
+  const vector<KinBody::LinkPtr>& robot_links = robot->GetLinks();
+  vector<KinBody::LinkPtr> links;
+  vector<int> inds;
+  rad->GetAffectedLinks(m_links, true, inds);
+  for (int i=0; i < m_links.size(); ++i) {
+    m_link2ind[m_links[i].get()] = inds[i];
+  }
+}
+
+void SigmaPtsCollisionEvaluator::CalcCollisions(const DblVec& x, vector<Collision>& collisions) {
+  DblVec theta = getDblVec(x, m_theta_vars);
+  MatrixXd sigma_pts = m_rad->sigmaPoints(toVectorXd(theta));
+  m_rad->SetDOFValues(toDblVec(sigma_pts.col(0))); // is this necessary?
+  vector<DblVec> dofvals(sigma_pts.rows());
+  for (int i=0; i<sigma_pts.cols(); i++) {
+  	dofvals[i] = toDblVec(sigma_pts.col(i));
+  }
+  m_cc->MultiCastVsAll(*m_rad, m_links, dofvals, collisions);
+}
+
+void SigmaPtsCollisionEvaluator::CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights) {
+  vector<Collision> collisions;
+  GetCollisionsCached(x, collisions);
+  DblVec theta = getDblVec(x, m_theta_vars);
+
+//  MatrixXd sigma_pts = m_rad->sigmaPoints(toVectorXd(theta));
+//  vector<DblVec> dofvals(sigma_pts.rows());
+//  for (int i=0; i<sigma_pts.cols(); i++) {
+//  	dofvals[i] = toDblVec(sigma_pts.col(i));
+//    CollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_theta_vars, dofvals[i], exprs, weights);
+//  	MatrixXd jac2 = calcNumJac(boost::bind(&BeliefRobotAndDOF::EndEffectorPosition, this, _1), x0);
 //
-//void SigmaPtsCollisionEvaluator::CalcCollisions(const DblVec& x, vector<Collision>& collisions) {
-//  DblVec theta = getDblVec(x, m_theta_vars);
-//  BeliefRobotAndDOFPtr brad = boost::dynamic_pointer_cast<BeliefRobotAndDOF>(m_rad);
-//  MatrixXd sigma_pts = brad->sigmaPoints(theta);
-//  m_rad->SetDOFValues(toDblVec(sigma_pts.col(0).transpose())); // is this necessary?
-//  vector<DblVec> dofvals(simga_pts.rows());
-//  for (int i=0; i<sigma_pts.rows(); i++) {
-//  	dofvals[i] = toDblVec(sigma_pts.col(i).transpose());
 //  }
-//  m_cc->MultiCastVsAll(*m_rad, m_links, dofvals, collisions);
-//}
-//void SigmaPtsCollisionEvaluator::CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights) {
-//  vector<Collision> collisions;
-//  GetCollisionsCached(x, collisions);
-//  DblVec theta = getDblVec(x, m_theta_vars);
 //
-//  DblVec dofvals = getDblVec(x, m_vars0);
-//  CollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_vars0, dofvals, exprs, weights);
-//  dofvals = getDblVec(x, m_vars1);
-//  CollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_vars1, dofvals, exprs, weights);
-//}
-//void SigmaPtsCollisionEvaluator::CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights) {
-//  vector<Collision> collisions;
-//  GetCollisionsCached(x, collisions);
-//  DblVec dofvals = getDblVec(x, m_vars0);
-//  CollisionsToDistances(collisions, m_link2ind, exprs, weights);
-//  dofvals = getDblVec(x, m_vars1);
-//  CollisionsToDistances(collisions, m_link2ind, exprs, weights);
-//}
+//	cout << "JAC2" << endl;
+//	cout << jac2 << endl;
+//	cout << "-----------" << endl;
+}
+void SigmaPtsCollisionEvaluator::CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights) {
+  vector<Collision> collisions;
+  GetCollisionsCached(x, collisions);
+  DblVec theta = getDblVec(x, m_theta_vars);
+
+	MatrixXd sigma_pts = m_rad->sigmaPoints(toVectorXd(theta));
+	vector<DblVec> dofvals(sigma_pts.rows());
+	for (int i=0; i<sigma_pts.cols(); i++) {
+		dofvals[i] = toDblVec(sigma_pts.col(i));
+		CollisionsToDistances(collisions, m_link2ind, exprs, weights);
+	}
+}
 //////////////////////////////////////////
 
 

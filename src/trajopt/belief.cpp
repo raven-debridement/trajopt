@@ -33,10 +33,29 @@ BeliefRobotAndDOF::BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec
 	if (GetDOF() == 3) link = GetRobot()->GetLink("Finger");
 	else link = GetRobot()->GetLink("Base");
 
+	VectorXi sigma_vec_inds(GetNTheta()-GetDOF());
+	for (int i=0; i<sigma_vec_inds.rows(); i++) sigma_vec_inds(i) = i;
+	MatrixXi sigma_matrix_inds = toSigmaMatrix(sigma_vec_inds);
+	for (int j=0; j<sigma_matrix_inds.cols(); j++)
+		sigma_col_to_indices.push_back(toDblVec((VectorXi) sigma_matrix_inds.col(j)));
+
 	// UKF vars
 	alpha = 0.5;
 	beta = 2.0;
 	kappa = 5.0;
+}
+
+void BeliefRobotAndDOF::SetBeliefValues(const DblVec& theta) {
+	assert(theta.size() == GetNTheta());
+	SetDOFValues(DblVec(theta.begin(), theta.begin()+GetDOF()));
+	sigma_vec = DblVec(theta.begin()+GetDOF(), theta.end());
+}
+
+DblVec BeliefRobotAndDOF::GetBeliefValues() {
+	DblVec theta = GetDOFValues();
+	theta.insert(theta.end(), sigma_vec.begin(), sigma_vec.end());
+	assert(theta.size() == GetNTheta());
+	return theta;
 }
 
 MatrixXd BeliefRobotAndDOF::GetDynNoise() {
@@ -266,34 +285,34 @@ void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const 
 		assert(s(i)>=0);
 }
 
-Eigen::MatrixXd BeliefRobotAndDOF::EndEffectorJacobian(const Eigen::VectorXd& x0) {
-	int n_dof = GetDOF();
+// theta needs to be set accordingly before calling this (i.e. call SetBeliefValues)
+Eigen::MatrixXd BeliefRobotAndDOF::BeliefJacobian(int link_ind, int sigma_pt_ind, const OR::Vector& pt) {
+	MatrixXd pos_jac = PositionJacobian(link->GetIndex(), pt);
+	MatrixXd jac = MatrixXd::Zero(3, GetNTheta());
+	jac.leftCols(GetDOF()) = pos_jac;
 
-	Eigen::MatrixXd jac(n_dof,n_dof);
+	float lambda;
+	if (sigma_pt_ind == 0) lambda = 0;
+	else lambda = ((sigma_pt_ind-1)%2)==0 ? 1 : -1; // TODO non-unit magnitude for lambda
 
-	if (n_dof == 3) {
-		double l1 = 0.16;
-		double l2 = 0.16;
-		double l3 = 0.08;
-		double s1 = -l1 * sin(x0(0));
-		double s2 = -l2 * sin(x0(0)+x0(1));
-		double s3 = -l3 * sin(x0(0)+x0(1)+x0(2));
-		double c1 = l1 * cos(x0(0));
-		double c2 = l2 * cos(x0(0)+x0(1));
-		double c3 = l3 * cos(x0(0)+x0(1)+x0(2));
-		jac << s1+s2+s3, s2+s3, s3, c1+c2+c3, c2+c3, c3, 0, 0, 0;
-	} else {
-		jac << 1,0,0,1;
+	if (lambda != 0) {
+		int sigma_matrix_col = (sigma_pt_ind - 1)/2;
+		vector<int> sigma_vec_inds = sigmaColToSigmaIndices(sigma_matrix_col);
+		assert(sigma_vec_inds.size() == GetDOF());
+		for (int i=0; i<sigma_vec_inds.size(); i++) {
+			int jac_col = GetDOF() + sigma_vec_inds[i];
+			jac.col(jac_col) = lambda * pos_jac.col(i);
+		}
 	}
 
-//		// analytical jacobian computed in openrave
-//		OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(this)->Save();
-//		DblMatrix Jxyz = PositionJacobian(link->GetIndex(), link->GetTransform().trans);
-//		cout << "Jxyz" << endl;
-//		std::cout << Jxyz << std::endl;
-//		cout << "JAC" << endl;
-//		cout << jac << endl;
-//		cout << "-----------" << endl;
+//	cout << "lambda " << lambda << endl;
+//	if (lambda != 0) {
+//		cout << "sigma_pt_ind " << sigma_pt_ind << endl;
+//		int sigma_matrix_col = (sigma_pt_ind - 1)/2;
+//		vector<int> sigma_vec_inds = sigmaColToSigmaIndices(sigma_matrix_col);
+//		cout << "sigma_vec_inds " << toVectorXd(sigma_vec_inds).transpose() << endl;
+//	}
+//	cout << jac << endl << endl;
 
 	return jac;
 }
@@ -303,17 +322,12 @@ void BeliefRobotAndDOF::GetEndEffectorNoiseAsGaussian(const VectorXd& theta, Vec
 	MatrixXd rt_Sigma;
 	decomposeBelief(theta, x, rt_Sigma);
 
-	MatrixXd jac = EndEffectorJacobian(x);
-
 	OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(this)->Save();
 	SetDOFValues(toDblVec(x));
 	OR::Vector trans = link->GetTransform().trans;
+	MatrixXd jac = PositionJacobian(link->GetIndex(), trans);
 	mean = Vector3d(trans.x, trans.y, trans.z);
-	MatrixXd partial_cov = jac * rt_Sigma * rt_Sigma.transpose() * jac.transpose();
-	assert(partial_cov.rows() == partial_cov.cols());
-	assert(partial_cov.rows() == 2 || partial_cov.rows() == 3);
-	cov = MatrixXd::Zero(3,3);
-	cov.topLeftCorner(partial_cov.rows(), partial_cov.cols()) = partial_cov;
+	cov = jac * rt_Sigma * rt_Sigma.transpose() * jac.transpose();
 }
 
 
