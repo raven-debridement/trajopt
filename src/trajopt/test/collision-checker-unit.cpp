@@ -156,7 +156,7 @@ TEST(continuous_collisions, boxes) {
 		multi_joints.push_back(toDblVec(Eigen::Vector3d(-1.9,0,5)));
 		multi_joints.push_back(toDblVec(Eigen::Vector3d(0,-2,5)));
 		multi_joints.push_back(toDblVec(Eigen::Vector3d(2,0,5)));
-		multi_joints.push_back(toDblVec(Eigen::Vector3d(0,1.9,-5)));
+		multi_joints.push_back(toDblVec(Eigen::Vector3d(0,1.8,-5)));
 		multi_joints.push_back(toDblVec(Eigen::Vector3d(-1.9,0,-5)));
 		multi_joints.push_back(toDblVec(Eigen::Vector3d(0,-2,-5)));
 		multi_joints.push_back(toDblVec(Eigen::Vector3d(2,0,-5)));

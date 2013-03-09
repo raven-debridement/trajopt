@@ -85,6 +85,43 @@ void CollisionsToDistanceExpressions(const vector<Collision>& collisions, RobotA
   }
 }
 
+void BeliefCollisionsToDistanceExpressions(const vector<Collision>& collisions, BeliefRobotAndDOF& brad,
+    const Link2Int& link2ind, const VarVector& theta_vars, const DblVec& theta_vals, vector<AffExpr>& exprs, DblVec& weights) {
+  exprs.clear();
+  weights.clear();
+  exprs.reserve(collisions.size());
+  weights.reserve(collisions.size());
+  brad.SetBeliefValues(theta_vals); // since we'll be calculating jacobians
+  BOOST_FOREACH(const Collision& col, collisions) {
+  	Link2Int::const_iterator itA = link2ind.find(col.linkA);
+		Link2Int::const_iterator itB = link2ind.find(col.linkB);
+		AffExpr dist;
+		for (int i=0; i<col.alpha.size(); i++) {
+			cout << "ALPHA " << col.alpha[i] << endl;
+  		AffExpr dist_a(col.distance);
+			if (itA != link2ind.end()) {
+				VectorXd dist_grad = toVector3d(col.normalB2A).transpose()*brad.BeliefJacobian(itA->second, col.instance_ind[i], col.ptA);
+				exprInc(dist_a, varDot(dist_grad, theta_vars));
+				exprInc(dist_a, -dist_grad.dot(toVectorXd(theta_vals)));
+			}
+			if (itB != link2ind.end()) {
+				VectorXd dist_grad = -toVector3d(col.normalB2A).transpose()*brad.BeliefJacobian(itB->second, col.instance_ind[i], col.ptB);
+				exprInc(dist_a, varDot(dist_grad, theta_vars));
+				exprInc(dist_a, -dist_grad.dot(toVectorXd(theta_vals)));
+			}
+			if (itA != link2ind.end() || itB != link2ind.end()) {
+		    exprScale(dist_a, col.alpha[i]);
+		    exprInc(dist, dist_a);
+			}
+		}
+		if (dist.constant!=0 || dist.coeffs.size()!=0 || dist.vars.size()!=0) {
+			exprs.push_back(dist);
+			weights.push_back(col.weight);
+		}
+  }
+  RAVELOG_DEBUG("%i distance expressions\n", exprs.size());
+}
+
 void CollisionEvaluator::GetCollisionsCached(const DblVec& x, vector<Collision>& collisions) {
   double key = vecSum(x);
   vector<Collision>* it = m_cache.get(key);
@@ -194,47 +231,27 @@ SigmaPtsCollisionEvaluator::SigmaPtsCollisionEvaluator(BeliefRobotAndDOFPtr rad,
     m_link2ind[m_links[i].get()] = inds[i];
   }
 }
-
 void SigmaPtsCollisionEvaluator::CalcCollisions(const DblVec& x, vector<Collision>& collisions) {
   DblVec theta = getDblVec(x, m_theta_vars);
   MatrixXd sigma_pts = m_rad->sigmaPoints(toVectorXd(theta));
-  m_rad->SetDOFValues(toDblVec(sigma_pts.col(0))); // is this necessary?
   vector<DblVec> dofvals(sigma_pts.rows());
   for (int i=0; i<sigma_pts.cols(); i++) {
   	dofvals[i] = toDblVec(sigma_pts.col(i));
   }
   m_cc->MultiCastVsAll(*m_rad, m_links, dofvals, collisions);
 }
-
 void SigmaPtsCollisionEvaluator::CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights) {
   vector<Collision> collisions;
   GetCollisionsCached(x, collisions);
   DblVec theta = getDblVec(x, m_theta_vars);
-
-//  MatrixXd sigma_pts = m_rad->sigmaPoints(toVectorXd(theta));
-//  vector<DblVec> dofvals(sigma_pts.rows());
-//  for (int i=0; i<sigma_pts.cols(); i++) {
-//  	dofvals[i] = toDblVec(sigma_pts.col(i));
-//    CollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_theta_vars, dofvals[i], exprs, weights);
-//  	MatrixXd jac2 = calcNumJac(boost::bind(&BeliefRobotAndDOF::EndEffectorPosition, this, _1), x0);
-//
-//  }
-//
-//	cout << "JAC2" << endl;
-//	cout << jac2 << endl;
-//	cout << "-----------" << endl;
+  // MatrixXd sigma_pts = m_rad->sigmaPoints(toVectorXd(theta));
+  // is sigma_pts not being used ??
+  BeliefCollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_theta_vars, theta, exprs, weights);
 }
-void SigmaPtsCollisionEvaluator::CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights) {
+void SigmaPtsCollisionEvaluator::CalcDists(const DblVec& x, DblVec& dists, DblVec& weights) {
   vector<Collision> collisions;
   GetCollisionsCached(x, collisions);
-  DblVec theta = getDblVec(x, m_theta_vars);
-
-	MatrixXd sigma_pts = m_rad->sigmaPoints(toVectorXd(theta));
-	vector<DblVec> dofvals(sigma_pts.rows());
-	for (int i=0; i<sigma_pts.cols(); i++) {
-		dofvals[i] = toDblVec(sigma_pts.col(i));
-		CollisionsToDistances(collisions, m_link2ind, exprs, weights);
-	}
+	CollisionsToDistances(collisions, m_link2ind, dists, weights);
 }
 //////////////////////////////////////////
 
@@ -253,18 +270,20 @@ void PlotCollisions(const std::vector<Collision>& collisions, OR::EnvironmentBas
 
 CollisionCost::CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars) :
     Cost("collision"),
-    m_calc(new SingleTimestepCollisionEvaluator(rad, vars)), m_dist_pen(dist_pen), m_coeff(coeff)
-{}
+    m_dist_pen(dist_pen),
+    m_coeff(coeff)
+{
+	if (BeliefRobotAndDOFPtr brad = boost::static_pointer_cast<BeliefRobotAndDOF>(rad)) {
+		m_calc = CollisionEvaluatorPtr(new SigmaPtsCollisionEvaluator(brad, vars));
+	} else {
+		m_calc = CollisionEvaluatorPtr(new SingleTimestepCollisionEvaluator(rad, vars));
+	}
+}
 
 CollisionCost::CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1) :
     Cost("cast_collision"),
     m_calc(new CastCollisionEvaluator(rad, vars0, vars1)), m_dist_pen(dist_pen), m_coeff(coeff)
 {}
-
-//CollisionCost::CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1, bool multi) :
-//    Cost("multi_cast_collision"),
-//    m_calc(new SigmaPtsCollisionEvaluator(rad, vars0, vars1)), m_dist_pen(dist_pen), m_coeff(coeff)
-//{}
 
 ConvexObjectivePtr CollisionCost::convex(const vector<double>& x, Model* model) {
   ConvexObjectivePtr out(new ConvexObjective(model));

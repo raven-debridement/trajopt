@@ -54,7 +54,7 @@ struct InterpolatedCollisionEvaluator : public CollisionEvaluator {
 public:
   InterpolatedCollisionEvaluator(RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1);
   void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights); // appends to this vector
-  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights); // appends to this vector
+  void CalcDists(const DblVec& x, DblVec& dists, DblVec& weights); // appends to this vector
 
   OR::EnvironmentBasePtr m_env;
   CollisionCheckerPtr m_cc;
@@ -71,7 +71,7 @@ struct CastCollisionEvaluator : public CollisionEvaluator {
 public:
   CastCollisionEvaluator(RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1);
   void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights); // appends to this vector
-  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights); // appends to this vector
+  void CalcDists(const DblVec& x, DblVec& dists, DblVec& weights); // appends to this vector
   void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
 
   // parameters:
@@ -90,7 +90,7 @@ struct SigmaPtsCollisionEvaluator : public CollisionEvaluator {
 public:
 	SigmaPtsCollisionEvaluator(BeliefRobotAndDOFPtr rad, const VarVector& theta_vars);
   void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights); // appends to this vector
-  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights); // appends to this vector
+  void CalcDists(const DblVec& x, DblVec& dists, DblVec& weights); // appends to this vector
   void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
 
   // parameters:
@@ -110,7 +110,6 @@ public:
   CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars);
   /* constructor for cast cost */
   CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1);
-//  CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1, bool multi);
   virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
   virtual double value(const vector<double>&);
   virtual void Plot(const DblVec& x, OR::EnvironmentBase&, std::vector<OR::GraphHandlePtr>& handles);

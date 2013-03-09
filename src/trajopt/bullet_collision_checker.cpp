@@ -1047,19 +1047,20 @@ btScalar MultiCastCollisionCollector::addSingleResult(btManifoldPoint& cp,
 
 		const float SUPPORT_FUNC_TOLERANCE = 1e-5;
 		float max_sup = *max_element(sup.begin(), sup.end());
-		vector<float> max_sups;
 		vector<btVector3> max_ptWorlds;
+		vector<int> instance_inds;
 		for (int i=0; i<sup.size(); i++) {
 			if (max_sup-sup[i] < SUPPORT_FUNC_TOLERANCE) {
-				max_sups.push_back(max_sup);
 				max_ptWorlds.push_back(ptWorld[i]);
+				instance_inds.push_back(i);
 			}
 		}
-		assert(max_sups.size()>0);
-		assert(max_sups.size()<4);
+		assert(max_ptWorlds.size()>0);
+		assert(max_ptWorlds.size()<4);
 
 		const btVector3& ptOnCast = castShapeIsFirst ? cp.m_positionWorldOnA : cp.m_positionWorldOnB;
 		computeSupportingWeights(max_ptWorlds, ptOnCast, m_collisions.back().alpha);
+		m_collisions.back().instance_ind = instance_inds;
 	}
 	return retval;
 }
@@ -1079,6 +1080,9 @@ void BulletCollisionChecker::CheckShapeMultiCast(btCollisionShape* shape, const 
     cc.m_collisionFilterMask = KinBodyFilter;
     cc.m_collisionFilterGroup = RobotFilter;
     world->contactTest(obj, cc);
+
+    RenderCollisionShape(obj->getCollisionShape(), obj->getWorldTransform(), const_cast<EnvironmentBase&>(*m_env), custom_handles, OR::RaveVector<float>(0,0.4,0.4,0.5));
+
     delete obj;
     delete shape;
   }
@@ -1099,17 +1103,16 @@ void BulletCollisionChecker::MultiCastVsAll(RobotAndDOF& rad, const vector<KinBo
 		const vector<DblVec>& multi_joints, vector<Collision>& collisions) {
   OR::RobotBase::RobotStateSaver saver = rad.Save();
   int nlinks = links.size();
-  // multi_tf[i_link][i_multi]
-  vector<vector<btTransform> > multi_tf(nlinks, vector<btTransform>(multi_joints.size()));
+  vector<vector<btTransform> > multi_tf(nlinks, vector<btTransform>(multi_joints.size())); // multi_tf[i_link][i_multi]
   for (int i_multi=0; i_multi<multi_joints.size(); i_multi++) {
 		rad.SetDOFValues(multi_joints[i_multi]);
 		for (int i_link=0; i_link < nlinks; ++i_link) {
 			multi_tf[i_link][i_multi] = toBt(links[i_link]->GetTransform());
 		}
   }
-  rad.SetDOFValues(multi_joints[0]); // is this necessary?
-  UpdateBulletFromRave();
-  m_world->updateAabbs();
+//  rad.SetDOFValues(multi_joints[0]); // is this necessary?
+//  UpdateBulletFromRave();
+//  m_world->updateAabbs();
 
   for (int i_link=0; i_link < nlinks; ++i_link) {
     assert(m_link2cow[links[i_link].get()] != NULL);

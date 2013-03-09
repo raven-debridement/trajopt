@@ -15,7 +15,8 @@ struct Collision {
   OR::Vector ptA, ptB, normalB2A; /* normal points from 2 to 1 */
   double distance; /* pt1 = pt2 + normal*dist */
   float weight, time;
-  vector<float> alpha;
+	vector<float> alpha;
+	vector<int> instance_ind;
   Collision(const KinBody::Link* linkA, const KinBody::Link* linkB, const OR::Vector& ptA, const OR::Vector& ptB, const OR::Vector& normalB2A, double distance, float weight=1, float time=0) :
     linkA(linkA), linkB(linkB), ptA(ptA), ptB(ptB), normalB2A(normalB2A), distance(distance), weight(weight), time(0) {}
 };
