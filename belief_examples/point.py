@@ -56,7 +56,8 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
         },
         ],
         "init_info" : {
-            "type" : "stationary"
+            "type" : "stationary",
+            "initial_rt_sigma" : (np.eye(2)).tolist()
         }
     }
     
@@ -96,21 +97,45 @@ if __name__ == "__main__":
     T_grasp = np.eye(4)
     xyz_targ = T_grasp[:3,3]
 #    mk.create_mesh_box(env, np.array([5+0.01,0,0]), np.array([0.01,10,0.01]))
-#    mk.create_mesh_box(env, np.array([3.5,3,0]), np.array([1,1,2]), "box1")
-#    mk.create_mesh_box(env, np.array([3.5,-0.5,0]), np.array([1,1,2]), "box2")
-    mk.create_mesh_box(env, np.array([3.5,1.25,0]), np.array([0.2,0.2,1]), "box3")
+    mk.create_mesh_box(env, np.array([3.5,3,0]), np.array([1,1,2]), "box1")
+    mk.create_mesh_box(env, np.array([3.5,-0.5,0]), np.array([1,1,2]), "box2")
+#    mk.create_mesh_box(env, np.array([3.5,1.25,0]), np.array([0.2,0.2,1]), "box3")
+#    mk.create_mesh_box(env, np.array([3.5,2,0]), np.array([0.2,0.2,1]), "box4")
     quat_targ = rave.quatFromRotationMatrix(T_grasp[:3,:3])
 
     request = move_arm_to_grasp(xyz_targ, quat_targ, LINK_NAME, MANIP_NAME)
+    
+    ##################
+    # first optimize ignoring collision costs
+    all_costs = request["costs"]
+    noncollision_costs = [cost for cost in request["costs"] if "collision" not in cost["type"]]
+    
+    request["costs"] = noncollision_costs
+    
+    saver = rave.Robot.RobotStateSaver(robot)
     s = json.dumps(request)
     print "REQUEST:",s
+    trajoptpy.SetInteractive(False);
+    prob = trajoptpy.ConstructProblem(s, env)
+    result = trajoptpy.OptimizeProblem(prob)
+    del saver # reverts the robot state
+
+    # add collision cost back again
+    request["costs"] = all_costs
+    
+    # use the resulting trajectory as initialization for the new optimization that includes collision costs
+    path_init = result.GetTraj()
+    request["init_info"]["type"] = "given_traj"
+    request["init_info"]["data"] = [x.tolist() for x in path_init]
+    ##################
+
+    s = json.dumps(request)
+    print "REQUEST:",s
+
     trajoptpy.SetInteractive(INTERACTIVE);
     prob = trajoptpy.ConstructProblem(s, env)
     result = trajoptpy.OptimizeProblem(prob)
     
-    costs_sum = 0;
-    for cost in result.GetCosts():
-        costs_sum += cost[1]
-    print "Sum of final costs is ",costs_sum
+    print "Sum of final costs is ", sum([cost[1] for cost in result.GetCosts()])
     
 #    np.save("/home/alex/Desktop/traj.npy", result.GetTraj())

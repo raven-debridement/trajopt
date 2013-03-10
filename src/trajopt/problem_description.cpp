@@ -96,6 +96,23 @@ void fromJson(const Json::Value& v, Vector4d& x) {
   fromJsonArray(v, vx, 4);
     x = Vector4d(vx[0], vx[1], vx[2], vx[3]);
 }
+template <class T>
+inline void fromJson(const Json::Value& v, Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>& m) {
+	int nRows = v.size();
+	if (nRows != 0) {
+		int nCols = v[0].size();
+		m.resize(nRows, nCols);
+		for (int i=0; i<nRows; i++) {
+			if (v[i].size() != nCols)
+		    PRINT_AND_THROW(boost::format("matrix with variable number of cols not supported. expected %i cols at the %ith row, but got %i cols\n")%nCols%i%v[i].size());
+			std::vector<T> row;
+			fromJsonArray(v[i], row, nCols);
+			for (int j=0; j<nCols; j++) m(i,j) = row[j];
+		}
+	} else {
+		m.resize(0,0);
+	}
+}
 
 }
 
@@ -169,24 +186,70 @@ void InitInfo::fromJson(const Json::Value& v) {
   childFromJson(v, type_str, "type");
   int n_steps = gPCI->basic_info.n_steps;
   int n_dof = gPCI->rad->GetDOF();
+  bool belief_space = gPCI->basic_info.belief_space;
+	int n_theta = gPCI->rad->GetNTheta();
+	MatrixXd rt_Sigma0;
+	if (belief_space && (type_str == "stationary" || type_str == "given_traj")) {
+		FAIL_IF_FALSE(v.isMember("initial_rt_sigma"));
+		const Value& rt_Sigma0_v = v["initial_rt_sigma"];
+		Json::fromJson(rt_Sigma0_v, rt_Sigma0);
+		if (rt_Sigma0.rows()!=n_dof) PRINT_AND_THROW("initial square root of sigma has wrong number of rows");
+		if (rt_Sigma0.cols()!=n_dof) PRINT_AND_THROW("initial square root of sigma has wrong number of cols");
+	}
 
   if (type_str == "stationary") {
-    data = toVectorXd(gPCI->rad->GetDOFValues()).transpose().replicate(n_steps, 1);
+    if (!belief_space) {
+    	data = toVectorXd(gPCI->rad->GetDOFValues()).transpose().replicate(n_steps, 1);
+    } else {
+			data.resize(n_steps, n_theta+n_dof);
+    	VectorXd theta;
+			gPCI->rad->composeBelief(toVectorXd(gPCI->rad->GetDOFValues()), rt_Sigma0, theta);
+			for (int i=0; i < n_steps; i++) {
+				data.block(i,0,1,n_theta) = theta.transpose();
+				if (i != (n_steps-1)) {
+					VectorXd u = VectorXd::Zero(n_dof);
+					data.block(i,n_theta,1,n_dof) = u.transpose();
+					theta = gPCI->rad->BeliefDynamics(theta,u);
+				} else {
+					data.block(i,n_theta,1,n_dof) = VectorXd::Zero(n_dof).transpose();
+				}
+			}
+    }
   }
   else if (type_str == "given_traj") {
     FAIL_IF_FALSE(v.isMember("data"));
-    const Value& vdata = v["data"];
-    if (vdata.size() != n_steps) {
-      PRINT_AND_THROW("given initialization traj has wrong length");
-    }
-    data.resize(n_steps, n_dof);
-    for (int i=0; i < n_steps; ++i) {
-      DblVec row;
-      fromJsonArray(vdata[i], row, n_dof);
-      data.row(i) = toVectorXd(row);
+		const Value& data_v = v["data"];
+		TrajArray x_data;
+		Json::fromJson(data_v, x_data);
+		if (x_data.rows()!=n_steps) PRINT_AND_THROW("x data has wrong number of rows");
+
+    if (!belief_space) {
+  		if (x_data.cols()!=n_dof) PRINT_AND_THROW("x data has wrong number of cols");
+    	data = x_data;
+    } else {
+  		if (x_data.cols() == n_theta+n_dof) {
+  			data = x_data;
+  		} else if (x_data.cols() == n_dof) {
+				data.resize(n_steps, n_theta+n_dof);
+				VectorXd theta;
+				gPCI->rad->composeBelief((VectorXd)x_data.row(0).transpose(), rt_Sigma0, theta);
+				for (int i=0; i < n_steps; i++) {
+					data.block(i,0,1,n_theta) = theta.transpose();
+					if (i != (n_steps-1)) {
+						VectorXd u = x_data.row(i+1).transpose() - x_data.row(i).transpose();
+						data.block(i,n_theta,1,n_dof) = u.transpose();
+						theta = gPCI->rad->BeliefDynamics(theta,u);
+					} else {
+						data.block(i,n_theta,1,n_dof) = VectorXd::Zero(n_dof).transpose();
+					}
+				}
+  		} else {
+  			PRINT_AND_THROW("x data has wrong number of cols");
+  		}
     }
   }
   else if (type_str == "straight_line") {
+    FAIL_IF_FALSE(!belief_space);
     FAIL_IF_FALSE(v.isMember("endpoint"));
     DblVec endpoint;
     childFromJson(v, endpoint, "endpoint");
@@ -199,7 +262,6 @@ void InitInfo::fromJson(const Json::Value& v) {
       data.col(idof) = VectorXd::LinSpaced(n_steps, start[idof], endpoint[idof]);
     }
   }
-
 }
 
 void ProblemConstructionInfo::fromJson(const Value& v) {
@@ -298,11 +360,13 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
   DblVec cur_dofvals = prob->m_rad->GetDOFValues();
 
   if (bi.start_fixed) {
-    if (pci.init_info.data.rows() > 0 && !allClose(toVectorXd(cur_dofvals), pci.init_info.data.row(0))) {
+    if (pci.init_info.data.rows() > 0 && !allClose(toVectorXd(cur_dofvals), pci.init_info.data.block(0,0,1,n_dof).transpose())) {
       PRINT_AND_THROW( "robot dof values don't match initialization. I don't know what you want me to use for the dof values");
     }
-    for (int j=0; j < n_dof; ++j) {
-      prob->addLinearConstr(exprSub(AffExpr(prob->m_traj_vars(0,j)), cur_dofvals[j]), EQ);
+    int n_fixed_terms = n_dof;
+    if (bi.belief_space) n_fixed_terms = prob->GetRAD()->GetNTheta();
+    for (int j=0; j < n_fixed_terms; ++j) {
+      prob->addLinearConstr(exprSub(AffExpr(prob->m_traj_vars(0,j)), pci.init_info.data(0,j)), EQ);
     }
   }
 
@@ -321,51 +385,17 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
     ci->hatch(*prob);
   }
 
-  if (bi.belief_space) {
+	if (bi.belief_space) {
 		int n_theta = prob->GetRAD()->GetNTheta();
-
-		TrajArray init_data = TrajArray::Zero(n_steps, n_theta + n_dof);
-		init_data.block(0, 0, n_steps, n_dof) = pci.init_info.data;
-		for (int i=0; i < n_steps-1; ++i) {
+		for (int i=0; i < n_steps-1; i++) {
 			VarVector theta0_vars = prob->m_traj_vars.block(0,0,n_steps,n_theta).row(i);
 			VarVector theta1_vars = prob->m_traj_vars.block(0,0,n_steps,n_theta).row(i+1);
 			VarVector u_vars = prob->m_traj_vars.block(0,n_theta,n_steps,n_dof).row(i);
 			prob->addConstr(ConstraintPtr(new BeliefDynamicsConstraint(theta0_vars, theta1_vars, u_vars, prob->GetRAD())));
 		}
+  }
 
-		MatrixXd rt_Sigma0;
-		if (n_dof == 3) rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof)*0.1;
-		else rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof)*0.5; //sqrt(5);
-		for (unsigned i=0; i < n_steps-1; ++i) {
-			VectorXd x0 = pci.init_info.data.block(i,0,1,n_dof).transpose();
-			VectorXd x1 = pci.init_info.data.block(i+1,0,1,n_dof).transpose();
-			VectorXd u0 = x1-x0;
-			VectorXd theta0;
-			prob->GetRAD()->composeBelief(x0, rt_Sigma0, theta0);
-			init_data.block(i,0,1,n_theta) = theta0.transpose();
-			init_data.block(i,n_theta,1,n_dof) = u0.transpose();
-			VectorXd x_unused;
-			prob->GetRAD()->ekfUpdate(u0, x0, rt_Sigma0, x_unused, rt_Sigma0);
-
-			if (i == n_steps-2) {
-				VectorXd theta1;
-				prob->GetRAD()->composeBelief(x1, rt_Sigma0, theta1);
-				init_data.block(i+1,0,1,n_theta) = theta1.transpose();
-			}
-		}
-
-		// fix the initial covariance
-		if (bi.start_fixed) {
-			for (int j=n_dof; j < n_theta; ++j) {
-				prob->addLinearConstr(exprSub(AffExpr(prob->m_traj_vars(0,j)), init_data(0,j)), EQ);
-			}
-		}
-
-		cout << init_data << endl;
-		prob->SetInitTraj(init_data);
-  } else {
-		prob->SetInitTraj(pci.init_info.data);
-	}
+	prob->SetInitTraj(pci.init_info.data);
 
   return prob;
 
@@ -534,7 +564,7 @@ void CollisionCostInfo::fromJson(const Value& v) {
   else if (dist_pen.size() != n_steps) {
     PRINT_AND_THROW( boost::format("wrong size: dist_pen. expected %i got %i")%n_steps%dist_pen.size() );
   }
-  childFromJson(params, belief_space,"belief_space");
+  childFromJson(params, belief_space,"belief_space", false);
 }
 void CollisionCostInfo::hatch(TrajOptProb& prob) {
   for (int i=0; i < prob.GetNumSteps(); ++i) {
@@ -545,10 +575,7 @@ void CollisionCostInfo::hatch(TrajOptProb& prob) {
     prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
   }
   CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
-//	if (belief_space)
-		cc->SetContactDistance(10);
-//	else
-//		cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
+		cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
 }
 CostInfoPtr CollisionCostInfo::create() {
   return CostInfoPtr(new CollisionCostInfo());
@@ -674,15 +701,11 @@ void CovarianceCostInfo::fromJson(const Value& v) {
 
   FAIL_IF_FALSE(params.isMember("Q"));
 	const Value& Q_array = params["Q"];
+	Json::fromJson(Q_array, Q);
+
   int n_dof = gPCI->rad->GetDOF();
-	if (Q_array.size() != n_dof) PRINT_AND_THROW("cost matrix for the covariance has wrong number of rows");
-	Q = MatrixXd(n_dof,n_dof);
-	for (int i=0; i < n_dof; i++) {
-		if (Q_array[i].size() != n_dof) PRINT_AND_THROW("cost matrix for the covariance has wrong number of columns");
-		DblVec row;
-		fromJsonArray(Q_array[i], row, n_dof);
-		Q.row(i) = toVectorXd(row).transpose();
-	}
+	if (Q.rows()!=n_dof) PRINT_AND_THROW("cost matrix for the covariance has wrong number of rows");
+	if (Q.cols()!=n_dof) PRINT_AND_THROW("cost matrix for the covariance has wrong number of cols");
 }
 CostInfoPtr CovarianceCostInfo::create() {
   return CostInfoPtr(new CovarianceCostInfo());
