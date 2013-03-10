@@ -202,7 +202,7 @@ COWPtr CollisionObjectFromLink(OR::KinBody::LinkPtr link, bool useTrimesh) {
 
 
 void RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
-    OpenRAVE::EnvironmentBase& env, vector<OpenRAVE::GraphHandlePtr>& handles, OR::RaveVector<float> color = OR::RaveVector<float>(1,1,1,.1)) {
+    EnvironmentBasePtr env, vector<OpenRAVE::GraphHandlePtr>& handles, OR::RaveVector<float> color = OR::RaveVector<float>(1,1,1,.1)) {
 
   typedef map<btCollisionShape*, HullResult > Shape2Inds;
   Shape2Inds gHullCache;
@@ -248,7 +248,7 @@ void RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
       for (int i=0; i < tverts.size(); ++i) tverts[i] = tf * hr.m_OutputVertices[i];
 
 
-      handles.push_back(env.drawtrimesh((float*)&tverts[0], 16,
+      handles.push_back(OSGViewer::GetOrCreate(env)->drawtrimesh((float*)&tverts[0], 16,
           (int*) &hr.m_Indices[0], hr.mNumFaces, color));
     }
     break;
@@ -267,7 +267,7 @@ void RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
 			btVector3 tf_vertices[hull->numVertices()];
 			for (int i=0; i<hull->numVertices(); i++) tf_vertices[i] = tf * vertices[i];
 
-			handles.push_back(env.drawtrimesh((float*)tf_vertices, 16, (int*) indices, num_triangles, color));
+			handles.push_back(OSGViewer::GetOrCreate(env)->drawtrimesh((float*)tf_vertices, 16, (int*) indices, num_triangles, color));
   	} else {
   		LOG_INFO("not rendering shape of type %i", shape->getShapeType());
   	}
@@ -290,7 +290,7 @@ class BulletCollisionChecker : public CollisionChecker {
   Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> m_allowedCollisionMatrix;
   vector<OpenRAVE::GraphHandlePtr> m_custom_handles;
   void PlotCastHull(btCollisionShape* shape, const vector<btTransform>& tfi,
-      CollisionObjectWrapper* cow, vector<OpenRAVE::GraphHandlePtr>& handles);
+      CollisionObjectWrapper* cow, vector<OpenRAVE::GraphHandlePtr>& handles, OR::RaveVector<float> color);
 
 public:
   BulletCollisionChecker(OR::EnvironmentBaseConstPtr env);
@@ -601,7 +601,7 @@ void BulletCollisionChecker::PlotCollisionGeometry(vector<OpenRAVE::GraphHandleP
   LOG_DEBUG("%i objects in bullet world", objs.size());
   for (int i=0; i < objs.size(); ++i) {
     RenderCollisionShape(objs[i]->getCollisionShape(), objs[i]->getWorldTransform(),
-    		*boost::const_pointer_cast<OpenRAVE::EnvironmentBase>(m_env), handles);
+    		boost::const_pointer_cast<OpenRAVE::EnvironmentBase>(m_env), handles);
   }
 }
 
@@ -1125,7 +1125,7 @@ void BulletCollisionChecker::MultiCastVsAll(RobotAndDOF& rad, const vector<KinBo
 
 // almost copied from CheckShapeMultiCast
 void BulletCollisionChecker::PlotCastHull(btCollisionShape* shape, const vector<btTransform>& tfi,
-    CollisionObjectWrapper* cow, vector<OpenRAVE::GraphHandlePtr>& handles) {
+    CollisionObjectWrapper* cow, vector<OpenRAVE::GraphHandlePtr>& handles, OR::RaveVector<float> color) {
 	if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
   	vector<btTransform> t0i(tfi.size());
   	// transform all the points with respect to the first transform
@@ -1133,23 +1133,24 @@ void BulletCollisionChecker::PlotCastHull(btCollisionShape* shape, const vector<
   	MultiCastHullShape* shape = new MultiCastHullShape(convex, t0i);
 
 //		vector<btVector3> vertices;
-//		vertices.push_back(tfi[0] * shape->localGetSupportingVertex(btVector3(1,0,0)));
-//		vertices.push_back(tfi[0] * shape->localGetSupportingVertex(btVector3(-1,0,0)));
-//		vertices.push_back(tfi[0] * shape->localGetSupportingVertex(btVector3(0,1,0)));
-//		vertices.push_back(tfi[0] * shape->localGetSupportingVertex(btVector3(0,-1,0)));
-//		EnvironmentBasePtr env (boost::const_pointer_cast<EnvironmentBase>(m_env));
+//		for (int i=0; i<360; i++) {
+//			double angle = ((double)i)*M_PI/180.0;
+//			btVector3 v(cos(angle), sin(angle), 0);
+//			vertices.push_back(tfi[0] * shape->localGetSupportingVertex(v));
+//		}
 //		for (int i=0; i<vertices.size(); i++) {
-//			handles.push_back(OSGViewer::GetOrCreate(env)->PlotSphere(toOR(vertices[i]), 0.05, OR::RaveVector<float>(0.6,0.6,0,0.1)));
+//			handles.push_back(OSGViewer::GetOrCreate(boost::const_pointer_cast<OpenRAVE::EnvironmentBase>(m_env))->PlotSphere(toOR(vertices[i]), 0.001, OR::RaveVector<float>(0.6,0.6,0,0.1)));
 //		}
 
-		RenderCollisionShape(shape, tfi[0], const_cast<EnvironmentBase&>(*m_env), handles, OR::RaveVector<float>(0,0.4,0.4,0.1));
+		RenderCollisionShape(shape, tfi[0], boost::const_pointer_cast<OpenRAVE::EnvironmentBase>(m_env), handles, color);
+    SetTransparency(handles.back(), 0.2);
     delete shape;
   }
   else if (btCompoundShape* compound = dynamic_cast<btCompoundShape*>(shape)) {
     for (int child_ind = 0; child_ind < compound->getNumChildShapes(); ++child_ind) {
     	vector<btTransform> tfi_child(tfi.size());
     	for (int i=0; i<tfi.size(); i++) tfi_child[i] = tfi[i]*compound->getChildTransform(child_ind);
-    	PlotCastHull(compound->getChildShape(child_ind), tfi_child, cow, handles);
+    	PlotCastHull(compound->getChildShape(child_ind), tfi_child, cow, handles, color);
     }
   }
   else {
@@ -1173,7 +1174,8 @@ void BulletCollisionChecker::PlotCastHull(RobotAndDOF& rad, const vector<KinBody
     assert(m_link2cow[links[i_link].get()] != NULL);
     CollisionObjectWrapper* cow = m_link2cow[links[i_link].get()];
 		vector<btTransform>& tfi = multi_tf[i_link];
-		PlotCastHull(cow->getCollisionShape(), multi_tf[i_link], cow, handles);
+		float color_param = ((float)i_link)/((float)(nlinks-1));
+		PlotCastHull(cow->getCollisionShape(), multi_tf[i_link], cow, handles, OR::RaveVector<float>(color_param, 1.0-color_param, 0));
   }
 }
 

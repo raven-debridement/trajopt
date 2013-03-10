@@ -106,6 +106,7 @@ if __name__ == "__main__":
     request = move_arm_to_grasp(xyz_targ, quat_targ, LINK_NAME, MANIP_NAME)
     
     ##################
+    """
     # first optimize ignoring collision costs
     all_costs = request["costs"]
     noncollision_costs = [cost for cost in request["costs"] if "collision" not in cost["type"]]
@@ -127,6 +128,7 @@ if __name__ == "__main__":
     path_init = result.GetTraj()
     request["init_info"]["type"] = "given_traj"
     request["init_info"]["data"] = [x.tolist() for x in path_init]
+    """
     ##################
 
     s = json.dumps(request)

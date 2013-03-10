@@ -575,7 +575,7 @@ void CollisionCostInfo::hatch(TrajOptProb& prob) {
     prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
   }
   CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
-		cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
+	cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
 }
 CostInfoPtr CollisionCostInfo::create() {
   return CostInfoPtr(new CollisionCostInfo());

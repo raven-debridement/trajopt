@@ -6,7 +6,7 @@
     <Body name="Base" type="dynamic">
       <Translation>0.0  0.0  0.0</Translation>
       <Geom type="box">
-        <Extents>0.03 0.03 0.03</Extents>
+        <Extents>0.12 0.06 0.03</Extents>
         <!--rotationaxis>1 0 0 90</rotationaxis-->
         <!--radius>0.03</radius-->
         <!--height>0.02</height-->
