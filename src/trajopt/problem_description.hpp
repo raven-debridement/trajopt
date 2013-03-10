@@ -51,6 +51,8 @@ public:
 	TrajArray GetInitTraj() {return m_init_traj;}
 
 	friend TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo&);
+
+	bool belief_space;
 private:
 	VarArray m_traj_vars;
 	BeliefRobotAndDOFPtr m_rad;
@@ -247,6 +249,8 @@ struct CollisionCostInfo : public CostInfo {
 	DblVec coeffs;
 	/// safety margin: contacts with distance < dist_pen are penalized
 	DblVec dist_pen;
+	/// belief space version with sigma points?
+	bool belief_space;
 	void fromJson(const Value& v);
 	void hatch(TrajOptProb& prob);
 	static CostInfoPtr create();

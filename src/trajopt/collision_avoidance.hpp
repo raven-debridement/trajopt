@@ -16,6 +16,7 @@ struct CollisionEvaluator {
   virtual void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights) = 0;
   virtual void CalcCollisions(const DblVec& x, vector<Collision>& collisions) = 0;
   void GetCollisionsCached(const DblVec& x, vector<Collision>&);
+  virtual void CustomPlot(const DblVec& x, std::vector<OR::GraphHandlePtr>& handles) {}
   virtual ~CollisionEvaluator() {}
 
   Cache<double, vector<Collision>, 3> m_cache;
@@ -92,6 +93,7 @@ public:
   void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights); // appends to this vector
   void CalcDists(const DblVec& x, DblVec& dists, DblVec& weights); // appends to this vector
   void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
+  void CustomPlot(const DblVec& x, std::vector<OR::GraphHandlePtr>& handles);
 
   // parameters:
   OR::EnvironmentBasePtr m_env;

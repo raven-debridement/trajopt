@@ -10,16 +10,16 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
     
     request = {
         "basic_info" : {
-            "n_steps" : 30,
+            "n_steps" : 20,
             "manip" : "base_point",
             "start_fixed" : True,
             "belief_space" : True
         },
         "costs" : [
-#        {
-#            "type" : "continuous_collision",
-#            "params" : {"coeffs" : [1],"dist_pen" : [0.5]}
-#        },
+        {
+            "type" : "collision",
+            "params" : {"coeffs" : [1],"dist_pen" : [0.1], "belief_space" : True}
+        },
 #        {
 #            "type" : "joint_vel",
 #            "params": {"coeffs" : [1]}
@@ -95,9 +95,10 @@ if __name__ == "__main__":
     robot.GetLink(LINK_NAME).SetTransform(T_gripper)
     T_grasp = np.eye(4)
     xyz_targ = T_grasp[:3,3]
-    mk.create_mesh_box(env, np.array([5+0.01,0,0]), np.array([0.01,10,0.01]))
+#    mk.create_mesh_box(env, np.array([5+0.01,0,0]), np.array([0.01,10,0.01]))
 #    mk.create_mesh_box(env, np.array([3.5,3,0]), np.array([1,1,2]), "box1")
 #    mk.create_mesh_box(env, np.array([3.5,-0.5,0]), np.array([1,1,2]), "box2")
+    mk.create_mesh_box(env, np.array([3.5,1.25,0]), np.array([0.2,0.2,1]), "box3")
     quat_targ = rave.quatFromRotationMatrix(T_grasp[:3,:3])
 
     request = move_arm_to_grasp(xyz_targ, quat_targ, LINK_NAME, MANIP_NAME)

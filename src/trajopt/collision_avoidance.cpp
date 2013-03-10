@@ -96,21 +96,21 @@ void BeliefCollisionsToDistanceExpressions(const vector<Collision>& collisions, 
   	Link2Int::const_iterator itA = link2ind.find(col.linkA);
 		Link2Int::const_iterator itB = link2ind.find(col.linkB);
 		AffExpr dist;
-		for (int i=0; i<col.alpha.size(); i++) {
-			cout << "ALPHA " << col.alpha[i] << endl;
+		for (int i=0; i<col.mi.alpha.size(); i++) {
+			//cout << "ALPHA " << col.mi.alpha[i] << endl;
   		AffExpr dist_a(col.distance);
 			if (itA != link2ind.end()) {
-				VectorXd dist_grad = toVector3d(col.normalB2A).transpose()*brad.BeliefJacobian(itA->second, col.instance_ind[i], col.ptA);
+				VectorXd dist_grad = toVector3d(col.normalB2A).transpose()*brad.BeliefJacobian(itA->second, col.mi.instance_ind[i], col.ptA);
 				exprInc(dist_a, varDot(dist_grad, theta_vars));
 				exprInc(dist_a, -dist_grad.dot(toVectorXd(theta_vals)));
 			}
 			if (itB != link2ind.end()) {
-				VectorXd dist_grad = -toVector3d(col.normalB2A).transpose()*brad.BeliefJacobian(itB->second, col.instance_ind[i], col.ptB);
+				VectorXd dist_grad = -toVector3d(col.normalB2A).transpose()*brad.BeliefJacobian(itB->second, col.mi.instance_ind[i], col.ptB);
 				exprInc(dist_a, varDot(dist_grad, theta_vars));
 				exprInc(dist_a, -dist_grad.dot(toVectorXd(theta_vals)));
 			}
 			if (itA != link2ind.end() || itB != link2ind.end()) {
-		    exprScale(dist_a, col.alpha[i]);
+		    exprScale(dist_a, col.mi.alpha[i]);
 		    exprInc(dist, dist_a);
 			}
 		}
@@ -234,12 +234,24 @@ SigmaPtsCollisionEvaluator::SigmaPtsCollisionEvaluator(BeliefRobotAndDOFPtr rad,
 void SigmaPtsCollisionEvaluator::CalcCollisions(const DblVec& x, vector<Collision>& collisions) {
   DblVec theta = getDblVec(x, m_theta_vars);
   MatrixXd sigma_pts = m_rad->sigmaPoints(toVectorXd(theta));
-  vector<DblVec> dofvals(sigma_pts.rows());
+
+  vector<DblVec> dofvals(sigma_pts.cols());
   for (int i=0; i<sigma_pts.cols(); i++) {
   	dofvals[i] = toDblVec(sigma_pts.col(i));
   }
   m_cc->MultiCastVsAll(*m_rad, m_links, dofvals, collisions);
 }
+
+void SigmaPtsCollisionEvaluator::CustomPlot(const DblVec& x, std::vector<OR::GraphHandlePtr>& handles) {
+	DblVec theta = getDblVec(x, m_theta_vars);
+	MatrixXd sigma_pts = m_rad->sigmaPoints(toVectorXd(theta));
+	vector<DblVec> dofvals(sigma_pts.cols());
+	for (int i=0; i<sigma_pts.cols(); i++) {
+		dofvals[i] = toDblVec(sigma_pts.col(i));
+	}
+	m_cc->PlotCastHull(*m_rad, m_links, dofvals, handles);
+}
+
 void SigmaPtsCollisionEvaluator::CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights) {
   vector<Collision> collisions;
   GetCollisionsCached(x, collisions);
@@ -273,10 +285,11 @@ CollisionCost::CollisionCost(double dist_pen, double coeff, RobotAndDOFPtr rad, 
     m_dist_pen(dist_pen),
     m_coeff(coeff)
 {
-	if (BeliefRobotAndDOFPtr brad = boost::static_pointer_cast<BeliefRobotAndDOF>(rad)) {
-		m_calc = CollisionEvaluatorPtr(new SigmaPtsCollisionEvaluator(brad, vars));
-	} else {
+	if (vars.size() == rad->GetDOF()) {
 		m_calc = CollisionEvaluatorPtr(new SingleTimestepCollisionEvaluator(rad, vars));
+	} else {
+		BeliefRobotAndDOFPtr brad = boost::static_pointer_cast<BeliefRobotAndDOF>(rad);
+		m_calc = CollisionEvaluatorPtr(new SigmaPtsCollisionEvaluator(brad, vars));
 	}
 }
 
@@ -310,6 +323,7 @@ void CollisionCost::Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<
   vector<Collision> collisions;
   m_calc->GetCollisionsCached(x, collisions);
   PlotCollisions(collisions, env, handles, m_dist_pen);
+  m_calc->CustomPlot(x, handles);
 }
 
 

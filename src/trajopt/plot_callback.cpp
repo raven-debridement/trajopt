@@ -6,6 +6,7 @@
 #include "trajopt/problem_description.hpp"
 #include "trajopt/collision_checker.hpp"
 #include "trajopt/collision_avoidance.hpp"
+#include "sco/modeling_utils.hpp"
 using namespace OpenRAVE;
 using namespace util;
 using namespace Eigen;
@@ -23,9 +24,9 @@ void PlotTraj(OSGViewer& viewer, BeliefRobotAndDOFPtr rad, const TrajArray& traj
     SetTransparency(handles.back(), trans_param);
   }
 
-	boost::shared_ptr<CollisionChecker> cc = CollisionChecker::GetOrCreate(*rad->GetRobot()->GetEnv());
+//	boost::shared_ptr<CollisionChecker> cc = CollisionChecker::GetOrCreate(*rad->GetRobot()->GetEnv());
 //	cc->PlotCollisionGeometry(handles);
-	cc->PlotCastCollisionGeometry(handles);
+//	cc->PlotDebugGeometry(handles);
 
 	if (traj.cols() > n_dof) { // if belief space?
 		const int n_theta = rad->GetNTheta();

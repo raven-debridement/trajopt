@@ -255,8 +255,8 @@ TrajOptResultPtr OptimizeProblem(TrajOptProbPtr prob, bool plot) {
 
 TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
   TrajOptProbPtr prob(new TrajOptProb());
-
   const BasicInfo& bi = pci.basic_info;
+  prob->belief_space = bi.belief_space;
   int n_steps = bi.n_steps;
 
   prob->m_rad = pci.rad;
@@ -335,7 +335,7 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
 
 		MatrixXd rt_Sigma0;
 		if (n_dof == 3) rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof)*0.1;
-		else rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof)*sqrt(5);
+		else rt_Sigma0 = MatrixXd::Identity(n_dof,n_dof)*0.5; //sqrt(5);
 		for (unsigned i=0; i < n_steps-1; ++i) {
 			VectorXd x0 = pci.init_info.data.block(i,0,1,n_dof).transpose();
 			VectorXd x1 = pci.init_info.data.block(i+1,0,1,n_dof).transpose();
@@ -534,14 +534,21 @@ void CollisionCostInfo::fromJson(const Value& v) {
   else if (dist_pen.size() != n_steps) {
     PRINT_AND_THROW( boost::format("wrong size: dist_pen. expected %i got %i")%n_steps%dist_pen.size() );
   }
+  childFromJson(params, belief_space,"belief_space");
 }
 void CollisionCostInfo::hatch(TrajOptProb& prob) {
   for (int i=0; i < prob.GetNumSteps(); ++i) {
-  	prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()))));
+  	if (belief_space)
+  		prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetNTheta()))));
+  	else
+    	prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()))));
     prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
   }
   CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
-  cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
+//	if (belief_space)
+		cc->SetContactDistance(10);
+//	else
+//		cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
 }
 CostInfoPtr CollisionCostInfo::create() {
   return CostInfoPtr(new CollisionCostInfo());
@@ -570,7 +577,6 @@ void ContinuousCollisionCostInfo::fromJson(const Value& v) {
 void ContinuousCollisionCostInfo::hatch(TrajOptProb& prob) {
   for (int i=first_step; i < last_step; ++i) {
     prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()), prob.GetVars().rblock(i+1,0,prob.GetRAD()->GetDOF()))));
-//    prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()), prob.GetVars().rblock(i+1,0,prob.GetRAD()->GetDOF()), true)));
     prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
   }
   CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
