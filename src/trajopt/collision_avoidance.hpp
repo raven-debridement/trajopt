@@ -93,6 +93,7 @@ public:
   void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights); // appends to this vector
   void CalcDists(const DblVec& x, DblVec& dists, DblVec& weights); // appends to this vector
   void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
+	VectorXd CalcDists(const VectorXd& theta, DblVec& weights);
   void CustomPlot(const DblVec& x, std::vector<OR::GraphHandlePtr>& handles);
 
   // parameters:

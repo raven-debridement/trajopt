@@ -241,17 +241,6 @@ void SigmaPtsCollisionEvaluator::CalcCollisions(const DblVec& x, vector<Collisio
   }
   m_cc->MultiCastVsAll(*m_rad, m_links, dofvals, collisions);
 }
-
-void SigmaPtsCollisionEvaluator::CustomPlot(const DblVec& x, std::vector<OR::GraphHandlePtr>& handles) {
-	DblVec theta = getDblVec(x, m_theta_vars);
-	MatrixXd sigma_pts = m_rad->sigmaPoints(toVectorXd(theta));
-	vector<DblVec> dofvals(sigma_pts.cols());
-	for (int i=0; i<sigma_pts.cols(); i++) {
-		dofvals[i] = toDblVec(sigma_pts.col(i));
-	}
-	m_cc->PlotCastHull(*m_rad, m_links, dofvals, handles);
-}
-
 void SigmaPtsCollisionEvaluator::CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights) {
   vector<Collision> collisions;
   GetCollisionsCached(x, collisions);
@@ -264,6 +253,57 @@ void SigmaPtsCollisionEvaluator::CalcDists(const DblVec& x, DblVec& dists, DblVe
   vector<Collision> collisions;
   GetCollisionsCached(x, collisions);
 	CollisionsToDistances(collisions, m_link2ind, dists, weights);
+}
+// for numerical linearization (for debugging, not being used)
+VectorXd SigmaPtsCollisionEvaluator::CalcDists(const VectorXd& theta, DblVec& weights) {
+  MatrixXd sigma_pts = m_rad->sigmaPoints(theta);
+
+  vector<DblVec> dofvals(sigma_pts.cols());
+  for (int i=0; i<sigma_pts.cols(); i++) {
+  	dofvals[i] = toDblVec(sigma_pts.col(i));
+  }
+	m_cc->SetContactDistance(100);
+  vector<Collision> collisions;
+  m_cc->MultiCastVsAll(*m_rad, m_links, dofvals, collisions);
+
+  VectorXd distances(collisions.size());
+  weights.resize(collisions.size());
+  for (int i=0; i<m_links.size(); i++) {
+		int j;
+		for (j=0; j<collisions.size(); j++) {
+			if (collisions[j].linkA == m_links[i].get() || collisions[j].linkB == m_links[i].get())
+				break;
+		}
+		assert(j!=collisions.size());
+		distances(i) = collisions[j].distance;
+		weights[i] = collisions[j].weight;
+  }
+  return distances;
+}
+//// for numerical linearization
+//void SigmaPtsCollisionEvaluator::CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights) {
+//  VectorXd theta = toVectorXd(getDblVec(x, m_theta_vars));
+//
+//  MatrixXd A = calcNumJac(boost::bind(&SigmaPtsCollisionEvaluator::CalcDists, this, _1, weights), theta);
+//  VectorXd c = CalcDists(theta, weights);
+//  //-coeff * (A * (m_theta_vars - theta) + c);
+//	assert(A.rows() == c.rows());
+//	for (int i=0; i < A.rows(); ++i) {
+//		AffExpr aff;
+//		aff.constant = c(i) - A.row(i).dot(theta);
+//		aff.coeffs = toDblVec(A.row(i));
+//		aff.vars = m_theta_vars;
+//		exprs.push_back(aff);
+//	}
+//}
+void SigmaPtsCollisionEvaluator::CustomPlot(const DblVec& x, std::vector<OR::GraphHandlePtr>& handles) {
+	DblVec theta = getDblVec(x, m_theta_vars);
+	MatrixXd sigma_pts = m_rad->sigmaPoints(toVectorXd(theta));
+	vector<DblVec> dofvals(sigma_pts.cols());
+	for (int i=0; i<sigma_pts.cols(); i++) {
+		dofvals[i] = toDblVec(sigma_pts.col(i));
+	}
+	m_cc->PlotCastHull(*m_rad, m_links, dofvals, handles);
 }
 //////////////////////////////////////////
 

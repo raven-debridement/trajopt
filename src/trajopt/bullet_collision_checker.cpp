@@ -607,6 +607,7 @@ void BulletCollisionChecker::PlotCollisionGeometry(vector<OpenRAVE::GraphHandleP
 
 void BulletCollisionChecker::PlotDebugGeometry(vector<OpenRAVE::GraphHandlePtr>& handles) {
 	handles.insert(handles.end(), m_custom_handles.begin(), m_custom_handles.end());
+	m_custom_handles.clear();
 }
 
 
