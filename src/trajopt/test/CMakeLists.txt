@@ -16,3 +16,6 @@ target_link_libraries(render-collision-test trajopt ${Boost_SYSTEM_LIBRARY} osgv
 add_executable(cast-cost-unit cast-cost-unit.cpp)
 target_link_libraries(cast-cost-unit trajopt gtest gtest_main ${Boost_SYSTEM_LIBRARY} ${Boost_PROGRAM_OPTIONS_LIBRARY} osgviewer)
 add_test(cast-cost-unit ${CMAKE_BINARY_DIR}/bin/cast-cost-unit)
+
+add_executable(rrt_test rrt_test.cpp)
+target_link_libraries(rrt_test trajopt ${Boost_SYSTEM_LIBRARY} osgviewer)

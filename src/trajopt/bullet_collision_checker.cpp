@@ -311,7 +311,8 @@ public:
   virtual void AllVsAll(vector<Collision>& collisions);
   virtual void LinksVsAll(const vector<KinBody::LinkPtr>& links, vector<Collision>& collisions);
   virtual void LinkVsAll(const KinBody::Link& link, vector<Collision>& collisions);
-  virtual void ContinuousCheckTrajectory(const TrajArray& traj, RobotAndDOF& rad, vector<Collision>&);
+  virtual void DiscreteCheckTrajectory(const TrajArray& traj, RobotAndDOFPtr rad, vector<Collision>& collisions);
+  virtual void ContinuousCheckTrajectory(const TrajArray& traj, RobotAndDOFPtr rad, vector<Collision>&);
   virtual void CastVsAll(RobotAndDOF& rad, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions);
   virtual void MultiCastVsAll(RobotAndDOF& rad, const vector<KinBody::LinkPtr>& links, const vector<DblVec>& multi_joints, vector<Collision>& collisions);
   ////
@@ -610,6 +611,31 @@ void BulletCollisionChecker::PlotDebugGeometry(vector<OpenRAVE::GraphHandlePtr>&
 	m_custom_handles.clear();
 }
 
+void BulletCollisionChecker::DiscreteCheckTrajectory(const TrajArray& traj, RobotAndDOFPtr rad, vector<Collision>& collisions) {
+  RobotBasePtr robot = rad->GetRobot();
+  vector<KinBody::LinkPtr> links;
+  vector<int> inds;
+  rad->GetAffectedLinks(links, true, inds);
+
+  if (traj.cols() == rad->GetDOF()) { // normal (mean) collision checking
+		RobotBase::RobotStateSaver save = rad->Save();
+		for (int iStep=0; iStep < traj.rows(); ++iStep) {
+			rad->SetDOFValues(toDblVec(traj.row(iStep).transpose()));
+			LinksVsAll(links, collisions);
+		}
+  } else { // sigma points collision checking?
+		BeliefRobotAndDOFPtr brad = boost::static_pointer_cast<BeliefRobotAndDOF>(rad);
+		assert(!!brad);
+		for (int iStep=0; iStep < traj.rows(); ++iStep) {
+			Eigen::MatrixXd sigma_pts = brad->sigmaPoints(traj.block(iStep,0,1,brad->GetNTheta()).transpose());
+			vector<DblVec> dofvals(sigma_pts.cols());
+			for (int i=0; i<sigma_pts.cols(); i++) {
+				dofvals[i] = toDblVec(sigma_pts.col(i));
+			}
+			MultiCastVsAll(*rad, links, dofvals, collisions);
+		}
+  }
+}
 
 ////////// Continuous collisions ////////////////////////
 
@@ -648,15 +674,14 @@ void ContinuousCheckShape(btCollisionShape* shape, const vector<btTransform>& tr
 
 }
 
-
-void BulletCollisionChecker::ContinuousCheckTrajectory(const TrajArray& traj, RobotAndDOF& rad, vector<Collision>& collisions) {
+void BulletCollisionChecker::ContinuousCheckTrajectory(const TrajArray& traj, RobotAndDOFPtr rad, vector<Collision>& collisions) {
   UpdateBulletFromRave();
   m_world->updateAabbs();
 
   // first calculate transforms of all the relevant links at each step
   vector<KinBody::LinkPtr> links;
   vector<int> link_inds;
-  rad.GetAffectedLinks(links, true, link_inds);
+  rad->GetAffectedLinks(links, true, link_inds);
 
 
   // don't need to remove them anymore because now I only check collisions
@@ -675,10 +700,10 @@ void BulletCollisionChecker::ContinuousCheckTrajectory(const TrajArray& traj, Ro
 
   typedef vector<btTransform> TransformVec;
   vector<TransformVec> link2transforms(links.size(), TransformVec(traj.rows()));
-  RobotBase::RobotStateSaver save = rad.Save();
+  RobotBase::RobotStateSaver save = rad->Save();
 
   for (int iStep=0; iStep < traj.rows(); ++iStep) {
-    rad.SetDOFValues(toDblVec(traj.row(iStep)));
+    rad->SetDOFValues(toDblVec(traj.row(iStep)));
     for (int iLink = 0; iLink < links.size(); ++iLink) {
       link2transforms[iLink][iStep] = toBt(links[iLink]->GetTransform());
     }

@@ -10,7 +10,7 @@
 
 namespace trajopt {
 
-class BeliefRobotAndDOF : public RobotAndDOF {
+class TRAJOPT_API BeliefRobotAndDOF : public RobotAndDOF {
 private:
   boost::variate_generator<boost::mt19937, boost::normal_distribution<> > generator;
   int n_theta;

@@ -112,7 +112,7 @@ TEST(continuous_collisions, boxes) {
     TrajArray traj(2,2);
     traj << -1.9,0,  0,1.9;
     vector<Collision> collisions;
-    checker->ContinuousCheckTrajectory(traj, *rad, collisions);
+    checker->ContinuousCheckTrajectory(traj, rad, collisions);
     ASSERT_EQ(collisions.size(), 1);
     Collision col = collisions[0];
     Vector robot_normal = (float)(col.linkA == boxbot->GetLinks()[0].get() ? 1. : -1.) * col.normalB2A;
