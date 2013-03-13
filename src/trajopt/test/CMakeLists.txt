@@ -19,3 +19,6 @@ add_test(cast-cost-unit ${CMAKE_BINARY_DIR}/bin/cast-cost-unit)
 
 add_executable(rrt_test rrt_test.cpp)
 target_link_libraries(rrt_test trajopt ${Boost_SYSTEM_LIBRARY} osgviewer)
+
+add_executable(relative_collision_test relative_collision_test.cpp)
+target_link_libraries(relative_collision_test trajopt ${Boost_SYSTEM_LIBRARY} osgviewer)

@@ -7,6 +7,8 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/foreach.hpp>
 #include <vector>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 using namespace OpenRAVE;
 using namespace std;
 using namespace trajopt;
@@ -74,6 +76,16 @@ bool isTrajectoryInCollision(CollisionCheckerPtr cc, TrajArray traj, BeliefRobot
 	return false;
 }
 
+Matrix3d skewSymmetric(const Vector3d& v) {
+	Matrix3d m;
+	m << 0, -v(2), v(1), v(2), 0, -v(0), -v(1), v(0), 0;
+	return m;
+}
+
+Eigen::Matrix3d toMatrix3d(OR::RaveVector<float> rq) {
+	return Quaterniond(rq[0], rq[1], rq[2], rq[3]).toRotationMatrix();
+}
+
 int main() {
   RaveInitialize(false, OpenRAVE::Level_Debug);
   env = RaveCreateEnvironment();
@@ -131,6 +143,29 @@ int main() {
 
   // check for collisions in for a particular dof
   cout << "is dof in collisions " << isTrajectoryInCollision(cc, dof_values.transpose(), rad) << endl;
+
+	OR::Vector pt(0.2,0.36,0);
+	handles.push_back(viewer->PlotSphere(pt, 0.01, OR::RaveVector<float>(1,1,0,1)));
+
+	MatrixXd dpdq(3,6);
+	dpdq.leftCols(3) = MatrixXd::Identity(3,3);
+	dpdq.rightCols(3) = skewSymmetric(-toVector3d(pt));
+	cout << dpdq << endl;
+	cout << endl;
+
+	MatrixXd jac_pos = rad->PositionJacobian(3, Vector(0,0,0));
+	MatrixXd jac_rot = rad->RotationJacobian(3);
+	MatrixXd dqdtheta(6,rad->GetDOF());
+	dqdtheta.topRows(3) = jac_pos;
+	dqdtheta.bottomRows(3) = jac_rot;
+	cout << dqdtheta << endl;
+	cout << endl;
+
+	MatrixXd dpdtheta_rave = rad->PositionJacobian(3, pt);
+	MatrixXd dpdtheta = dpdq * dqdtheta;
+	cout << dpdtheta_rave << endl;
+	cout << endl;
+	cout << dpdtheta << endl;
 
   viewer->Idle();
 

@@ -1,6 +1,7 @@
 #include "trajopt/robot_and_dof.hpp"
 #include <boost/foreach.hpp>
 #include "trajopt/rave_utils.hpp"
+#include "trajopt/utils.hpp"
 #include "utils/math.hpp"
 using namespace OpenRAVE;
 using namespace util;
@@ -20,7 +21,7 @@ void RobotAndDOF::SetDOFValues(const DblVec& dofs) {
   }
 }
 
-DblVec RobotAndDOF::GetDOFValues() {
+DblVec RobotAndDOF::GetDOFValues() const {
   DblVec out;
   robot->GetDOFValues(out, joint_inds);
   if (affinedofs != 0) {
@@ -77,6 +78,15 @@ DblMatrix RobotAndDOF::PositionJacobian(int link_ind, const OR::Vector& pt) cons
   robot->CalculateActiveJacobian(link_ind, pt, jacdata);
   return Eigen::Map<DblMatrix>(jacdata.data(), 3, GetDOF());
 }
+DblMatrix RobotAndDOF::RotationJacobian(int link_ind) const { // link_ind currently not being used
+	Eigen::MatrixXd jac(3,GetDOF());
+	for (int j=0; j<jac.cols(); j++) {
+		OR::Vector axis = robot->GetJointFromDOFIndex(joint_inds[j])->GetAxis();
+		jac.col(j) = toVector3d(axis);
+	}
+	return jac;
+}
+
 bool RobotAndDOF::DoesAffect(const KinBody::Link& link) {
   if (affinedofs > 0) return true;
   else if (link.GetParent() == GetRobot()) return trajopt::DoesAffect(*GetRobot(), joint_inds, GetRobotLinkIndex(*GetRobot(), link));

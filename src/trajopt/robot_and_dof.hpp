@@ -15,7 +15,7 @@ public:
 
   void SetDOFValues(const DblVec& dofs);
   void GetDOFLimits(DblVec& lower, DblVec& upper) const;
-  DblVec GetDOFValues();
+  DblVec GetDOFValues() const;
   int GetDOF() const;
   IntVec GetJointIndices() const {return joint_inds;}
   DblMatrix PositionJacobian(int link_ind, const OR::Vector& pt) const;

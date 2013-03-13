@@ -50,6 +50,7 @@ public:
   		const vector<DblVec>& multi_joints, vector<OpenRAVE::GraphHandlePtr>& handles) {}
 
   virtual void DiscreteCheckTrajectory(const TrajArray& traj, RobotAndDOFPtr rad, vector<Collision>& collisions) {throw std::runtime_error("not implemented");}
+  virtual void DiscreteCheckSigma(RobotAndDOFPtr rad, Eigen::MatrixXd sigma_pts, vector<Collision>& collisions) {throw std::runtime_error("not implemented");}
   virtual void ContinuousCheckTrajectory(const TrajArray& traj, RobotAndDOFPtr rad, vector<Collision>& collisions) {throw std::runtime_error("not implemented");}
   
   /** Find contacts between swept-out shapes of robot links and everything in the environment, as robot goes from startjoints to endjoints */ 

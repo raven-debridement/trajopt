@@ -312,6 +312,7 @@ public:
   virtual void LinksVsAll(const vector<KinBody::LinkPtr>& links, vector<Collision>& collisions);
   virtual void LinkVsAll(const KinBody::Link& link, vector<Collision>& collisions);
   virtual void DiscreteCheckTrajectory(const TrajArray& traj, RobotAndDOFPtr rad, vector<Collision>& collisions);
+  virtual void DiscreteCheckSigma(RobotAndDOFPtr rad, Eigen::MatrixXd sigma_pts, vector<Collision>& collisions);
   virtual void ContinuousCheckTrajectory(const TrajArray& traj, RobotAndDOFPtr rad, vector<Collision>&);
   virtual void CastVsAll(RobotAndDOF& rad, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions);
   virtual void MultiCastVsAll(RobotAndDOF& rad, const vector<KinBody::LinkPtr>& links, const vector<DblVec>& multi_joints, vector<Collision>& collisions);
@@ -635,6 +636,20 @@ void BulletCollisionChecker::DiscreteCheckTrajectory(const TrajArray& traj, Robo
 			MultiCastVsAll(*rad, links, dofvals, collisions);
 		}
   }
+}
+void BulletCollisionChecker::DiscreteCheckSigma(RobotAndDOFPtr rad, Eigen::MatrixXd sigma_pts, vector<Collision>& collisions) {
+  RobotBasePtr robot = rad->GetRobot();
+  vector<KinBody::LinkPtr> links;
+  vector<int> inds;
+  rad->GetAffectedLinks(links, true, inds);
+
+	BeliefRobotAndDOFPtr brad = boost::static_pointer_cast<BeliefRobotAndDOF>(rad);
+	assert(!!brad);
+	vector<DblVec> dofvals(sigma_pts.cols());
+	for (int i=0; i<sigma_pts.cols(); i++) {
+		dofvals[i] = toDblVec(sigma_pts.col(i));
+	}
+	MultiCastVsAll(*rad, links, dofvals, collisions);
 }
 
 ////////// Continuous collisions ////////////////////////
