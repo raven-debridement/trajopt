@@ -70,7 +70,7 @@ MatrixXd BeliefRobotAndDOF::GetObsNoise() {
 	int n_dof = GetDOF();
 	VectorXd diag_noise(n_dof);
 	if (n_dof == 3) diag_noise << 0.09, 0.09, 0.09;
-	else diag_noise << 0.005, 0.005;
+	else diag_noise << 0.01, 0.01;
 	assert(0);
 	return diag_noise.asDiagonal();
 }
@@ -106,7 +106,8 @@ VectorXd BeliefRobotAndDOF::BeliefDynamics(const VectorXd& theta0, const VectorX
 	VectorXd x0, x;
 	MatrixXd rtSigma0, rtSigma;
 	decomposeBelief(theta0, x0, rtSigma0);
-	ekfUpdate(u0, x0, rtSigma0, x, rtSigma);
+	//ekfUpdate(u0, x0, rtSigma0, x, rtSigma);
+	ukfUpdate(u0, x0, rtSigma0, x, rtSigma);
 	VectorXd theta;
 	composeBelief(x, rtSigma, theta);
 
@@ -159,95 +160,140 @@ MatrixXd BeliefRobotAndDOF::sigmaPoints(const VectorXd& mean, const MatrixXd& co
 	return sigmapts;
 }
 
-// TODO add motion noise
 void BeliefRobotAndDOF::ukfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma)
 {
 	int n_dof = GetDOF();
 	int n_u = u0.rows();
 	int n_r = GetRSize();
 	int n_z = GetObsSize();
+	int n_q = GetQSize();
 
- 	int L = n_dof + n_r;
+ 	int L = n_dof + n_q + n_r;
 
-	double lambda = alpha*alpha*(L + kappa) - L;
+ 	double ukfalpha = 0.001; //alpha;
+ 	double ukfbeta = 2; //beta;
+ 	double ukfkappa = 0; //kappa;
+
+	double lambda = ukfalpha*ukfalpha*(L + ukfkappa) - L;
 	double w = 1 / (2*(L + lambda));
 	double mw = lambda / (L + lambda);
-	double vw = mw + (1 - alpha*alpha + beta);
+	double vw = mw + (1 - ukfalpha*ukfalpha + ukfbeta);
+
+	//cout << "L: " << L << endl;
+	//cout << "lambda: " << lambda << endl;
+	//cout << "w: " << w << endl;
+	//cout << "mw: " << mw << endl;
+	//cout << "vw: " << vw << endl;
 
 	MatrixXd Sigma0 = rtSigma0 * rtSigma0.transpose();
 
+	//cout << "Sigma0:\n" << Sigma0 << endl;
+
 	// propagate sigma points through f
 	VectorXd q = VectorXd::Zero(GetQSize());
-	MatrixXd sigmapts(n_dof, 2*n_dof+1);
+	MatrixXd sigmapts(n_dof, 2*(n_dof+n_q)+1);
 
-	sigmapts.col(0) = Dynamics(x0, u0, q);
+	int idx = 0;
+	sigmapts.col(idx++) = Dynamics(x0, u0, q);
 
 	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd_Sigma0((L+lambda)*Sigma0, ComputeThinU | ComputeThinV);
 	MatrixXd rt_scaled_Sigma0 = svd_Sigma0.matrixU() * svd_Sigma0.singularValues().array().sqrt().matrix().asDiagonal() * svd_Sigma0.matrixV().transpose();
 
 	for (int i = 0; i < n_dof; ++i) {
-		sigmapts.col(2*i+1) = Dynamics(x0 + rt_scaled_Sigma0.col(i), u0, q);
-		sigmapts.col(2*i+2) = Dynamics(x0 - rt_scaled_Sigma0.col(i), u0, q);
+		sigmapts.col(idx++) = Dynamics(x0 + rt_scaled_Sigma0.col(i), u0, q);
+		sigmapts.col(idx++) = Dynamics(x0 - rt_scaled_Sigma0.col(i), u0, q);
 	}
+
+	double qstep = sqrt(L + lambda);
+	for (int i = 0; i < n_q; ++i) {
+		q(i) = qstep;
+		sigmapts.col(idx++) = Dynamics(x0, u0, q);
+		q(i) = -qstep;
+		sigmapts.col(idx++) = Dynamics(x0, u0, q);
+		q(i) = 0;
+	}
+
+	//cout << "sigmapts:\n" << sigmapts << endl;
 
 	// calculate mean -- O(xDim^2)
-	x = mw * sigmapts.col(0);
+	VectorXd xhat(n_dof);
+	xhat = (mw + 2*n_r*w) * sigmapts.col(0);
 	for (int i = 1; i < sigmapts.cols(); ++i) {
-		x += w * sigmapts.col(i);
+		xhat += w * sigmapts.col(i);
 	}
+
+	//cout << "xhat: " << xhat.transpose() << endl;
 
 	// calculate variance -- O(xDim^3)
-	MatrixXd Sigma = vw * (sigmapts.col(0) - x)*(sigmapts.col(0) - x).transpose();
+	MatrixXd Sigma = (vw + 2*n_r*w) * (sigmapts.col(0) - xhat)*(sigmapts.col(0) - xhat).transpose();
 	for (int i = 1; i < sigmapts.cols(); ++i) {
-		Sigma += w * (sigmapts.col(i) - x)*(sigmapts.col(i) - x).transpose();
+		Sigma += w * (sigmapts.col(i) - xhat)*(sigmapts.col(i) - xhat).transpose();
 	}
+
+	//cout << "Sigma predict:\n" << Sigma << endl;
 
 	// Measurement Update
-	MatrixXd Z(n_z, 2*(n_dof+n_z)+1);
+	MatrixXd Z(n_z, 2*(n_dof+n_q+n_r)+1);
 	VectorXd r = VectorXd::Zero(GetRSize());
 
-	int idx = 0;
+	idx = 0;
 	for (int i = 0; i < sigmapts.cols(); ++i) {
-		Z.col(idx) = Observe(sigmapts.col(i), r);
-		++idx;
+		Z.col(idx++) = Observe(sigmapts.col(i), r);
 	}
 
-	double factor = sqrt(L + lambda);
-	for (int i = sigmapts.cols(); i < 2*(n_dof+n_z)+1; ++i) {
-		r(i) = factor;
-		Z.col(idx) = Observe(sigmapts.col(0), r);
-		++idx;
-		r(i) = -factor;
-		Z.col(idx) = Observe(sigmapts.col(0), r);
-		++idx;
+	double rstep = sqrt(L + lambda);
+	for (int i = 0; i < n_r; ++i) {
+		r(i) = rstep;
+		Z.col(idx++) = Observe(sigmapts.col(0), r);
+		r(i) = -rstep;
+		Z.col(idx++) = Observe(sigmapts.col(0), r);
 		r(i) = 0;
 	}
 
+	//cout << "Z:\n" << Z << endl;
+
 	// calculate mean -- O(xDim*zDim + zDim^2)
-	VectorXd z0(n_z);
-	z0 = mw * Z.col(0);
+	VectorXd zhat(n_z);
+	zhat = mw * Z.col(0);
 	for (int i = 1; i < Z.cols(); ++i) {
-		z0 += w * Z.col(i);
+		zhat += w * Z.col(i);
 	}
+
+	//cout << "zhat: " << zhat.transpose() << endl;
 
 	// calculate variance -- O(zDim^3 + xDim*zDim^2)
-	MatrixXd Pzz = vw * (Z.col(0) - z0)*(Z.col(0) - z0).transpose();
+	MatrixXd Pzz = vw * (Z.col(0) - zhat)*(Z.col(0) - zhat).transpose();
 	for (int i = 1; i < Z.cols(); ++i) {
-		Pzz += w * (Z.col(i) - z0)*(Z.col(i) - z0).transpose();
+		Pzz += w * (Z.col(i) - zhat)*(Z.col(i) - zhat).transpose();
 	}
+	//cout << "Pzz:\n" << Pzz << endl;
+
 	// calculate cross-covariance -- O(xDim^2*zDim + xDim*zDim^2)
-	MatrixXd Pxz = vw * (sigmapts.col(0) - x0)*(Z.col(0) - z0).transpose();
+	MatrixXd Pxz = vw * (sigmapts.col(0) - xhat)*(Z.col(0) - zhat).transpose();
 	for (int i = 1; i < sigmapts.cols(); ++i) {
-		Pxz += w * (sigmapts.col(i) - x0)*(Z.col(i) - z0).transpose();
+		Pxz += w * (sigmapts.col(i) - xhat)*(Z.col(i) - zhat).transpose();
 	}
 	for (int i = sigmapts.cols(); i < Z.cols(); ++i) {
-		Pxz += w * (sigmapts.col(i) - x0)*(Z.col(i) - z0).transpose();
+		Pxz += w * (sigmapts.col(0) - xhat)*(Z.col(i) - zhat).transpose();
 	}
 
-	PartialPivLU<MatrixXd> solver(Pxz);
-	MatrixXd K = solver.solve(Pzz); // Pxz/Pzz? Check.
-	x += K*(Z.col(0) - z0); // O(xDim*zDim)
+	//cout << "Pxz:\n" << Pxz << endl;
+
+	PartialPivLU<MatrixXd> solver(Pzz);
+	MatrixXd K = solver.solve(Pxz); // Pxz/Pzz? Check.
+	//x += K*(Z.col(0) - z0); // O(xDim*zDim)
+
+	//cout << "K:\n" << K << endl;
+
+	x = xhat;
 	Sigma -= Pxz*K.transpose(); // O(xDim^2*zDim)
+
+	//cout << "Sigma update:\n" << Sigma << endl;
+
+	//int num;
+	//cin >> num;
+
+	//exit(-1);
 
 	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd_Sigma(Sigma, ComputeThinU | ComputeThinV);
 	rtSigma = svd_Sigma.matrixU() * svd_Sigma.singularValues().array().sqrt().matrix().asDiagonal() * svd_Sigma.matrixV().transpose();
