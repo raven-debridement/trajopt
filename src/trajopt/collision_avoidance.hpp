@@ -122,4 +122,21 @@ private:
   double m_coeff;
 };
 
+class CollisionConstraint : public Constraint, public Plotter {
+public:
+  /* constructor for single timestep */
+	CollisionConstraint(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars);
+  /* constructor for cast cost */
+	CollisionConstraint(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1);
+  virtual ConvexConstraintsPtr convex(const vector<double>& x, Model* model);
+  virtual vector<double> value(const vector<double>&);
+  ConstraintType type() {return type_;}
+  virtual void Plot(const DblVec& x, OR::EnvironmentBase&, std::vector<OR::GraphHandlePtr>& handles);
+private:
+  CollisionEvaluatorPtr m_calc;
+  double m_dist_pen;
+  double m_coeff;
+  ConstraintType type_;
+};
+
 }

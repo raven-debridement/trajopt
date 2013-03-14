@@ -367,5 +367,44 @@ void CollisionCost::Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<
 }
 
 
+CollisionConstraint::CollisionConstraint(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars) :
+    Constraint("collision"), m_dist_pen(dist_pen), m_coeff(coeff), type_(INEQ)
+{
+	if (vars.size() == rad->GetDOF()) {
+		m_calc = CollisionEvaluatorPtr(new SingleTimestepCollisionEvaluator(rad, vars));
+	} else {
+		BeliefRobotAndDOFPtr brad = boost::static_pointer_cast<BeliefRobotAndDOF>(rad);
+		m_calc = CollisionEvaluatorPtr(new SigmaPtsCollisionEvaluator(brad, vars));
+	}
+}
+CollisionConstraint::CollisionConstraint(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars0, const VarVector& vars1) :
+		Constraint("cast_collision"), m_calc(new CastCollisionEvaluator(rad, vars0, vars1)), m_dist_pen(dist_pen), m_coeff(coeff), type_(INEQ)
+{}
+ConvexConstraintsPtr CollisionConstraint::convex(const vector<double>& x, Model* model) {
+	ConvexConstraintsPtr out(new ConvexConstraints(model));
+  vector<AffExpr> exprs;
+  DblVec weights;
+  m_calc->CalcDistExpressions(x, exprs, weights);
+  for (int i=0; i < exprs.size(); ++i) {
+    AffExpr aff = exprMult(exprSub(AffExpr(m_dist_pen), exprs[i]), m_coeff * weights[i]);
+		out->addIneqCnt(aff);
+  }
+  return out;
+}
+vector<double> CollisionConstraint::value(const vector<double>& x) {
+  DblVec dists, weights;
+  m_calc->CalcDists(x, dists, weights);
+  vector<double> out(dists.size());
+  for (int i=0; i < dists.size(); ++i) {
+    out[i] = (m_dist_pen - dists[i]) * m_coeff * weights[i];
+  }
+  return out;
+}
+void CollisionConstraint::Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles) {
+  vector<Collision> collisions;
+  m_calc->GetCollisionsCached(x, collisions);
+  PlotCollisions(collisions, env, handles, m_dist_pen);
+  m_calc->CustomPlot(x, handles);
+}
 
 }

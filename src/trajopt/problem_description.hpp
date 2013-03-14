@@ -274,6 +274,34 @@ struct ContinuousCollisionCostInfo : public CostInfo {
 	static CostInfoPtr create();
 };
 /**
+\brief %Collision constraint
+*/
+struct CollisionCntInfo : public CntInfo {
+	/// coeffs.size() = num_timesteps
+	DblVec coeffs;
+	/// safety margin: contacts with distance < dist_pen are penalized
+	DblVec dist_pen;
+	/// belief space version with sigma points?
+	bool belief_space;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CntInfoPtr create();
+};
+/**
+\brief continuous-time collision constraint
+ */
+struct ContinuousCollisionCntInfo : public CntInfo {
+	/// first_step and last_step are inclusive
+	int first_step, last_step;
+	/// coeffs.size() = last_step - first_step - 1
+	DblVec coeffs;
+	/// see CollisionCostInfo::dist_pen
+	DblVec dist_pen;
+	void fromJson(const Value& v);
+	void hatch(TrajOptProb& prob);
+	static CntInfoPtr create();
+};
+/**
 joint-space position constraint
  */
 struct JointConstraintInfo : public CntInfo {

@@ -32,6 +32,8 @@ void RegisterMakers() {
 
   CntInfo::RegisterMaker("joint", &JointConstraintInfo::create);
   CntInfo::RegisterMaker("pose", &PoseCntInfo::create);
+  CntInfo::RegisterMaker("collision", &CollisionCntInfo::create);
+  CntInfo::RegisterMaker("continuous_collision", &ContinuousCollisionCntInfo::create);
   CntInfo::RegisterMaker("cart_vel", &CartVelCntInfo::create);
 
   // belief costs and controls
@@ -613,6 +615,70 @@ CostInfoPtr ContinuousCollisionCostInfo::create() {
   return CostInfoPtr(new ContinuousCollisionCostInfo());
 }
 
+
+void CollisionCntInfo::fromJson(const Value& v) {
+  FAIL_IF_FALSE(v.isMember("params"));
+  const Value& params = v["params"];
+
+  int n_steps = gPCI->basic_info.n_steps;
+  childFromJson(params, coeffs,"coeffs");
+  if (coeffs.size() == 1) coeffs = DblVec(n_steps, coeffs[0]);
+  else if (coeffs.size() != n_steps) {
+    PRINT_AND_THROW( boost::format("wrong size: coeffs. expected %i got %i")%n_steps%coeffs.size() );
+  }
+  childFromJson(params, dist_pen,"dist_pen");
+  if (dist_pen.size() == 1) dist_pen = DblVec(n_steps, dist_pen[0]);
+  else if (dist_pen.size() != n_steps) {
+    PRINT_AND_THROW( boost::format("wrong size: dist_pen. expected %i got %i")%n_steps%dist_pen.size() );
+  }
+  childFromJson(params, belief_space,"belief_space", false);
+}
+void CollisionCntInfo::hatch(TrajOptProb& prob) {
+  for (int i=0; i < prob.GetNumSteps(); ++i) {
+  	if (belief_space)
+  		prob.addConstr(ConstraintPtr(new CollisionConstraint(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetNTheta()))));
+  	else
+    	prob.addConstr(ConstraintPtr(new CollisionConstraint(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()))));
+  	prob.getConstraints().back()->setName( (boost::format("%s_%i")%name%i).str() );
+  }
+  CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
+	cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
+}
+CntInfoPtr CollisionCntInfo::create() {
+  return CntInfoPtr(new CollisionCntInfo());
+}
+
+
+void ContinuousCollisionCntInfo::fromJson(const Value& v) {
+  FAIL_IF_FALSE(v.isMember("params"));
+  const Value& params = v["params"];
+
+  int n_steps = gPCI->basic_info.n_steps;
+  childFromJson(params, first_step, "first_step", 0);
+  childFromJson(params, last_step, "last_step", n_steps-1);
+  childFromJson(params, coeffs, "coeffs");
+  int n_terms = last_step - first_step;
+  if (coeffs.size() == 1) coeffs = DblVec(n_terms, coeffs[0]);
+  else if (coeffs.size() != n_terms) {
+    PRINT_AND_THROW (boost::format("wrong size: coeffs. expected %i got %i")%n_terms%coeffs.size());
+  }
+  childFromJson(params, dist_pen,"dist_pen");
+  if (dist_pen.size() == 1) dist_pen = DblVec(n_terms, dist_pen[0]);
+  else if (dist_pen.size() != n_terms) {
+    PRINT_AND_THROW(boost::format("wrong size: dist_pen. expected %i got %i")%n_terms%dist_pen.size());
+  }
+}
+void ContinuousCollisionCntInfo::hatch(TrajOptProb& prob) {
+  for (int i=first_step; i < last_step; ++i) {
+    prob.addConstr(ConstraintPtr(new CollisionConstraint(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()), prob.GetVars().rblock(i+1,0,prob.GetRAD()->GetDOF()))));
+    prob.getConstraints().back()->setName( (boost::format("%s_%i")%name%i).str() );
+  }
+  CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
+  cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
+}
+CntInfoPtr ContinuousCollisionCntInfo::create() {
+  return CntInfoPtr(new ContinuousCollisionCntInfo());
+}
 
 
 void JointConstraintInfo::fromJson(const Value& v) {

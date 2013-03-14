@@ -149,7 +149,8 @@ MatrixXd BeliefRobotAndDOF::sigmaPoints(const VectorXd& mean, const MatrixXd& co
 	MatrixXd sigmapts(n_dof, 2*n_dof+1);
 	sigmapts.col(0) = mean;
 
-	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd((L+lambda)*cov, ComputeThinU | ComputeThinV);
+	// TODO replace n_dof for L
+	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd((n_dof+lambda)*cov, ComputeThinU | ComputeThinV);
 	MatrixXd rt_scaled_cov = svd.matrixU() * svd.singularValues().array().sqrt().matrix().asDiagonal() * svd.matrixV().transpose();
 
 	for(int i = 0; i < n_dof; ++i){

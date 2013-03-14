@@ -47,6 +47,10 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
                 "link" : link_name,
             },
         },
+#        {
+#            "type" : "collision",
+#            "params" : {"coeffs" : [1],"dist_pen" : [0], "belief_space" : True}
+#        },
         {
             "type" : "control",
             "params": {
