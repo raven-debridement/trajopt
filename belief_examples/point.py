@@ -18,7 +18,7 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
         "costs" : [
         {
             "type" : "collision",
-            "params" : {"coeffs" : [30],"dist_pen" : [0.2], "belief_space" : True}
+            "params" : {"coeffs" : [1],"dist_pen" : [0.1], "belief_space" : True}
         },
 #        {
 #            "type" : "joint_vel",
@@ -26,7 +26,7 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
 #        },
         {
             "type" : "control",
-            "params": {"coeffs" : [0.1]}
+            "params": {"coeffs" : [0.05]}
         },
         {
             "type" : "covariance",
