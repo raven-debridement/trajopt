@@ -31,6 +31,7 @@ BeliefRobotAndDOF::BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec
 			n_theta(GetDOF() + GetDOF() * (GetDOF()+1) / 2)
 {
 	if (GetDOF() == 3) link = GetRobot()->GetLink("Finger");
+	else if (GetDOF() == 7) link = GetRobot()->GetLink("wam7");
 	else link = GetRobot()->GetLink("Base");
 
 	VectorXi sigma_vec_inds(GetNTheta()-GetDOF());
@@ -61,7 +62,9 @@ DblVec BeliefRobotAndDOF::GetBeliefValues() {
 MatrixXd BeliefRobotAndDOF::GetDynNoise() {
 	int n_dof = GetDOF();
 	VectorXd diag_noise(n_dof);
+
 	if (n_dof == 3)	diag_noise << 0.08, 0.13, 0.18;
+	else if (n_dof == 7) diag_noise << 0.08, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08;
 	else diag_noise << 0.05, 0.05;
 	return diag_noise.asDiagonal();
 }
