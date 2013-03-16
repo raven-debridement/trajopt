@@ -33,7 +33,14 @@ public:
 
   Eigen::MatrixXd GetObsNoise();
   inline int GetRSize() { return GetDOF(); }
-  inline int GetObsSize() { return GetDOF(); }
+  inline int GetObsSize() {
+	  int nd = GetDOF();
+	  if(nd == 3 || nd == 2) {
+		  return nd;
+	  } else {
+		  return 2;
+	  }
+  }
 //  inline int GetRSize() { return GetObsNoise().cols(); }
 //  inline int GetObsSize() { return GetObsNoise().rows(); }
 

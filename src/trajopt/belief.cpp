@@ -81,7 +81,7 @@ VectorXd BeliefRobotAndDOF::Observe(const VectorXd& dofs, const VectorXd& r) {
 	SetDOFValues(toDblVec(dofs));
 	OR::Vector trans = link->GetTransform().trans;
 
-	VectorXd z(n_dof);
+	VectorXd z;
 	if (n_dof == 3) {
 		z = Vector3d(trans.x, trans.y, trans.z);
 		//z += sigmoid(trans.y, -0.2)*GetObsNoise()*r;
@@ -89,6 +89,13 @@ VectorXd BeliefRobotAndDOF::Observe(const VectorXd& dofs, const VectorXd& r) {
 		//	z += ((trans.y+0.2)/0.4)*GetObsNoise()*r;
 		//	if (trans.y<-0.2) z += 0.1*GetObsNoise()*r;
 		//	else z += 10*GetObsNoise()*r;
+	}  else if (n_dof == 7) {
+		z = Vector2d(0,0);
+		OR::Vector beacon;
+		beacon.x = -0.75; beacon.y = 0; beacon.z = 0.75;
+		double dist = (trans.x - beacon.x)*(trans.x - beacon.x) + (trans.y - beacon.y)*(trans.y - beacon.y) + (trans.z - beacon.z)*(trans.z - beacon.z);
+		z[0] = 1.0/(1.0 + dist) + 0.1*dist*r;
+		z[1] = dofs[0] + 0.01*r;
 	} else {
 		z = Vector2d(trans.x, trans.y) + (0.5*pow(5.0 - trans.x,2)+0.001)*r; // as in the Platt paper
 	}
@@ -281,7 +288,7 @@ void BeliefRobotAndDOF::ukfUpdate(const VectorXd& u0, const VectorXd& x0, const 
 	//cout << "Pxz:\n" << Pxz << endl;
 
 	PartialPivLU<MatrixXd> solver(Pzz);
-	MatrixXd K = solver.solve(Pxz); // Pxz/Pzz? Check.
+	MatrixXd K = solver.solve(Pxz); // Pxz\Pzz? Check.
 	//x += K*(Z.col(0) - z0); // O(xDim*zDim)
 
 	//cout << "K:\n" << K << endl;
