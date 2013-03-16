@@ -89,7 +89,8 @@ public:
   	rt_S = toSigmaMatrix((Eigen::Matrix<T,Eigen::Dynamic,1>) theta.bottomRows(GetNTheta()-GetDOF()));
   }
 
-  void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& x0, const Eigen::MatrixXd& rtSigma0, VectorXd& xest, Eigen::MatrixXd& Vest);
+  void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& x0, const Eigen::MatrixXd& rtSigma0, Eigen::VectorXd& xest, Eigen::MatrixXd& Vest);
+  void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& x0, const Eigen::MatrixXd& rtSigma0, const Eigen::VectorXd& z0, Eigen::VectorXd& x, Eigen::MatrixXd& rtSigma);
 
   void GetEndEffectorNoiseAsGaussian(const Eigen::VectorXd& theta, Eigen::VectorXd& mean, Eigen::MatrixXd& cov);
 

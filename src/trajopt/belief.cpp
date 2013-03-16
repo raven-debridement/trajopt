@@ -21,6 +21,28 @@ namespace {
 		else
 			return s*7.0;
 	}
+	// A \ B
+	MatrixXd backslashDivide(const MatrixXd& A, const MatrixXd B) {
+		PartialPivLU<MatrixXd> solver(A);
+		return (MatrixXd) solver.solve(B);
+	}
+
+	// A / B
+	MatrixXd slashDivide(const MatrixXd& A, const MatrixXd B) {
+		PartialPivLU<MatrixXd> solver(B);
+		return ((MatrixXd) solver.solve(A.transpose())).transpose();
+	}
+
+	// sqrt(A)
+	MatrixXd sqrtm(const MatrixXd& A) {
+		Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd(A, ComputeThinU | ComputeThinV);
+
+		VectorXd s = svd.singularValues();
+		for (int i=0; i<s.size(); i++)
+			if (s(i) < 0) throw runtime_error("Square root of matrix cannot be computed since at least one of its eigenvalues is negative");
+
+		return svd.matrixU() * svd.singularValues().array().sqrt().matrix().asDiagonal() * svd.matrixV().transpose();
+	}
 }
 
 namespace trajopt {
@@ -309,71 +331,38 @@ void BeliefRobotAndDOF::ukfUpdate(const VectorXd& u0, const VectorXd& x0, const 
 	rtSigma = svd_Sigma.matrixU() * svd_Sigma.singularValues().array().sqrt().matrix().asDiagonal() * svd_Sigma.matrixV().transpose();
 }
 
-// A \ B
-MatrixXd backlashDivide(const MatrixXd& A, const MatrixXd B) {
-	PartialPivLU<MatrixXd> solver(B);
-	return (MatrixXd) solver.solve(A);
-}
-
-//void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma) {
-//	int n_dof = GetDOF();
-//
-//	VectorXd q = VectorXd::Zero(GetQSize());
-//	x = Dynamics(x0, u0, q);
-//
-//	MatrixXd Sigma0 = rtSigma0 * rtSigma0.transpose();
-//
-//	MatrixXd A = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, _1, u0, q), x0);
-//	MatrixXd Q = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, x0, u0, _1), q);
-//	MatrixXd Gamma0 = A * Sigma0 * A.transpose() + Q*Q.transpose();
-//
-//	VectorXd r = VectorXd::Zero(GetRSize());
-//	MatrixXd C = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, _1, r), x);
-//	MatrixXd R = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, x, _1), r);
-//
-//	MatrixXd A_K = C*Gamma0*C.transpose() + R*R.transpose();
-//	PartialPivLU<MatrixXd> solver(A_K);
-//	MatrixXd L = solver.solve(C*Gamma0);
-//	MatrixXd Sigma = Gamma0 - Gamma0 * C.transpose() * L;
-//
-//	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd(Sigma, ComputeThinU | ComputeThinV);
-//	rtSigma = svd.matrixU() * svd.singularValues().array().sqrt().matrix().asDiagonal() * svd.matrixV().transpose();
-//
-//	VectorXd s = svd.singularValues();
-//	for (int i=0; i<s.size(); i++)
-//		assert(s(i)>=0);
-//}
-
 void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma) {
-	int n_dof = GetDOF();
-
 	VectorXd q = VectorXd::Zero(GetQSize());
 	VectorXd x_pred = Dynamics(x0, u0, q);
 
-	MatrixXd Sigma0 = rtSigma0 * rtSigma0.transpose();
-
 	MatrixXd A = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, _1, u0, q), x0);
 	MatrixXd Q = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, x0, u0, _1), q);
-	MatrixXd Sigma_pred = A * Sigma0 * A.transpose() + Q*Q.transpose();
+	MatrixXd Sigma_pred = A * rtSigma0 * rtSigma0.transpose() * A.transpose() + Q*Q.transpose();
 
 	VectorXd r = VectorXd::Zero(GetRSize());
 	MatrixXd C = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, _1, r), x_pred);
 	MatrixXd R = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, x_pred, _1), r);
 
-	MatrixXd A_K = C*Sigma_pred*C.transpose() + R*R.transpose();
-	PartialPivLU<MatrixXd> solver(A_K);
-	MatrixXd L = solver.solve(C*Sigma_pred);
-	MatrixXd Sigma = Sigma_pred - Sigma_pred * C.transpose() * L;
-//	MatrixXd L = backlashDivide((MatrixXd) Sigma_pred * C.transpose(), (MatrixXd) C*Sigma_pred*C.transpose() + R*R.transpose());
+	MatrixXd L = slashDivide(Sigma_pred*C.transpose(), C*Sigma_pred*C.transpose() + R*R.transpose());
 	x = x_pred;
-//	MatrixXd Sigma = Sigma_pred - L*C*Sigma_pred;
+	rtSigma = sqrtm(Sigma_pred - L*C*Sigma_pred);
+}
 
-	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd(Sigma, ComputeThinU | ComputeThinV);
-	rtSigma = svd.matrixU() * svd.singularValues().array().sqrt().matrix().asDiagonal() * svd.matrixV().transpose();
+void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, const VectorXd& z0, VectorXd& x, MatrixXd& rtSigma) {
+	VectorXd q = VectorXd::Zero(GetQSize());
+	VectorXd x_pred = Dynamics(x0, u0, q);
 
-	VectorXd s = svd.singularValues();
-	for (int i=0; i<s.size(); i++)
-		assert(s(i)>=0);
+	MatrixXd A = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, _1, u0, q), x0);
+	MatrixXd Q = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, x0, u0, _1), q);
+	MatrixXd Sigma_pred = A * rtSigma0 * rtSigma0.transpose() * A.transpose() + Q*Q.transpose();
+
+	VectorXd r = VectorXd::Zero(GetRSize());
+	MatrixXd C = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, _1, r), x_pred);
+	MatrixXd R = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, x_pred, _1), r);
+
+	MatrixXd L = slashDivide(Sigma_pred*C.transpose(), C*Sigma_pred*C.transpose() + R*R.transpose());
+	x = x_pred + L*(z0-Observe(x_pred, r));
+	rtSigma = sqrtm(Sigma_pred - L*C*Sigma_pred);
 }
 
 // theta needs to be set accordingly before calling this (i.e. call SetBeliefValues)
