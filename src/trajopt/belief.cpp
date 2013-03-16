@@ -95,7 +95,7 @@ VectorXd BeliefRobotAndDOF::Observe(const VectorXd& dofs, const VectorXd& r) {
 	}  else if (n_dof == 7) {
 		z = Vector2d(0,0);
 		OR::Vector beacon;
-		beacon.x = -0.75; beacon.y = 0; beacon.z = 0.75;
+		beacon.x = -0.85; beacon.y = 0; beacon.z = 0.75;
 		double dist = (trans.x - beacon.x)*(trans.x - beacon.x) + (trans.y - beacon.y)*(trans.y - beacon.y) + (trans.z - beacon.z)*(trans.z - beacon.z);
 		z[0] = 1.0/(1.0 + dist) + 0.1*dist*r(0);
 		z[1] = dofs[0] + 0.01*r(1);
