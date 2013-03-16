@@ -85,6 +85,22 @@ public:
   void AddCost1(py::object f, py::list ijs, const string& name);
   void AddErrCost1(py::object f, py::list ijs, const string& typestr, const string& name);
   void AddErrCost2(py::object f, py::object dfdx, py::list ijs, const string& typestr, const string& name);
+
+  py::object RobotDynamics(py::object dofs_py, py::object u_py) {
+  	if (py::extract<int>(dofs_py.attr("ndim")) != 1)
+  		PRINT_AND_THROW("dofs should have dimension 1");
+  	if (py::extract<int>(u_py.attr("ndim")) != 1)
+  		PRINT_AND_THROW("u_py should have dimension 1");
+
+  	VectorXd dofs = Map<const VectorXd>(getPointer<double>(dofs_py), py::extract<int>(dofs_py.attr("size")));
+  	VectorXd u = Map<const VectorXd>(getPointer<double>(u_py), py::extract<int>(u_py.attr("size")));
+
+  	BeliefRobotAndDOFPtr brad = m_prob->GetRAD();
+  	VectorXd dofs1 = brad->Dynamics(dofs, u, brad->VectorXdRand(brad->GetQSize()));
+  	py::object dofs1_py = np_mod.attr("array")(toNdarray1<double>(dofs1.data(), dofs1.size()), "float64");
+
+  	return dofs1_py;
+  }
 };
 
 struct ScalarFuncFromPy : public ScalarOfVector {
@@ -329,7 +345,6 @@ PyOSGViewer PyGetViewer(py::object py_env) {
   return PyOSGViewer(viewer);
 }
 
-
 BOOST_PYTHON_MODULE(ctrajoptpy) {
 
   openravepy = py::import("openravepy");
@@ -343,7 +358,9 @@ BOOST_PYTHON_MODULE(ctrajoptpy) {
       .def("AddCost", &PyTrajOptProb::AddCost1, "Add cost from python scalar-valued function (using numerical differentiation)", (py::arg("func"),"var_ijs", "name"))
       .def("AddErrorCost", &PyTrajOptProb::AddErrCost1, "Add error cost from python vector-valued error function (using numerical differentiation)", (py::arg("f"),"var_ijs","penalty_type","name"))
       .def("AddErrorCost", &PyTrajOptProb::AddErrCost2, "Add error cost from python vector-valued error function and analytic derivative",(py::arg("f"),"dfdx","var_ijs","penalty_type","name"))
+      .def("RobotDynamics", &PyTrajOptProb::RobotDynamics, "Simulate one time step of the robot dynamics by applying a control u")
   ;
+
   py::def("SetInteractive", &SetInteractive, "if True, pause and plot every iteration");
   py::def("ConstructProblem", &PyConstructProblem, "create problem from JSON string");
   py::def("OptimizeProblem", &PyOptimizeProblem);

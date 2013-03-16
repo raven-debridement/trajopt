@@ -1090,20 +1090,38 @@ btScalar MultiCastCollisionCollector::addSingleResult(btManifoldPoint& cp,
 		}
 
 		const float SUPPORT_FUNC_TOLERANCE = 1e-5;
+		const float COLINEARITY_TOLERANCE = 1e-5;
 		float max_sup = *max_element(sup.begin(), sup.end());
+		vector<float> sups;
 		vector<btVector3> max_ptWorlds;
 		vector<int> instance_inds;
 		for (int i=0; i<sup.size(); i++) {
 			if (max_sup-sup[i] < SUPPORT_FUNC_TOLERANCE) {
-				max_ptWorlds.push_back(ptWorld[i]);
-				instance_inds.push_back(i);
+				int j;
+				for (j=0; j<max_ptWorlds.size(); j++)
+					if ((max_ptWorlds[j] - ptWorld[i]).length2() < COLINEARITY_TOLERANCE) break;
+				if (j==max_ptWorlds.size()) { // if this ptWorld[i] is not already in the max_ptWorlds
+					sups.push_back(sup[i]);
+					max_ptWorlds.push_back(ptWorld[i]);
+					instance_inds.push_back(i);
+				}
 			}
 		}
+//		cout << "max_ptWorlds instance_inds " << max_ptWorlds.size() << endl;
+//		cout << "max_sup " << max_sup << endl;
+//		cout << "sups " << Str(sups) << endl;
+//		cout << "max_ptWorlds " << Str(max_ptWorlds) << endl;
+//		cout << "instance_inds " << Str(instance_inds) << endl;
+
 		assert(max_ptWorlds.size()>0);
 		assert(max_ptWorlds.size()<4);
 
 		const btVector3& ptOnCast = castShapeIsFirst ? cp.m_positionWorldOnA : cp.m_positionWorldOnB;
 		computeSupportingWeights(max_ptWorlds, ptOnCast, m_collisions.back().mi.alpha);
+
+//		cout << "ptOnCast " << ptOnCast << endl;
+//		cout << "alpha " << Str(m_collisions.back().mi.alpha) << endl;
+
 		m_collisions.back().mi.instance_ind = instance_inds;
 	}
 	return retval;

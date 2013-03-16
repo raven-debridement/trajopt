@@ -302,19 +302,40 @@ TrajOptResult::TrajOptResult(OptResults& opt, TrajOptProb& prob) :
   traj = getTraj(opt.x, prob.GetVars());
 }
 
+void ExecuteTrajectory(TrajOptProbPtr prob, TrajOptResultPtr result) {
+	RobotAndDOFPtr brad = prob->GetRAD();
+	RobotBase::RobotStateSaver saver = brad->Save();
+	TrajArray& traj = result->traj;
+	int n_steps = traj.rows();
+	int n_dof = brad->GetDOF();
+
+	vector<GraphHandlePtr> handles;
+	OSGViewerPtr viewer = OSGViewer::GetOrCreate(prob->GetEnv());
+
+	cout << "EXECUTE" << endl;
+	for (int i=0; i<n_steps-1; i++) {
+		brad->SetDOFValues(toDblVec(traj.block(i,0,1,n_dof).transpose()));
+		handles.push_back(viewer->PlotKinBody(brad->GetRobot()));
+		viewer->Idle();
+		handles.clear();
+	}
+}
+
 TrajOptResultPtr OptimizeProblem(TrajOptProbPtr prob, bool plot) {
   RobotBase::RobotStateSaver saver = prob->GetRAD()->Save();
   BasicTrustRegionSQP opt(prob);
-  opt.max_iter_ = 1000;
+  opt.max_iter_ = 100;
   opt.min_approx_improve_frac_ = .001;
-  opt.merit_error_coeff_ = 10;
-  opt.max_merit_coeff_increases_ = 15;
+  opt.merit_error_coeff_ = 20;
+  opt.max_merit_coeff_increases_ = 10;
 
   if (plot) opt.addCallback(PlotCallback(*prob));
   //  opt.addCallback(boost::bind(&PlotCosts, boost::ref(prob->getCosts()),boost::ref(*prob->GetRAD()), boost::ref(prob->GetVars()), _1));
   opt.initialize(trajToDblVec(prob->GetInitTraj()));
   opt.optimize();
-  return TrajOptResultPtr(new TrajOptResult(opt.results(), *prob));
+  TrajOptResultPtr result(new TrajOptResult(opt.results(), *prob));
+
+  return result;
 }
 
 TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {

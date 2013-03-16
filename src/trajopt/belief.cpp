@@ -40,9 +40,9 @@ BeliefRobotAndDOF::BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec
 		sigma_col_to_indices.push_back(toDblVec((VectorXi) sigma_matrix_inds.col(j)));
 
 	// UKF vars
-	alpha = 0.5;
+	alpha = 0.1;
 	beta = 2.0;
-	kappa = 5.0;
+	kappa = 1.0;
 }
 
 void BeliefRobotAndDOF::SetBeliefValues(const DblVec& theta) {
@@ -149,8 +149,7 @@ MatrixXd BeliefRobotAndDOF::sigmaPoints(const VectorXd& mean, const MatrixXd& co
 	MatrixXd sigmapts(n_dof, 2*n_dof+1);
 	sigmapts.col(0) = mean;
 
-	// TODO replace n_dof for L
-	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd((n_dof+lambda)*cov, ComputeThinU | ComputeThinV);
+	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd((L+lambda)*cov, ComputeThinU | ComputeThinV);
 	MatrixXd rt_scaled_cov = svd.matrixU() * svd.singularValues().array().sqrt().matrix().asDiagonal() * svd.matrixV().transpose();
 
 	for(int i = 0; i < n_dof; ++i){
@@ -300,6 +299,12 @@ void BeliefRobotAndDOF::ukfUpdate(const VectorXd& u0, const VectorXd& x0, const 
 	rtSigma = svd_Sigma.matrixU() * svd_Sigma.singularValues().array().sqrt().matrix().asDiagonal() * svd_Sigma.matrixV().transpose();
 }
 
+// A \ B
+MatrixXd backlashDivide(const MatrixXd& A, const MatrixXd B) {
+	PartialPivLU<MatrixXd> solver(B);
+	return (MatrixXd) solver.solve(A);
+}
+
 void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma) {
 	int n_dof = GetDOF();
 
@@ -316,7 +321,6 @@ void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const 
 	MatrixXd C = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, _1, r), x0);
 	MatrixXd R = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, x0, _1), r);
 
-	MatrixXd W;
 	MatrixXd A_K = C*Gamma0*C.transpose() + R*R.transpose();
 	PartialPivLU<MatrixXd> solver(A_K);
 	MatrixXd L = solver.solve(C*Gamma0);
@@ -331,6 +335,36 @@ void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const 
 	for (int i=0; i<s.size(); i++)
 		assert(s(i)>=0);
 }
+
+//void BeliefRobotAndDOF::ekfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma) {
+//	int n_dof = GetDOF();
+//
+//	VectorXd q = VectorXd::Zero(GetQSize());
+//	VectorXd x_pred = Dynamics(x0, u0, q);
+//
+//	MatrixXd Sigma0 = rtSigma0 * rtSigma0.transpose();
+//
+//	MatrixXd A = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, _1, u0, q), x0);
+//	MatrixXd Q = calcNumJac(boost::bind(&BeliefRobotAndDOF::Dynamics, this, x0, u0, _1), q);
+//	MatrixXd Sigma_pred = A * Sigma0 * A.transpose() + Q*Q.transpose();
+//
+//	VectorXd r = VectorXd::Zero(GetRSize());
+//	MatrixXd C = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, _1, r), x_pred);
+//	MatrixXd R = calcNumJac(boost::bind(&BeliefRobotAndDOF::Observe, this, x_pred, _1), r);
+//
+//	MatrixXd L = backlashDivide((MatrixXd) Sigma_pred * C.transpose(), (MatrixXd) C*Sigma_pred*C.transpose() + R*R.transpose());
+//	x = x_pred;
+//	MatrixXd Sigma = Sigma_pred - L*C*Sigma_pred;
+//
+////	LLT<MatrixXd> lltofSigma(Sigma);
+////	rtSigma = lltofSigma.matrixL();
+//	Eigen::JacobiSVD<MatrixXd, NoQRPreconditioner> svd(Sigma, ComputeThinU | ComputeThinV);
+//	rtSigma = svd.matrixU() * svd.singularValues().array().sqrt().matrix().asDiagonal() * svd.matrixV().transpose();
+//
+//	VectorXd s = svd.singularValues();
+//	for (int i=0; i<s.size(); i++)
+//		assert(s(i)>=0);
+//}
 
 // theta needs to be set accordingly before calling this (i.e. call SetBeliefValues)
 Eigen::MatrixXd BeliefRobotAndDOF::BeliefJacobian(int link_ind, int sigma_pt_ind, const OR::Vector& pt) {
