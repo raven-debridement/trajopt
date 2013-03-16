@@ -94,8 +94,8 @@ VectorXd BeliefRobotAndDOF::Observe(const VectorXd& dofs, const VectorXd& r) {
 		OR::Vector beacon;
 		beacon.x = -0.75; beacon.y = 0; beacon.z = 0.75;
 		double dist = (trans.x - beacon.x)*(trans.x - beacon.x) + (trans.y - beacon.y)*(trans.y - beacon.y) + (trans.z - beacon.z)*(trans.z - beacon.z);
-		z[0] = 1.0/(1.0 + dist) + 0.1*dist*r;
-		z[1] = dofs[0] + 0.01*r;
+		z[0] = 1.0/(1.0 + dist) + 0.1*dist*r(0);
+		z[1] = dofs[0] + 0.01*r(1);
 	} else {
 		z = Vector2d(trans.x, trans.y) + (0.5*pow(5.0 - trans.x,2)+0.001)*r; // as in the Platt paper
 	}
