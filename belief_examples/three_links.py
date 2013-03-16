@@ -107,33 +107,33 @@ if __name__ == "__main__":
 
     request = move_arm_to_grasp(xyz_targ, quat_targ, LINK_NAME, MANIP_NAME)
     
-    ##################
-    # first optimize ignoring collision costs
-    all_costs = request["costs"]
-    all_constraints = request["constraints"]
-    noncollision_costs = [cost for cost in request["costs"] if "collision" not in cost["type"]]
-    noncollision_constraints = [constraint for constraint in request["constraints"] if "collision" not in constraint["type"]]
-    
-    request["costs"] = noncollision_costs
-    request["constraints"] = noncollision_constraints
-    
-    saver = rave.Robot.RobotStateSaver(robot)
-    s = json.dumps(request)
-    print "REQUEST:",s
-    trajoptpy.SetInteractive(False);
-    prob = trajoptpy.ConstructProblem(s, env)
-    result = trajoptpy.OptimizeProblem(prob)
-    del saver # reverts the robot state
-
-    # add collision cost and constraint back again
-    request["costs"] = all_costs
-    request["constraints"] = all_constraints
-    
-    # use the resulting trajectory as initialization for the new optimization that includes collision costs
-    path_init = result.GetTraj()
-    request["init_info"]["type"] = "given_traj"
-    request["init_info"]["data"] = [x.tolist() for x in path_init]
-    ##################
+#    ##################
+#    # first optimize ignoring collision costs
+#    all_costs = request["costs"]
+#    all_constraints = request["constraints"]
+#    noncollision_costs = [cost for cost in request["costs"] if "collision" not in cost["type"]]
+#    noncollision_constraints = [constraint for constraint in request["constraints"] if "collision" not in constraint["type"]]
+#    
+#    request["costs"] = noncollision_costs
+#    request["constraints"] = noncollision_constraints
+#    
+#    saver = rave.Robot.RobotStateSaver(robot)
+#    s = json.dumps(request)
+#    print "REQUEST:",s
+#    trajoptpy.SetInteractive(False);
+#    prob = trajoptpy.ConstructProblem(s, env)
+#    result = trajoptpy.OptimizeProblem(prob)
+#    del saver # reverts the robot state
+#
+#    # add collision cost and constraint back again
+#    request["costs"] = all_costs
+#    request["constraints"] = all_constraints
+#    
+#    # use the resulting trajectory as initialization for the new optimization that includes collision costs
+#    path_init = result.GetTraj()
+#    request["init_info"]["type"] = "given_traj"
+#    request["init_info"]["data"] = [x.tolist() for x in path_init]
+#    ##################
     
     s = json.dumps(request)
     print "REQUEST:",s
