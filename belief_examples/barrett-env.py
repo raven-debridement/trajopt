@@ -14,7 +14,7 @@ print(dofval)
 
 # only plan for arm
 manip = robot.SetActiveManipulator('arm')
-robot.SetActiveDOFs(manip.GetArmIndices()) 
+robot.SetActiveDOFs([0,1,2,3,4,5,6]) 
 
 ikmodel=databases.inversekinematics.InverseKinematicsModel(robot,iktype=IkParameterization.Type.Transform6D)
 if not ikmodel.load():
@@ -28,8 +28,8 @@ Thb = robot.GetLink("handbase").GetTransform()
 print(Thb)
 
 qarray = misc.SpaceSamplerExtra().sampleSO3()
-for i in np.random.permutation(len(qarray))[0:min(25,len(qarray))]:
-	Tstart = np.array([[0,0,1,0.4],[0,1,0,-0.4],[-1,0,0,0.6],[0,0,0,1]])
+for i in np.random.permutation(len(qarray))[0:min(1,len(qarray))]:
+	Tstart = np.array([[0,0,1,0.5],[0,1,0,-0.4],[-1,0,0,0.2],[0,0,0,1]])
 	Tstart[:3,:3] = rotationMatrixFromQuat(qarray[i]);
 	sol = manip.FindIKSolution(Tstart, IkFilterOptions.CheckEnvCollisions)
 	print(sol)
@@ -39,11 +39,23 @@ for i in np.random.permutation(len(qarray))[0:min(25,len(qarray))]:
 		Tee = manip.GetEndEffectorTransform()
 		print(Tee)
 
-		Tgoal = numpy.array([[0,0,1,0.6],[0,1,0,0.4],[-1,0,0,0.6],[0,0,0,1]])
+		Tgoal = numpy.array([[0,0,1,0.5],[0,1,0,0.4],[-1,0,0,0.2],[0,0,0,1]])
 		manipprob = interfaces.BaseManipulation(robot)
-		res = manipprob.MoveToHandPosition(matrices=[Tgoal],seedik=10)
+		traj = manipprob.MoveToHandPosition(matrices=[Tgoal],seedik=10,execute=True,outputtrajobj=True)
 
+		trajsave = np.zeros((traj.GetNumWaypoints(), 7))
+		for j in range(traj.GetNumWaypoints()):
+	    		# get the waypoint values, this holds velocites, time stamps, etc
+			data=traj.GetWaypoint(j)
+			# extract the robot joint values only
+			dofvalues=traj.GetConfigurationSpecification().ExtractJointValues(data,robot,robot.GetActiveDOFIndices())
+			trajsave[j,:] = dofvalues
+		print trajsave
+		print trajsave.shape
+		
 		robot.WaitForController(0) # wait
 		raw_input('Hit ENTER to continue.')	
+
+	
 
 env.Destroy()

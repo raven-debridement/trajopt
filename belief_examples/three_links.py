@@ -140,6 +140,8 @@ if __name__ == "__main__":
     trajoptpy.SetInteractive(INTERACTIVE);
     prob = trajoptpy.ConstructProblem(s, env)
     result = trajoptpy.OptimizeProblem(prob)
+
+    #raw_input('Hit ENTER to continue.')	
     
 #    for i in xrange(10):
 #        request["init_info"]["type"] = "given_traj"

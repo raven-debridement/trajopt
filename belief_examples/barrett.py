@@ -10,7 +10,7 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
     
     request = {
         "basic_info" : {
-            "n_steps" : 12,
+            "n_steps" : 27,
             "manip" : manip_name,
             "start_fixed" : True,
             "belief_space" : True
@@ -22,7 +22,7 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
 #        },
         {
             "type" : "collision",
-            "params" : {"coeffs" : [10],"dist_pen" : [0.02], "belief_space" : True}
+            "params" : {"coeffs" : [1],"dist_pen" : [0.025], "belief_space" : True}
         },
 #        {
 #            "type" : "joint_vel",
@@ -30,7 +30,7 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
 #        },
         {
             "type" : "control",
-            "params": {"coeffs" : [1]}
+            "params": {"coeffs" : [0.1]}
         },
         {
             "type" : "covariance",
@@ -58,20 +58,20 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
         {
             "type" : "control",
             "params": {
-                "u_min" : -1,
-                "u_max" : 1
+                "u_min" : -1.5,
+                "u_max" : 1.5
             }
         },
         ],
         "init_info" : {
             "type" : "stationary",
-            "initial_rt_sigma" : (np.eye(7)*0.5).tolist()
+            "initial_rt_sigma" : (np.eye(7)*1.25).tolist()
         }
     }
     
     # load RRT trajectory (it's somehow missing some waypoints)
     request["init_info"]["type"] = "given_traj"
-    path_init = np.load("../data/barrett_traj.npy")
+    path_init = np.load("../data/barrett_traj3.npy")
     request["init_info"]["data"] = [x.tolist() for x in path_init]
     
     return request
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # close fingers
     robot.SetDOFValues([1.3,1.3,1.3,0.5],[7,8,9,10])
     viewer = trajoptpy.GetViewer(env)
-    viewer.SetCameraTransformation([0,0,2], [0,0,0], [0,1,0])
+    viewer.SetCameraTransformation([0,0,4], [0,0,0], [0,1,0])
 
     manip = robot.SetActiveManipulator(MANIP_NAME)
     #robot.SetActiveDOFs(manip.GetArmIndices())
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     print(sol)
 
     if sol is not None:
-        robot.SetDOFValues(sol,manip.GetArmIndices())
+        robot.SetDOFValues(sol,[0,1,2,3,4,5,6])
 	Tee = manip.GetEndEffectorTransform()
 	print(Tee)
 
@@ -137,6 +137,9 @@ if __name__ == "__main__":
     quat_targ = rave.quatFromRotationMatrix(Tgoal[:3,:3])
 
     request = move_arm_to_grasp(xyz_targ, quat_targ, LINK_NAME, MANIP_NAME)
+
+    path_init = np.load("../data/barrett_traj3.npy")
+    robot.SetActiveDOFValues(path_init[0,:])
 
     s = json.dumps(request)
     print "REQUEST:",s
