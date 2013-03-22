@@ -1,5 +1,6 @@
 from openravepy import *
 import numpy as np
+import time
 
 env = Environment()
 env.Load('../data/barrett.env.xml')
@@ -24,7 +25,7 @@ if not ikmodel.load():
 # 0.6, -0.4, 0.75
 
 Trot = matrixFromAxisAngle([np.pi/2,0,0])
-Trot[:3,3] += np.array([-0.1,0.7,0.04])
+Trot[:3,3] += np.array([-0.2,0.7,0.04])
 robot.SetTransform(Trot)
 
 Thb = robot.GetLink("handbase").GetTransform()
@@ -35,35 +36,54 @@ for i in np.random.permutation(len(qarray))[0:min(1,len(qarray))]:
 	#Tstart = np.array([[0,0,1,0.5],[0,1,0,-0.4],[-1,0,0,0.2],[0,0,0,1]])
 	#Tstart[:3,:3] = rotationMatrixFromQuat(qarray[i]);
 	
-	Tstart = np.array([[1,0,0,0.45],[0,0,-1,-0.35],[0,1,0,0.18],[0,0,0,1]])
+	#Tstart = np.array([[1,0,0,0.4],[0,0,-1,-0.35],[0,1,0,0.18],[0,0,0,1]])
 	#Tstart[:3,:3] = rotationMatrixFromQuat(qarray[i]);
 	
-	sol = manip.FindIKSolution(Tstart, IkFilterOptions.CheckEnvCollisions)
-	robot.SetActiveDOFValues(sol)
-	print(sol)
+	#sol = None
+	#while sol is None:
+	#	sol = manip.FindIKSolution(Tstart, IkFilterOptions.CheckEnvCollisions)
+	#	print(sol)
+	#robot.WaitForController(0) # wait
+	#raw_input('Hit ENTER to continue.')
+	
+	sol = np.array([0,-1.2,0,1.2,0,0,0]);
+	robot.SetDOFValues([-1.2,1.2],[1,3])
 
-	robot.WaitForController(0) # wait
-	raw_input('Hit ENTER to continue.')
-		
 	if sol is not None:
 		robot.SetDOFValues(sol,manip.GetArmIndices())
 		Tee = manip.GetEndEffectorTransform()
 		print(Tee)
 
 		#Tgoal = numpy.array([[0,0,1,0.5],[0,1,0,0.4],[-1,0,0,0.2],[0,0,0,1]])
-		Tgoal = numpy.array([[1,0,0,0.4],[0,0,-1,-0.35],[0,1,0,0.18],[0,0,0,1]])
 		manipprob = interfaces.BaseManipulation(robot)
-		traj = manipprob.MoveToHandPosition(matrices=[Tgoal],seedik=10,maxiter=10000,execute=True,outputtrajobj=True)
+		#traj = manipprob.MoveToHandPosition(matrices=[Tgoal],seedik=10,maxiter=10000,execute=False,outputtrajobj=True)
+		traj = manipprob.MoveManipulator(goal=[0,1.2,0,-1.2,0,0,0],execute=True,outputtrajobj=True)
+		spec=traj.GetConfigurationSpecification()
+		
+		trajsave = np.zeros((20, 7))
+		trajdur = traj.GetDuration()
+		#print(trajdur)
+		for i in range(20):
+			#print(i*(trajdur/20))
+			trajdata=traj.Sample(i*(trajdur/19))
+                        values=spec.ExtractJointValues(trajdata,robot,robot.GetActiveDOFIndices(),0)
+                        #robot.SetActiveDOFValues(values)
+			#print(values)
+			trajsave[i,:] = values
+                time.sleep(0.01)
+		print(trajsave.shape)
+		print(trajsave)
 
-		trajsave = np.zeros((traj.GetNumWaypoints(), 7))
-		for j in range(traj.GetNumWaypoints()):
-	    		# get the waypoint values, this holds velocites, time stamps, etc
-			data=traj.GetWaypoint(j)
-			# extract the robot joint values only
-			dofvalues=traj.GetConfigurationSpecification().ExtractJointValues(data,robot,robot.GetActiveDOFIndices())
-			trajsave[j,:] = dofvalues
-		print trajsave
-		print trajsave.shape
+		#trajsave = np.zeros((traj.GetNumWaypoints(), 7))
+		#print(traj.GetNumWaypoints())
+		#for j in range(traj.GetNumWaypoints()):
+	    	#	# get the waypoint values, this holds velocites, time stamps, etc
+		#	data=traj.GetWaypoint(j)
+		#	# extract the robot joint values only
+		#	dofvalues=traj.GetConfigurationSpecification().ExtractJointValues(data,robot,robot.GetActiveDOFIndices())
+		#	trajsave[j,:] = dofvalues
+		#print trajsave
+		#print trajsave.shape
 		
 		robot.WaitForController(0) # wait
 		raw_input('Hit ENTER to continue.')	
