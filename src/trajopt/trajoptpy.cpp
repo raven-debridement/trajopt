@@ -198,6 +198,12 @@ PyTrajOptProb PyConstructProblem(const std::string& json_string, py::object py_e
 	return PyTrajOptProb(cpp_prob);
 }
 
+void PySimulateAndReplan(const std::string& json_string, py::object py_env)  {
+	EnvironmentBasePtr cpp_env = GetCppEnv(py_env);
+	Json::Value json_root = readJsonFile(json_string);
+	SimulateAndReplan(json_root, cpp_env, gInteractive);
+}
+
 void SetInteractive(py::object b) {
 	gInteractive = py::extract<bool>(b);
 }
@@ -363,6 +369,7 @@ BOOST_PYTHON_MODULE(ctrajoptpy) {
 
 	py::def("SetInteractive", &SetInteractive, "if True, pause and plot every iteration");
 	py::def("ConstructProblem", &PyConstructProblem, "create problem from JSON string");
+	py::def("SimulateAndReplan", &PySimulateAndReplan, "simulate the robot's dynamics and replan by iteratively optimizing");
 	py::def("OptimizeProblem", &PyOptimizeProblem);
 
 	py::class_<PyTrajOptResult>("TrajOptResult", py::no_init)

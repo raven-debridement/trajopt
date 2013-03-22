@@ -179,7 +179,7 @@ MatXXd BeliefRobotAndDOF::GetDynNoise() {
 	if (X_DIM == 3)	{
 		diag_noise(0,0) = 0.08; diag_noise(1,1) = 0.13; diag_noise(2,2) = 0.18;
 	} else if (X_DIM == 7) {
-		double scale = 0.025;
+		double scale = 0.005;
 		for(int i = 0; i < X_DIM; ++i) {
 			diag_noise(i,i) = scale;
 		}
@@ -199,7 +199,7 @@ MatZZd BeliefRobotAndDOF::GetObsNoise() {
 	} else if (X_DIM == 2) {
 		diag_noise(0,0) = 0.01; diag_noise(1,1) = 0.01;
 	} else if (X_DIM == 7) {
-		diag_noise(0,0) = 0.01; diag_noise(1,1) = 0.02; diag_noise(2,2) = 0.02;
+		diag_noise(0,0) = 0.001; diag_noise(1,1) = 0.002; diag_noise(2,2) = 0.002;
 	}
 	return diag_noise;
 }
@@ -349,6 +349,11 @@ VectorXd BeliefRobotAndDOF::VectorXdRand(int size) {
 	return v;
 }
 
+VecXd BeliefRobotAndDOF::mvnrnd(const VecXd& mu, const MatXXd& Sigma) {
+	Eigen::SelfAdjointEigenSolver<MatXXd> eigenSolver(Sigma);
+	return mu + eigenSolver.eigenvectors() * eigenSolver.eigenvalues().cwiseSqrt().asDiagonal() * VectorXdRand(X_DIM);
+}
+
 MatrixXd BeliefRobotAndDOF::sigmaPoints(const VecBd& theta) {
 	VecXd x;
 	MatXXd rtSigma;
@@ -361,14 +366,15 @@ MatrixXd BeliefRobotAndDOF::sigmaPoints(const VecXd& mean, const MatXXd& sqrtcov
 	int L = X_DIM + R_DIM;
 
 	double lambda = alpha*alpha*(L + kappa) - L;
-	double w = 1 / (2*(L + lambda));
-	double mw = lambda / (L + lambda);
-	double vw = mw + (1 - alpha*alpha + beta);
+//	double w = 1 / (2*(L + lambda));
+//	double mw = lambda / (L + lambda);
+//	double vw = mw + (1 - alpha*alpha + beta);
 
 	MatrixXd sigmapts(X_DIM, 2*X_DIM+1);
 	sigmapts.col(0) = mean;
 
-	double scale = sqrt(L+lambda);
+//	double scale = sqrt(L+lambda);
+	double scale = 2;
 	for(int i = 0; i < X_DIM; ++i){
 		sigmapts.col(2*i+1) = (mean + scale*sqrtcov.col(i));
 		sigmapts.col(2*i+2) = (mean - scale*sqrtcov.col(i));

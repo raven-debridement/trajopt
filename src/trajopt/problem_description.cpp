@@ -324,6 +324,74 @@ void ExecuteTrajectory(TrajOptProbPtr prob, TrajOptResultPtr result) {
 	}
 }
 
+void SimulateAndReplan(const Json::Value& root, OpenRAVE::EnvironmentBasePtr env, bool interactive) {
+	ProblemConstructionInfo pci(env);
+	pci.fromJson(root);
+
+	TrajArray& traj = pci.init_info.data;
+	BeliefRobotAndDOFPtr brad = pci.rad;
+	TrajArray exec_traj(pci.basic_info.n_steps, X_DIM);
+	TrajArray plan_traj(pci.basic_info.n_steps, X_DIM);
+
+	VecBd theta = traj.block(0,0,1,B_DIM).transpose();
+	VecXd x;
+	MatXXd rt_Sigma;
+	brad->decomposeBelief(theta, x, rt_Sigma);
+	x = brad->mvnrnd(x, rt_Sigma * rt_Sigma.transpose());
+	VecUd u;
+	exec_traj.row(0) = x.transpose();
+
+	int i=0;
+	do {
+		gPCI = &pci;
+		if (root.isMember("costs")) fromJsonArray(root["costs"], pci.cost_infos);
+		if (root.isMember("constraints")) fromJsonArray(root["constraints"], pci.cnt_infos);
+		gPCI = NULL;
+
+		TrajOptProbPtr prob = ConstructProblem(pci);
+		TrajOptResultPtr result = OptimizeProblem(prob, interactive);
+		if (i==0) plan_traj = result->traj;
+
+		exec_traj.row(i) = x.transpose();
+		u = traj.block(0,B_DIM,1,U_DIM).transpose();
+
+		// simulate dynamics and observe
+		VecQd q = brad->VectorXdRand(Q_DIM);
+		VecRd r = brad->VectorXdRand(R_DIM);
+		VecZd z = brad->Observe(brad->Dynamics(x,u,q),r);
+
+		brad->ekfUpdate(u, x, rt_Sigma, x, rt_Sigma, true, z);
+		brad->composeBelief(x, rt_Sigma, theta);
+
+		brad->SetDOFValues(toDblVec(x));
+		traj = result->traj.block(1,0,result->traj.rows()-1, traj.cols());
+		traj.block(0,0,1,B_DIM) = theta.transpose();
+		pci.basic_info.n_steps--;
+
+		cout << "-------------------------------------------" << endl;
+		cout << "-------------------------------------------" << endl;
+		cout << "-------------------------------------------" << endl;
+		cout << "-------------------------------------------" << endl;
+
+		i++;
+	} while (pci.basic_info.n_steps > 1);
+	exec_traj.row(exec_traj.rows()-1) = x.transpose();
+
+	OSGViewerPtr viewer = OSGViewer::GetOrCreate(brad->GetRobot()->GetEnv());
+	while (true) {
+		vector<GraphHandlePtr> handles;
+		for (int i=0; i<exec_traj.rows(); i++) {
+			brad->SetDOFValues(toDblVec(exec_traj.row(i).transpose()));
+			handles.push_back(viewer->PlotKinBody(brad->GetRobot()));
+			viewer->Idle();
+		}
+		viewer->Idle();
+		viewer->Idle();
+		viewer->Idle();
+		viewer->Idle();
+	}
+}
+
 TrajOptResultPtr OptimizeProblem(TrajOptProbPtr prob, bool plot) {
 	RobotBase::RobotStateSaver saver = prob->GetRAD()->Save();
 	BasicTrustRegionSQP opt(prob);

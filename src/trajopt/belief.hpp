@@ -21,19 +21,19 @@ namespace trajopt {
 //#define Q_DIM 2
 //#define R_DIM 2
 
-#define X_DIM 3
-#define U_DIM 3
-#define Z_DIM 3
-#define Q_DIM 3
-#define R_DIM 3
-
-//#define X_DIM 7
-//#define U_DIM 7
+//#define X_DIM 3
+//#define U_DIM 3
 //#define Z_DIM 3
-//#define Q_DIM 7
+//#define Q_DIM 3
 //#define R_DIM 3
 
-#define S_DIM (X_DIM*(X_DIM+1))/2
+#define X_DIM 7
+#define U_DIM 7
+#define Z_DIM 3
+#define Q_DIM 7
+#define R_DIM 3
+
+#define S_DIM ((X_DIM*(X_DIM+1))/2)
 #define B_DIM (X_DIM + S_DIM)
 
 #define N_STEPS 10
@@ -90,6 +90,7 @@ public:
 	MatBUd dgdu(const VecBd& theta, const VecUd& u);
 
 	VectorXd VectorXdRand(int size);
+	VecXd mvnrnd(const VecXd& mu, const MatXXd& Sigma);
 
 	template <typename T> Eigen::Matrix<T,Eigen::Dynamic,1> toSigmaVec(const Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>& rt_S) {
 		Eigen::Matrix<T,Eigen::Dynamic,1> rt_S_vec(S_DIM);

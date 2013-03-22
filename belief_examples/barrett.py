@@ -30,12 +30,12 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
 #        },
         {
             "type" : "control",
-            "params": {"coeffs" : [0.1]}
+            "params": {"coeffs" : [1]}
         },
         {
             "type" : "covariance",
             "params": {
-                "Q" : (np.eye(7)*1).tolist()
+                "Q" : (np.eye(7)*10).tolist()
             }
         },
         ],
@@ -58,14 +58,14 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
         {
             "type" : "control",
             "params": {
-                "u_min" : -1.5,
-                "u_max" : 1.5
+                "u_min" : -.3,
+                "u_max" : .3
             }
         },
         ],
         "init_info" : {
             "type" : "stationary",
-            "initial_rt_sigma" : (np.eye(7)*1.25).tolist()
+            "initial_rt_sigma" : (np.eye(7)*0.23).tolist()
         }
     }
     
@@ -146,3 +146,4 @@ if __name__ == "__main__":
     trajoptpy.SetInteractive(INTERACTIVE);
     prob = trajoptpy.ConstructProblem(s, env)
     result = trajoptpy.OptimizeProblem(prob)
+#    trajoptpy.SimulateAndReplan(s, env)
