@@ -45,10 +45,9 @@ ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin,
 //	cout << "u_hat:\n" << u_hat.transpose() << endl;
 
 	// linearize belief dynamics around theta0_hat and u_hat
-	MatrixXd A = calcNumJac(boost::bind(&BeliefRobotAndDOF::BeliefDynamics, brad_.get(), _1, u_hat), theta0_hat);
-
-	MatrixXd B = calcNumJac(boost::bind(&BeliefRobotAndDOF::BeliefDynamics, brad_.get(), theta0_hat, _1), u_hat);
-	VectorXd c = brad_->BeliefDynamics(theta0_hat, u_hat);
+	MatBBd A = brad_.get()->dgdb(theta0_hat, u_hat);
+	MatBUd B = brad_.get()->dgdu(theta0_hat, u_hat);
+	VecBd c = brad_->BeliefDynamics(theta0_hat, u_hat);
 
 //	cout << "A matrix:\n" << A << endl;
 //	cout << "B matrix:\n" << B << endl;
@@ -100,12 +99,10 @@ struct BeliefDynamicsErrCalculator : public VectorOfVector {
   {}
 
   VectorXd operator()(const VectorXd& vals) const {
-  	int n_dof = brad_->GetDOF();
-  	int n_theta = brad_->GetNTheta();
-  	VectorXd theta0 = vals.topRows(n_theta);
-  	VectorXd theta1 = vals.middleRows(n_theta, n_theta);
-  	VectorXd u0 = vals.bottomRows(n_dof);
-  	assert(vals.size() == (2*n_theta + n_dof));
+  	VectorXd theta0 = vals.topRows(B_DIM);
+  	VectorXd theta1 = vals.middleRows(B_DIM, B_DIM);
+  	VectorXd u0 = vals.bottomRows(U_DIM);
+  	assert(vals.size() == (2*B_DIM + U_DIM));
 
   	VectorXd err = brad_->BeliefDynamics(theta0, u0) - theta1;
 
@@ -120,12 +117,12 @@ BeliefDynamicsConstraint2::BeliefDynamicsConstraint2(const VarVector& theta0_var
 {
 }
 
-CovarianceCost::CovarianceCost(const VarVector& rtSigma_vars, const Eigen::MatrixXd& Q, BeliefRobotAndDOFPtr brad) :
-    Cost("Covariance"), rtSigma_vars_(rtSigma_vars), Q_(Q), brad_(brad) {
-	int n_dof = brad_->GetDOF();
-	assert(rtSigma_vars_.size() == (brad_->GetNTheta() - n_dof));
-	assert(Q_.rows() == n_dof);
-	assert(Q_.cols() == n_dof);
+CovarianceCost::CovarianceCost(const VarVector& rtSigma_vars, const MatrixXd& Q, BeliefRobotAndDOFPtr brad) :
+    Cost("Covariance"), rtSigma_vars_(rtSigma_vars), Q_(Q), brad_(brad)
+{
+	assert(rtSigma_vars_.size() == S_DIM);
+	assert(Q_.rows() == X_DIM);
+	assert(Q_.cols() == X_DIM);
 
 	VarArray rtSigma_matrix_vars = toBasicArray(brad_->toSigmaMatrix(toVectorXd(rtSigma_vars_)));
 	QuadExprArray Sigma_vars = rtSigma_matrix_vars * rtSigma_matrix_vars.transpose();
@@ -134,12 +131,11 @@ CovarianceCost::CovarianceCost(const VarVector& rtSigma_vars, const Eigen::Matri
 }
 
 double CovarianceCost::value(const vector<double>& xin) {
-	int n_dof = brad_->GetDOF();
 	VectorXd rtSigma_vec = getVec(xin, rtSigma_vars_);
-	MatrixXd rtSigma(n_dof, n_dof);
-	VectorXd x_unused(n_dof);
-	VectorXd theta(n_dof+rtSigma_vec.size());
-	theta.bottomRows(rtSigma_vec.size()) = rtSigma_vec;
+	MatXXd rtSigma(X_DIM, X_DIM);
+	VecXd x_unused;
+	VecBd theta;
+	theta.bottomRows(S_DIM) = rtSigma_vec;
 	brad_->decomposeBelief(theta, x_unused, rtSigma);
 
 	return (Q_ * rtSigma * rtSigma.transpose()).trace();

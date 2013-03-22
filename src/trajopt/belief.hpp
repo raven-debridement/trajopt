@@ -8,98 +8,130 @@
 
 #include "utils/eigen_conversions.hpp"
 
+using namespace std;
+using namespace Eigen;
+using namespace util;
+
 namespace trajopt {
+
+// hack to set parameter sizes to avoid matrix allocations at runtime
+//#define X_DIM 2
+//#define U_DIM 2
+//#define Z_DIM 2
+//#define Q_DIM 2
+//#define R_DIM 2
+
+#define X_DIM 3
+#define U_DIM 3
+#define Z_DIM 3
+#define Q_DIM 3
+#define R_DIM 3
+
+//#define X_DIM 7
+//#define U_DIM 7
+//#define Z_DIM 3
+//#define Q_DIM 7
+//#define R_DIM 3
+
+#define S_DIM (X_DIM*(X_DIM+1))/2
+#define B_DIM (X_DIM + S_DIM)
+
+#define N_STEPS 10
+
+#define STEP 0.00048828125
+
+typedef Matrix<double,X_DIM,X_DIM> MatXXd;
+typedef Matrix<double,X_DIM,Q_DIM> MatXQd;
+typedef Matrix<double,Z_DIM,Z_DIM> MatZZd;
+typedef Matrix<double,Z_DIM,X_DIM> MatZXd;
+typedef Matrix<double,X_DIM,Z_DIM> MatXZd;
+typedef Matrix<double,Z_DIM,R_DIM> MatZRd;
+typedef Matrix<double,B_DIM,B_DIM> MatBBd;
+typedef Matrix<double,B_DIM,U_DIM> MatBUd;
+
+typedef Matrix<double,X_DIM,1> VecXd;
+typedef Matrix<double,U_DIM,1> VecUd;
+typedef Matrix<double,S_DIM,1> VecSd;
+typedef Matrix<double,Z_DIM,1> VecZd;
+typedef Matrix<double,U_DIM,1> VecUd;
+typedef Matrix<double,Q_DIM,1> VecQd;
+typedef Matrix<double,R_DIM,1> VecRd;
+typedef Matrix<double,B_DIM,1> VecBd;
+
+typedef Matrix<int,X_DIM,X_DIM> MatXXi;
+typedef Matrix<int,S_DIM,1> VecSi;
 
 class TRAJOPT_API BeliefRobotAndDOF : public RobotAndDOF {
 private:
-  boost::variate_generator<boost::mt19937, boost::normal_distribution<> > generator;
-  int n_theta;
-  DblVec sigma_vec;
+	boost::variate_generator<boost::mt19937, boost::normal_distribution<> > generator;
+	DblVec sigma_vec;
 public:
-  BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec& _joint_inds, int _affinedofs=0, const OR::Vector _rotationaxis=OR::Vector());
-  Eigen::Vector3d EndEffectorPosition(const Eigen::VectorXd& dofs) {
-		OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(this)->Save();
-		SetDOFValues(util::toDblVec(dofs));
-		OR::Vector trans = link->GetTransform().trans;
-		return Eigen::Vector3d(trans.x, trans.y, trans.z);
-  }
 
-  void SetBeliefValues(const DblVec& theta);
-  DblVec GetBeliefValues();
+	BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec& _joint_inds, int _affinedofs=0, const OR::Vector _rotationaxis=OR::Vector());
 
-  Eigen::MatrixXd GetDynNoise();
-  inline int GetQSize() { return GetDOF(); }
-//  inline int GetQSize() { return GetDynNoise().cols(); }
+	void ForwardKinematics(const VecXd& dofs, Vector3d& eetrans);
 
-  Eigen::MatrixXd GetObsNoise();
-  inline int GetRSize() { return GetDOF(); }
-  inline int GetObsSize() {
-	  int nd = GetDOF();
-	  if(nd == 3 || nd == 2) {
-		  return nd;
-	  } else {
-		  return 2;
-	  }
-  }
-//  inline int GetRSize() { return GetObsNoise().cols(); }
-//  inline int GetObsSize() { return GetObsNoise().rows(); }
+	void SetBeliefValues(const DblVec& theta);
+	DblVec GetBeliefValues();
 
-  // UKF update functions
-  Eigen::MatrixXd sigmaPoints(const VectorXd& theta);
-  Eigen::MatrixXd sigmaPoints(const VectorXd& mean, const Eigen::MatrixXd& cov);
-  VectorXd sigmaPoint(const VectorXd& mean, const Eigen::MatrixXd& cov, int idx);
-  void ukfUpdate(const VectorXd& u0, const VectorXd& xest0, const Eigen::MatrixXd& Vest0, VectorXd& xest, Eigen::MatrixXd& Vest);
+	MatXXd GetDynNoise();
+	MatZZd GetObsNoise();
 
-  Eigen::VectorXd Observe(const Eigen::VectorXd& dofs, const Eigen::VectorXd& r);
-  Eigen::VectorXd Dynamics(const Eigen::VectorXd& dofs, const Eigen::VectorXd& u, const Eigen::VectorXd& q);
-  Eigen::VectorXd BeliefDynamics(const Eigen::VectorXd& theta0, const Eigen::VectorXd& u0);
-  Eigen::VectorXd VectorXdRand(int size);
+	VecZd Observe(const VecXd& x, const VecRd& r);
+	VecXd Dynamics(const VecXd& x, const VecUd& u, const VecQd& q);
 
-  template <typename T> Eigen::Matrix<T,Eigen::Dynamic,1> toSigmaVec(const Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>& rt_S) {
-  	Eigen::Matrix<T,Eigen::Dynamic,1> rt_S_vec(GetNTheta()-GetDOF());
+	MatXXd dfdx(const VecXd& x, const VecUd& u, const VecQd& q);
+	MatXXd dfdq(const VecXd& x, const VecUd& u, const VecQd& q);
+	MatZXd dhdx(const VecXd& x, const VecRd& r);
+	MatZZd dhdr(const VecXd& x, const VecRd& r);
+
+	VecBd BeliefDynamics(const VecBd& theta0, const VecUd& u0);
+	MatBBd dgdb(const VecBd& theta, const VecUd& u);
+	MatBUd dgdu(const VecBd& theta, const VecUd& u);
+
+	VectorXd VectorXdRand(int size);
+
+	template <typename T> Eigen::Matrix<T,Eigen::Dynamic,1> toSigmaVec(const Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>& rt_S) {
+		Eigen::Matrix<T,Eigen::Dynamic,1> rt_S_vec(S_DIM);
 		int idx = 0;
-		for (int i=0; i<GetDOF(); i++) {
-			for (int j=i; j<GetDOF(); j++) {
-				rt_S_vec(idx) = 0.5 * (rt_S(i,j)+rt_S(j,i));
+		for (int i=0; i<X_DIM; i++) {
+			for (int j=i; j<X_DIM; j++) {
+				rt_S_vec[idx] = 0.5 * (rt_S(i,j)+rt_S(j,i));
 				idx++;
 			}
 		}
 		return rt_S_vec;
 	}
-  template <typename T> Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic> toSigmaMatrix(const Eigen::Matrix<T,Eigen::Dynamic,1>& rt_S_vec) {
-  	Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic> rt_S(GetDOF(), GetDOF());
+
+	template <typename T> Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic> toSigmaMatrix(const Eigen::Matrix<T,Eigen::Dynamic,1>& rt_S_vec) {
+		Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic> rt_S(X_DIM, X_DIM);
 		int idx = 0;
-		for (int j = 0; j < GetDOF(); ++j) {
-			for (int i = j; i < GetDOF(); ++i) {
-				rt_S(i,j) = rt_S(j,i) = rt_S_vec(idx);
+		for (int j = 0; j < X_DIM; ++j) {
+			for (int i = j; i < X_DIM; ++i) {
+				rt_S(i,j) = rt_S(j,i) = rt_S_vec[idx];
 				idx++;
 			}
 		}
 		return rt_S;
 	}
-  template <typename T> void composeBelief(const Eigen::Matrix<T,Eigen::Dynamic,1>& x, const Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>& rt_S,
-  		Eigen::Matrix<T,Eigen::Dynamic,1>& theta) {
-  	theta.resize(GetNTheta());
-  	theta.topRows(GetDOF()) = x;
-  	theta.bottomRows(GetNTheta()-GetDOF()) = toSigmaVec(rt_S);
-  }
-  template <typename T> void decomposeBelief(const Eigen::Matrix<T,Eigen::Dynamic,1>& theta,
-  		Eigen::Matrix<T,Eigen::Dynamic,1>& x, Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>& rt_S) {
-  	x = theta.topRows(GetDOF());
-  	rt_S = toSigmaMatrix((Eigen::Matrix<T,Eigen::Dynamic,1>) theta.bottomRows(GetNTheta()-GetDOF()));
-  }
 
-  void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& x0, const Eigen::MatrixXd& rtSigma0, Eigen::VectorXd& xest, Eigen::MatrixXd& Vest);
-  void ekfUpdate(const Eigen::VectorXd& u0, const Eigen::VectorXd& x0, const Eigen::MatrixXd& rtSigma0, const Eigen::VectorXd& z0, Eigen::VectorXd& x, Eigen::MatrixXd& rtSigma);
+	void composeBelief(const VecXd& x, const MatXXd& rt_S, VecBd& theta);
+	void decomposeBelief(const VecBd& theta, VecXd& x, MatXXd& rt_S);
 
-  void GetEndEffectorNoiseAsGaussian(const Eigen::VectorXd& theta, Eigen::VectorXd& mean, Eigen::MatrixXd& cov);
+	void ekfUpdate(const VecUd& u0, const VecXd& x0, const MatXXd& rtSigma0, VecXd& x, MatXXd& rtSigma, bool observe, const VecZd& z);
 
-  // theta needs to be set accordingly before calling this (i.e. call SetBeliefValues)
-  Eigen::MatrixXd BeliefJacobian(int link_ind, int sigma_pt_ind, const OR::Vector& pt);
+	MatrixXd sigmaPoints(const VecBd& theta);
+	MatrixXd sigmaPoints(const VecXd& mean, const MatXXd& sqrtcov);
+	VecXd sigmaPoint(const VecXd& mean, const MatXXd& cov, int idx);
 
-  inline int GetNTheta() { return n_theta; }
+	void ukfUpdate(const VecUd& u0, const VecXd& x0, const MatXXd& rtSigma0, VecXd& x, MatXXd& rtSigma, bool observe, const VecZd& z);
 
-	OR::KinBody::LinkPtr link;
+	void GetEndEffectorNoiseAsGaussian(const VecBd& theta, Vector3d& mean, Matrix3d& cov);
+
+	// theta needs to be set accordingly before calling this (i.e. call SetBeliefValues)
+	Matrix<double, 3, B_DIM> BeliefJacobian(int link_ind, int sigma_pt_ind, const OR::Vector& pt);
+
+	OR::KinBody::LinkPtr endeffector;
 	// Scaled UKF update vars
 	double alpha, beta, kappa;
 
@@ -108,11 +140,9 @@ private:
 	inline std::vector<int> sigmaColToSigmaIndices(int j) { return sigma_col_to_indices[j]; }
 	std::vector<std::vector<int> > sigma_col_to_indices;
 };
+
 typedef boost::shared_ptr<BeliefRobotAndDOF> BeliefRobotAndDOFPtr;
 
-typedef boost::function<VectorXd(VectorXd)> VectorOfVectorFun;
-typedef boost::shared_ptr<VectorOfVectorFun> VectorOfVectorFunPtr;
-Eigen::MatrixXd calcNumJac(VectorOfVectorFun f, const VectorXd& x, double epsilon=0.00048828125);
-osg::Matrix gaussianAsTransform(const Eigen::Vector3d& mean, const Eigen::Matrix3d& cov);
+osg::Matrix gaussianAsTransform(const Vector3d& mean, const Matrix3d& cov);
 
 }

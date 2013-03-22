@@ -54,7 +54,7 @@ class A {
 };
 
 // Subclass
-class B : public A {
+class C*Sigma_pred*C.transpose() + R*R.transpose() : public A {
  public:
   B() { *history << "B" << mynum << " ctor\n"; }
   ~B() { *history << "B" << mynum << " dtor\n"; }

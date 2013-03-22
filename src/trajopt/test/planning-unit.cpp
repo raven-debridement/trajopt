@@ -47,7 +47,7 @@ public:
     RAVELOG_DEBUG("SetUp\n");
     RobotBasePtr robot = GetRobot(*env);
     robot->SetDOFValues(DblVec(robot->GetDOF(), 0));
-    Transform I; I.identity();
+    OpenRAVE::Transform I; I.identity();
     robot->SetTransform(I);
   }
 

@@ -8,7 +8,6 @@ robot = env.GetRobots()[0]
 
 # close fingers
 robot.SetDOFValues([1.3,1.3,1.3,0.5],[7,8,9,10])
-
 dofval = robot.GetDOFValues()
 print(dofval)
 
@@ -24,24 +23,37 @@ if not ikmodel.load():
 # setup start position
 # 0.6, -0.4, 0.75
 
+Trot = matrixFromAxisAngle([np.pi/2,0,0])
+Trot[:3,3] += np.array([-0.1,0.7,0.04])
+robot.SetTransform(Trot)
+
 Thb = robot.GetLink("handbase").GetTransform()
 print(Thb)
 
 qarray = misc.SpaceSamplerExtra().sampleSO3()
 for i in np.random.permutation(len(qarray))[0:min(1,len(qarray))]:
-	Tstart = np.array([[0,0,1,0.5],[0,1,0,-0.4],[-1,0,0,0.2],[0,0,0,1]])
-	Tstart[:3,:3] = rotationMatrixFromQuat(qarray[i]);
+	#Tstart = np.array([[0,0,1,0.5],[0,1,0,-0.4],[-1,0,0,0.2],[0,0,0,1]])
+	#Tstart[:3,:3] = rotationMatrixFromQuat(qarray[i]);
+	
+	Tstart = np.array([[1,0,0,0.45],[0,0,-1,-0.35],[0,1,0,0.18],[0,0,0,1]])
+	#Tstart[:3,:3] = rotationMatrixFromQuat(qarray[i]);
+	
 	sol = manip.FindIKSolution(Tstart, IkFilterOptions.CheckEnvCollisions)
+	robot.SetActiveDOFValues(sol)
 	print(sol)
 
+	robot.WaitForController(0) # wait
+	raw_input('Hit ENTER to continue.')
+		
 	if sol is not None:
 		robot.SetDOFValues(sol,manip.GetArmIndices())
 		Tee = manip.GetEndEffectorTransform()
 		print(Tee)
 
-		Tgoal = numpy.array([[0,0,1,0.5],[0,1,0,0.4],[-1,0,0,0.2],[0,0,0,1]])
+		#Tgoal = numpy.array([[0,0,1,0.5],[0,1,0,0.4],[-1,0,0,0.2],[0,0,0,1]])
+		Tgoal = numpy.array([[1,0,0,0.4],[0,0,-1,-0.35],[0,1,0,0.18],[0,0,0,1]])
 		manipprob = interfaces.BaseManipulation(robot)
-		traj = manipprob.MoveToHandPosition(matrices=[Tgoal],seedik=10,execute=True,outputtrajobj=True)
+		traj = manipprob.MoveToHandPosition(matrices=[Tgoal],seedik=10,maxiter=10000,execute=True,outputtrajobj=True)
 
 		trajsave = np.zeros((traj.GetNumWaypoints(), 7))
 		for j in range(traj.GetNumWaypoints()):
@@ -55,7 +67,5 @@ for i in np.random.permutation(len(qarray))[0:min(1,len(qarray))]:
 		
 		robot.WaitForController(0) # wait
 		raw_input('Hit ENTER to continue.')	
-
-	
 
 env.Destroy()

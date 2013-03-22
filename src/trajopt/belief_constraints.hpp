@@ -10,16 +10,16 @@ using namespace sco;
 class BeliefDynamicsConstraint: public Constraint {
 public:
 	BeliefDynamicsConstraint(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars, BeliefRobotAndDOFPtr brad);
-  vector<double> value(const vector<double>& x);
-  ConvexConstraintsPtr convex(const vector<double>& x, Model* model);
-  ConstraintType type() {return type_;}
-//  void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
+	vector<double> value(const vector<double>& x);
+	ConvexConstraintsPtr convex(const vector<double>& x, Model* model);
+	ConstraintType type() {return type_;}
+	//  void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
 protected:
-  BeliefRobotAndDOFPtr brad_;
-  VarVector theta0_vars_;
-  VarVector theta1_vars_;
-  VarVector u_vars_;
-  ConstraintType type_;
+	BeliefRobotAndDOFPtr brad_;
+	VarVector theta0_vars_;
+	VarVector theta1_vars_;
+	VarVector u_vars_;
+	ConstraintType type_;
 };
 
 class BeliefDynamicsConstraint2 : public ConstraintFromFunc {
@@ -30,25 +30,25 @@ public:
 
 class CovarianceCost : public Cost {
 public:
-	CovarianceCost(const VarVector& rtSigma_vars, const Eigen::MatrixXd& Q, BeliefRobotAndDOFPtr brad);
-  virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
-  virtual double value(const vector<double>&);
+	CovarianceCost(const VarVector& rtSigma_vars, const MatrixXd& Q, BeliefRobotAndDOFPtr brad);
+	virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
+	virtual double value(const vector<double>&);
 private:
-  VarVector rtSigma_vars_;
-  Eigen::MatrixXd Q_;
-  QuadExpr expr_;
-  BeliefRobotAndDOFPtr brad_;
+	VarVector rtSigma_vars_;
+	MatrixXd Q_;
+	QuadExpr expr_;
+	BeliefRobotAndDOFPtr brad_;
 };
 
 class ControlCost : public Cost {
 public:
 	ControlCost(const VarArray& traj, const VectorXd& coeffs);
-  virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
-  virtual double value(const vector<double>&);
+	virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
+	virtual double value(const vector<double>&);
 private:
-  VarArray vars_;
-  VectorXd coeffs_;
-  QuadExpr expr_;
+	VarArray vars_;
+	VectorXd coeffs_;
+	QuadExpr expr_;
 };
 
 }
