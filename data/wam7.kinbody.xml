@@ -123,7 +123,7 @@
     <Body>wam4</Body>
     <offsetfrom>wam3</offsetfrom>
     <axis>0 0 1</axis>
-    <limitsdeg>-50 180</limitsdeg>
+    <limitsdeg>-90 180</limitsdeg>
     <weight>0.45504</weight>
     <maxvel>2.0944</maxvel>
     <resolution>1</resolution>
