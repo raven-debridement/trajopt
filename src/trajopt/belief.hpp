@@ -130,6 +130,7 @@ public:
 
 	void GetEndEffectorNoiseAsGaussian(const VecBd& theta, Vector3d& mean, Matrix3d& cov);
 
+	MatrixXd djdb(const VecBd& theta, int sigma_pt_ind);
 	// theta needs to be set accordingly before calling this (i.e. call SetBeliefValues)
 	Matrix<double, 3, B_DIM> BeliefJacobian(int link_ind, int sigma_pt_ind, const OR::Vector& pt);
 

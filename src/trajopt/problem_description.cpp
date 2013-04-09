@@ -309,25 +309,6 @@ TrajOptResult::TrajOptResult(OptResults& opt, TrajOptProb& prob) :
 	traj = getTraj(opt.x, prob.GetVars());
 }
 
-void ExecuteTrajectory(TrajOptProbPtr prob, TrajOptResultPtr result) {
-	RobotAndDOFPtr brad = prob->GetRAD();
-	RobotBase::RobotStateSaver saver = brad->Save();
-	TrajArray& traj = result->traj;
-	int n_steps = traj.rows();
-	int n_dof = brad->GetDOF();
-
-	vector<GraphHandlePtr> handles;
-	OSGViewerPtr viewer = OSGViewer::GetOrCreate(prob->GetEnv());
-
-	cout << "EXECUTE" << endl;
-	for (int i=0; i<n_steps-1; i++) {
-		brad->SetDOFValues(toDblVec(traj.block(i,0,1,n_dof).transpose()));
-		handles.push_back(viewer->PlotKinBody(brad->GetRobot()));
-		viewer->Idle();
-		handles.clear();
-	}
-}
-
 Vector3d endEffectorPosition(BeliefRobotAndDOFPtr brad, VecXd dofs) {
 	Vector3d eetrans;
 	brad->ForwardKinematics(dofs, eetrans);
@@ -403,41 +384,6 @@ bool isTrajectoryInCollision(CollisionCheckerPtr cc, TrajArray traj, BeliefRobot
 	}
 	return false;
 }
-
-//double calcTrajectoryCost(ProblemConstructionInfo pci, const Json::Value& root, TrajArray traj) {
-//	cout << "traj cols " << traj.cols() << endl;
-//	if (traj.cols() == B_DIM) {
-//		TrajArray traj_ext = TrajArray::Zero(traj.rows(), B_DIM+U_DIM);
-//		traj_ext.leftCols(B_DIM) = traj;
-//		traj = traj_ext;
-//	} else {
-//		assert(traj.cols() == (B_DIM+U_DIM));
-//	}
-//	cout << "traj cols " << traj.cols() << endl;
-//
-//	// update traj in pci and update costs and constraints
-//	pci.init_info.data = traj;
-//	RobotBase::RobotStateSaver saver = pci.rad->Save();
-//	pci.rad->SetDOFValues(toDblVec(traj.block(0,0,1,X_DIM).transpose()));
-//	gPCI = &pci;
-//	if (root.isMember("costs")) fromJsonArray(root["costs"], pci.cost_infos);
-//	if (root.isMember("constraints")) fromJsonArray(root["constraints"], pci.cnt_infos);
-//	gPCI = NULL;
-//
-//	TrajOptProbPtr prob = ConstructProblem(pci);
-//	BasicTrustRegionSQP opt(prob);
-//	TrajOptResultPtr result = OptimizeProblem(prob, false);
-//	//opt.initialize(trajToDblVec(prob->GetInitTraj()));
-////	cout << result->cost_names[i]
-//
-//	vector<CostPtr>& costs = prob->getCosts();
-//	double total_cost = 0;
-//	for (int i=0; i < costs.size(); i++) {
-//		if (costs[i]->name() == "Covariance")
-//			total_cost += costs[i]->value(opt.x());
-//	}
-//	return total_cost;
-//}
 
 double calcTrajectoryCost(BeliefRobotAndDOFPtr brad, const TrajArray& traj) {
 	VecBd theta;
@@ -587,13 +533,6 @@ VectorXd SimulateAndReplan(const Json::Value& root, OpenRAVE::EnvironmentBasePtr
 	exec_open_traj.block(n_steps-1,B_DIM,1,U_DIM) = VecUd::Zero().transpose();
 	exec_open_gt_traj.row(n_steps-1) = x_gt.transpose();
 	open_trans_err = (endEffectorPosition(brad, x) - endEffectorPosition(brad, x_gt)).norm();
-
-//	cout << "exec_mpc_traj" << endl;
-//	cout << exec_mpc_traj << endl;
-//	cout << "exec_open_traj" << endl;
-//	cout << exec_open_traj << endl;
-//	cout << "plan_traj" << endl;
-//	cout << plan_traj << endl;
 
 	cout << "-------------------------------------------" << endl;
 	cout << "cost exec_mpc_traj " << calcTrajectoryCost(brad, exec_mpc_traj) << "\t" << mpc_trans_err << endl;

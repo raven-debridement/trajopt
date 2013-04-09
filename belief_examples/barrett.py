@@ -150,6 +150,9 @@ if __name__ == "__main__":
     trajoptpy.SetInteractive(args.interactive) 
     prob = trajoptpy.ConstructProblem(s, env)
     result = trajoptpy.OptimizeProblem(prob)
+    
+    #stat = trajoptpy.SimulateAndReplan(s, env, 4)
+    
 #    stats = np.zeros((8,100))
 #    for i in xrange(100):
 #        print "sigma scale ", 4

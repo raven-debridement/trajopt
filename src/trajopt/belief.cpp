@@ -541,15 +541,31 @@ void BeliefRobotAndDOF::ukfUpdate(const VecUd& u0, const VecXd& x0, const MatXXd
 	rtSigma = es.eigenvectors().real() * es.eigenvalues().real().cwiseSqrt().asDiagonal() * es.eigenvectors().real().transpose();
 }
 
+MatrixXd BeliefRobotAndDOF::djdb(const VecBd& theta, int sigma_pt_ind) {
+	MatrixXd J(X_DIM, B_DIM);
+	VecBd theta_plus = theta, theta_minus = theta;
+	for (int i = 0; i < B_DIM; ++i) {
+		theta_plus[i] += STEP; theta_minus[i] -= STEP;
+		J.col(i) = (sigmaPoints(theta_plus).col(sigma_pt_ind) - sigmaPoints(theta_minus).col(sigma_pt_ind)) / (2*STEP);
+		theta_plus[i] = theta_minus[i] = theta[i];
+	}
+	return J;
+}
+
 // theta needs to be set accordingly before calling this (i.e. call SetBeliefValues)
 Matrix<double, 3, B_DIM> BeliefRobotAndDOF::BeliefJacobian(int link_ind, int sigma_pt_ind, const OR::Vector& pt) {
 	Matrix<double, 3, X_DIM> pos_jac = PositionJacobian(endeffector->GetIndex(), pt);
+
+	VecBd theta = toVectorXd(GetBeliefValues());
+	return pos_jac * djdb(theta, sigma_pt_ind);
+
+	/*
 	Matrix<double, 3, B_DIM> jac = Matrix<double, 3, B_DIM>::Zero();
 	jac.leftCols(X_DIM) = pos_jac;
 
 	float lambda;
 	if (sigma_pt_ind == 0) lambda = 0;
-	else lambda = ((sigma_pt_ind-1)%2)==0 ? 1 : -1; // TODO non-unit magnitude for lambda
+	else lambda = ((sigma_pt_ind-1)%2)==0 ? sigma_pts_scale : -sigma_pts_scale;
 
 	if (lambda != 0) {
 		int sigma_matrix_col = (sigma_pt_ind - 1)/2;
@@ -571,6 +587,7 @@ Matrix<double, 3, B_DIM> BeliefRobotAndDOF::BeliefJacobian(int link_ind, int sig
 	//	cout << jac << endl << endl;
 
 	return jac;
+	*/
 }
 
 void BeliefRobotAndDOF::GetEndEffectorNoiseAsGaussian(const VecBd& theta, Vector3d& mean, Matrix3d& cov) {
