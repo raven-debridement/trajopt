@@ -14,7 +14,8 @@ namespace py = boost::python;
 
 
 bool gInteractive = true;
-py::object openravepy, np_mod;
+//py::object openravepy, np_mod;
+py::object np_mod;
 
 py::list toPyList(const IntVec& x) {
 	py::list out;
@@ -54,6 +55,7 @@ py::object toNdarray2(const T* data, size_t dim0, size_t dim1) {
 
 
 EnvironmentBasePtr GetCppEnv(py::object py_env) {
+	py::object openravepy = py::import("openravepy");
 	int id = py::extract<int>(openravepy.attr("RaveGetEnvironmentId")(py_env));
 	EnvironmentBasePtr cpp_env = RaveGetEnvironment(id);
 	return cpp_env;
@@ -96,7 +98,7 @@ public:
 		VectorXd u = Map<const VectorXd>(getPointer<double>(u_py), py::extract<int>(u_py.attr("size")));
 
 		BeliefRobotAndDOFPtr brad = m_prob->GetRAD();
-		VectorXd dofs1 = brad->Dynamics(dofs, u, brad->VectorXdRand(Q_DIM));
+		VectorXd dofs1 = brad->Dynamics(dofs, u, brad->VectorXdRand(brad->GetQDim()));
 		py::object dofs1_py = np_mod.attr("array")(toNdarray1<double>(dofs1.data(), dofs1.size()), "float64");
 
 		return dofs1_py;
@@ -289,7 +291,7 @@ public:
 	}
 	py::object BodyVsAll(py::object py_kb) {
 		KinBodyPtr cpp_kb = boost::const_pointer_cast<EnvironmentBase>(m_cc->GetEnv())
-        		->GetBodyFromEnvironmentId(py::extract<int>(py_kb.attr("GetEnvironmentId")()));
+        				->GetBodyFromEnvironmentId(py::extract<int>(py_kb.attr("GetEnvironmentId")()));
 		if (!cpp_kb) {
 			throw openrave_exception("body isn't part of environment!");
 		}
@@ -358,19 +360,21 @@ PyOSGViewer PyGetViewer(py::object py_env) {
 
 BOOST_PYTHON_MODULE(ctrajoptpy) {
 
-	openravepy = py::import("openravepy");
+	//openravepy = py::import("openravepy");
 	np_mod = py::import("numpy");
 
+	py::object openravepy = py::import("openravepy");
+
 	py::class_<PyTrajOptProb>("TrajOptProb", py::no_init)
-    		  .def("GetDOFIndices", &PyTrajOptProb::GetDOFIndices)
-    		  .def("SetRobotActiveDOFs", &PyTrajOptProb::SetRobotActiveDOFs, "Sets the active DOFs of the robot to the DOFs in the optimization problem")
-    		  .def("AddConstraint", &PyTrajOptProb::AddConstraint1, "Add constraint from python function (using numerical differentiation)", (py::arg("f"),"var_ijs","constraint_type","name"))
-    		  .def("AddConstraint", &PyTrajOptProb::AddConstraint2, "Add constraint from python error function and analytic derivative", (py::arg("f"),"dfdx","var_ijs","constraint_type","name"))
-    		  .def("AddCost", &PyTrajOptProb::AddCost1, "Add cost from python scalar-valued function (using numerical differentiation)", (py::arg("func"),"var_ijs", "name"))
-    		  .def("AddErrorCost", &PyTrajOptProb::AddErrCost1, "Add error cost from python vector-valued error function (using numerical differentiation)", (py::arg("f"),"var_ijs","penalty_type","name"))
-    		  .def("AddErrorCost", &PyTrajOptProb::AddErrCost2, "Add error cost from python vector-valued error function and analytic derivative",(py::arg("f"),"dfdx","var_ijs","penalty_type","name"))
-    		  .def("RobotDynamics", &PyTrajOptProb::RobotDynamics, "Simulate one time step of the robot dynamics by applying a control u")
-    		  ;
+    				  .def("GetDOFIndices", &PyTrajOptProb::GetDOFIndices)
+    				  .def("SetRobotActiveDOFs", &PyTrajOptProb::SetRobotActiveDOFs, "Sets the active DOFs of the robot to the DOFs in the optimization problem")
+    				  .def("AddConstraint", &PyTrajOptProb::AddConstraint1, "Add constraint from python function (using numerical differentiation)", (py::arg("f"),"var_ijs","constraint_type","name"))
+    				  .def("AddConstraint", &PyTrajOptProb::AddConstraint2, "Add constraint from python error function and analytic derivative", (py::arg("f"),"dfdx","var_ijs","constraint_type","name"))
+    				  .def("AddCost", &PyTrajOptProb::AddCost1, "Add cost from python scalar-valued function (using numerical differentiation)", (py::arg("func"),"var_ijs", "name"))
+    				  .def("AddErrorCost", &PyTrajOptProb::AddErrCost1, "Add error cost from python vector-valued error function (using numerical differentiation)", (py::arg("f"),"var_ijs","penalty_type","name"))
+    				  .def("AddErrorCost", &PyTrajOptProb::AddErrCost2, "Add error cost from python vector-valued error function and analytic derivative",(py::arg("f"),"dfdx","var_ijs","penalty_type","name"))
+    				  .def("RobotDynamics", &PyTrajOptProb::RobotDynamics, "Simulate one time step of the robot dynamics by applying a control u")
+    				  ;
 
 	py::def("SetInteractive", &SetInteractive, "if True, pause and plot every iteration");
 	py::def("ConstructProblem", &PyConstructProblem, "create problem from JSON string");
@@ -378,33 +382,33 @@ BOOST_PYTHON_MODULE(ctrajoptpy) {
 	py::def("OptimizeProblem", &PyOptimizeProblem);
 
 	py::class_<PyTrajOptResult>("TrajOptResult", py::no_init)
-    		  .def("GetCosts", &PyTrajOptResult::GetCosts)
-    		  .def("GetConstraints", &PyTrajOptResult::GetConstraints)
-    		  .def("GetTraj", &PyTrajOptResult::GetTraj)
-    		  .def("__str__", &PyTrajOptResult::__str__)
-    		  ;
+    				  .def("GetCosts", &PyTrajOptResult::GetCosts)
+    				  .def("GetConstraints", &PyTrajOptResult::GetConstraints)
+    				  .def("GetTraj", &PyTrajOptResult::GetTraj)
+    				  .def("__str__", &PyTrajOptResult::__str__)
+    				  ;
 
 	py::class_<PyCollisionChecker>("CollisionChecker", py::no_init)
-    		  .def("AllVsAll", &PyCollisionChecker::AllVsAll)
-    		  .def("BodyVsAll", &PyCollisionChecker::BodyVsAll)
-    		  .def("PlotCollisionGeometry", &PyCollisionChecker::PlotCollisionGeometry)
-    		  .def("ExcludeCollisionPair", &PyCollisionChecker::ExcludeCollisionPair)
-    		  ;
+    				  .def("AllVsAll", &PyCollisionChecker::AllVsAll)
+    				  .def("BodyVsAll", &PyCollisionChecker::BodyVsAll)
+    				  .def("PlotCollisionGeometry", &PyCollisionChecker::PlotCollisionGeometry)
+    				  .def("ExcludeCollisionPair", &PyCollisionChecker::ExcludeCollisionPair)
+    				  ;
 	py::def("GetCollisionChecker", &PyGetCollisionChecker);
 	py::class_<PyCollision>("Collision", py::no_init)
-    		 .def("GetDistance", &PyCollision::GetDistance)
-    		 ;
+    				 .def("GetDistance", &PyCollision::GetDistance)
+    				 ;
 	py::class_< PyGraphHandle >("GraphHandle", py::no_init)
-    		 .def("SetTransparency", &PyGraphHandle::SetTransparency1)
-    		 ;
+    				 .def("SetTransparency", &PyGraphHandle::SetTransparency1)
+    				 ;
 
 	py::class_< PyOSGViewer >("OSGViewer", py::no_init)
-    		 .def("Step", &PyOSGViewer::Step)
-    		 .def("PlotKinBody", &PyOSGViewer::PlotKinBody)
-    		 .def("SetAllTransparency", &PyOSGViewer::SetAllTransparency)
-    		 .def("Idle", &PyOSGViewer::Idle)
-    		 .def("SetCameraTransformation", &PyOSGViewer::SetCameraTransformation)
-    		 ;
+    				 .def("Step", &PyOSGViewer::Step)
+    				 .def("PlotKinBody", &PyOSGViewer::PlotKinBody)
+    				 .def("SetAllTransparency", &PyOSGViewer::SetAllTransparency)
+    				 .def("Idle", &PyOSGViewer::Idle)
+    				 .def("SetCameraTransformation", &PyOSGViewer::SetCameraTransformation)
+    				 ;
 	py::def("GetViewer", &PyGetViewer, "Get OSG viewer for environment or create a new one");
 
 }

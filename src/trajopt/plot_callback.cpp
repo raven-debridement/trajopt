@@ -15,6 +15,7 @@ namespace trajopt {
 
 void PlotTraj(OSGViewer& viewer, BeliefRobotAndDOFPtr rad, const TrajArray& traj, vector<GraphHandlePtr>& handles) {
 	const int n_dof = rad->GetDOF();
+	const int x_dim = rad->GetDOF(), b_dim = rad->GetBDim(), u_dim = rad->GetUDim();
 	const int n_steps = traj.rows();
 
 	vector<double> color_params;
@@ -37,12 +38,12 @@ void PlotTraj(OSGViewer& viewer, BeliefRobotAndDOFPtr rad, const TrajArray& traj
 		OR::RobotBase::RobotStateSaver saver = const_cast<BeliefRobotAndDOF*>(rad.get())->Save();
 
 		for (int i=0; i < n_steps; ++i) {
-			VecBd theta = traj.block(i,0,1,B_DIM).transpose();
+			VectorXd theta = traj.block(i,0,1,b_dim).transpose();
 			Vector3d mean;
 			Matrix3d cov;
 			rad->GetEndEffectorNoiseAsGaussian(theta, mean, cov);
 
-			if (X_DIM == 2 || X_DIM == 3)
+			if (x_dim == 2 || x_dim == 3)
 				handles.push_back(viewer.PlotEllipseXYContour(gaussianAsTransform(mean,cov), OR::Vector(0,color_params[i],1.0-color_params[i],1)));
 			//			else // for some reason, the color is not rendered well for ellipses
 			//				handles.push_back(viewer.PlotEllipsoid(gaussianAsTransform(mean,cov), OR::Vector(0,color_params[i],1.0-color_params[i],1)));
@@ -62,19 +63,19 @@ void PlotTraj(OSGViewer& viewer, BeliefRobotAndDOFPtr rad, const TrajArray& traj
 		//			}
 		//		}
 
-		VectorXd theta = traj.block(0,0,1,B_DIM).transpose();
+		VectorXd theta = traj.block(0,0,1,b_dim).transpose();
 		for (int i=0; i<n_steps; i++) {
 			Vector3d mean;
 			Matrix3d cov;
 			rad->GetEndEffectorNoiseAsGaussian(theta, mean, cov);
 
-			if (X_DIM == 2 || X_DIM == 3)
+			if (x_dim == 2 || x_dim == 3)
 				handles.push_back(viewer.PlotEllipseXYContour(gaussianAsTransform(mean,cov), OR::Vector(0,color_params[i],1.0-color_params[i],1), true));
 			//			else
 			//				handles.push_back(viewer.PlotEllipsoid(gaussianAsTransform(mean,cov), OR::Vector(0,color_params[i],1.0-color_params[i],1)));
 
 			if (i != (n_steps-1)) {
-				VectorXd u = traj.block(i,B_DIM,1,U_DIM).transpose();
+				VectorXd u = traj.block(i,b_dim,1,u_dim).transpose();
 				theta = rad->BeliefDynamics(theta,u);
 			}
 		}
