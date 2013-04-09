@@ -1,3 +1,8 @@
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--interactive", action="store_true")
+args = parser.parse_args()
+
 import trajoptpy
 import openravepy as rave
 import numpy as np
@@ -30,7 +35,7 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
 #        },
         {
             "type" : "control",
-            "params": {"coeffs" : [1]}
+            "params": {"coeffs" : [0.1]}
         },
         {
             "type" : "covariance",
@@ -65,7 +70,7 @@ def move_arm_to_grasp(xyz_targ, quat_targ, link_name, manip_name):
         ],
         "init_info" : {
             "type" : "stationary",
-            "initial_rt_sigma" : (np.eye(7)*0.23).tolist()
+            "initial_rt_sigma" : (np.eye(7)*0.22).tolist()
         }
     }
     
@@ -83,7 +88,6 @@ if __name__ == "__main__":
     ENV_FILE = "../data/barrett.env.xml"
     MANIP_NAME = "arm"
     LINK_NAME = "wam7"
-    INTERACTIVE = True
     ##################
     
     ### Env setup ####
@@ -143,7 +147,12 @@ if __name__ == "__main__":
 
     s = json.dumps(request)
     print "REQUEST:",s
-    trajoptpy.SetInteractive(INTERACTIVE);
+    trajoptpy.SetInteractive(args.interactive) 
     prob = trajoptpy.ConstructProblem(s, env)
     result = trajoptpy.OptimizeProblem(prob)
-#    trajoptpy.SimulateAndReplan(s, env)
+#    stats = np.zeros((8,100))
+#    for i in xrange(100):
+#        print "sigma scale ", 4
+#        stat = trajoptpy.SimulateAndReplan(s, env, 4)
+#        stats[:,i] = stat[:,0]
+    

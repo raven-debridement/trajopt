@@ -25,7 +25,7 @@ typedef boost::shared_ptr<TrajOptResult> TrajOptResultPtr;
 TrajOptProbPtr TRAJOPT_API ConstructProblem(const ProblemConstructionInfo&);
 TrajOptProbPtr TRAJOPT_API ConstructProblem(const Json::Value&, OpenRAVE::EnvironmentBasePtr env);
 TrajOptResultPtr TRAJOPT_API OptimizeProblem(TrajOptProbPtr, bool plot);
-void TRAJOPT_API SimulateAndReplan(const Json::Value& root, OpenRAVE::EnvironmentBasePtr env, bool interactive);
+Eigen::VectorXd TRAJOPT_API SimulateAndReplan(const Json::Value& root, OpenRAVE::EnvironmentBasePtr env, bool sigma_pts_scale, bool interactive);
 
 /**
  * Holds all the data for a trajectory optimization problem

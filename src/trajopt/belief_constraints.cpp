@@ -35,6 +35,19 @@ vector<double> BeliefDynamicsConstraint::value(const vector<double>& xin) {
 	return toDblVec(brad_->BeliefDynamics(theta0_hat, u_hat) - theta1_hat);
 }
 
+bool isMatrixNan(const MatrixXd& m) {
+	for (int i=0; i<m.rows(); i++)
+		for (int j=0; j<m.cols(); j++)
+			if (isnan(m(i,j))) return true;
+	return false;
+}
+
+bool assertMatrixNotNan(const MatrixXd& m) {
+	for (int i=0; i<m.rows(); i++)
+		for (int j=0; j<m.cols(); j++)
+			assert(!isnan(m(i,j)));
+}
+
 ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin, Model* model) {
 	VectorXd theta0_hat = getVec(xin, theta0_vars_);
 	VectorXd theta1_hat = getVec(xin, theta1_vars_);
@@ -45,9 +58,15 @@ ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin,
 //	cout << "u_hat:\n" << u_hat.transpose() << endl;
 
 	// linearize belief dynamics around theta0_hat and u_hat
-	MatBBd A = brad_.get()->dgdb(theta0_hat, u_hat);
-	MatBUd B = brad_.get()->dgdu(theta0_hat, u_hat);
+	MatBBd A = brad_->dgdb(theta0_hat, u_hat);
 	VecBd c = brad_->BeliefDynamics(theta0_hat, u_hat);
+	MatBUd B = brad_->dgdu(theta0_hat, u_hat);
+
+//	cout << "theta0_hat " << theta0_hat.transpose() << endl;
+//	cout << "u_hat " << u_hat.transpose() << endl;
+//	if (isMatrixNan(A)) cout << "A" << endl << A << endl;
+//	if (isMatrixNan(B)) cout << "B" << endl << B << endl;
+//	if (isMatrixNan(c)) cout << "c" << endl << c << endl;
 
 //	cout << "A matrix:\n" << A << endl;
 //	cout << "B matrix:\n" << B << endl;

@@ -48,6 +48,7 @@ typedef Matrix<double,X_DIM,Z_DIM> MatXZd;
 typedef Matrix<double,Z_DIM,R_DIM> MatZRd;
 typedef Matrix<double,B_DIM,B_DIM> MatBBd;
 typedef Matrix<double,B_DIM,U_DIM> MatBUd;
+typedef Matrix<double,U_DIM,U_DIM> MatUUd;
 
 typedef Matrix<double,X_DIM,1> VecXd;
 typedef Matrix<double,U_DIM,1> VecUd;
@@ -132,11 +133,14 @@ public:
 	// theta needs to be set accordingly before calling this (i.e. call SetBeliefValues)
 	Matrix<double, 3, B_DIM> BeliefJacobian(int link_ind, int sigma_pt_ind, const OR::Vector& pt);
 
+	void SetSigmaPointsScale(double scale) { sigma_pts_scale = scale; }
+
 	OR::KinBody::LinkPtr endeffector;
 	// Scaled UKF update vars
 	double alpha, beta, kappa;
 
 private:
+	double sigma_pts_scale;
 	// returns the indices of the terms in Sigma_vec that are in the jth column of the corresponding Sigma_matrix
 	inline std::vector<int> sigmaColToSigmaIndices(int j) { return sigma_col_to_indices[j]; }
 	std::vector<std::vector<int> > sigma_col_to_indices;

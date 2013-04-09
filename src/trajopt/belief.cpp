@@ -16,7 +16,8 @@ namespace trajopt {
 
 BeliefRobotAndDOF::BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec& _joint_inds, int _affinedofs, const OR::Vector _rotationaxis) :
 					RobotAndDOF(_robot, _joint_inds, _affinedofs, _rotationaxis),
-					generator(boost::mt19937(time(NULL)+rand()), boost::normal_distribution<>(0, 1))
+					generator(boost::mt19937(time(NULL)+rand()), boost::normal_distribution<>(0, 1)),
+					sigma_pts_scale(2)
 {
 	if (X_DIM == 3) endeffector = GetRobot()->GetLink("Finger");
 	else if (X_DIM == 7) endeffector = GetRobot()->GetLink("wam7");
@@ -126,6 +127,14 @@ void BeliefRobotAndDOF::ForwardKinematics(const VecXd& dofs, Vector3d& eetrans) 
 		eerot[8]=((((x11)*(x45)))+(((x10)*(((((double(-1.00000000000000))*(x14)*(x18)))+(x30))))));
 		double x48=((double(0.0450000000000000))*(x18));
 		eetrans[2]=((double(0.346000000000000))+(((double(-0.300000000000000))*(x18)*(x5)))+(((double(-1.00000000000000))*(x48)))+(((x16)*(x2)))+(((x1)*(x48)))+(((x13)*(x5)))+(((double(0.550000000000000))*(x2))));
+
+		//double c6 = cos((double)dofs[6]);
+		//double s6 = sin((double)dofs[6]);
+
+		//eetrans[0] = c6*eetrans[0] - s6*eetrans[1];
+		//eetrans[0] = s6*eetrans[0] + c6*eetrans[1];
+		//eetrans[2] = eetrans[2] + 0.16;
+
 	} else if (X_DIM == 2) {
 		eetrans[0] = dofs[0];
 		eetrans[1] = dofs[1];
@@ -179,7 +188,8 @@ MatXXd BeliefRobotAndDOF::GetDynNoise() {
 	if (X_DIM == 3)	{
 		diag_noise(0,0) = 0.08; diag_noise(1,1) = 0.13; diag_noise(2,2) = 0.18;
 	} else if (X_DIM == 7) {
-		double scale = 0.005;
+//		double scale = 0.0025;
+		double scale = 0.01;
 		for(int i = 0; i < X_DIM; ++i) {
 			diag_noise(i,i) = scale;
 		}
@@ -199,7 +209,7 @@ MatZZd BeliefRobotAndDOF::GetObsNoise() {
 	} else if (X_DIM == 2) {
 		diag_noise(0,0) = 0.01; diag_noise(1,1) = 0.01;
 	} else if (X_DIM == 7) {
-		diag_noise(0,0) = 0.001; diag_noise(1,1) = 0.002; diag_noise(2,2) = 0.002;
+		diag_noise(0,0) = 0.001; diag_noise(1,1) = 0.001; diag_noise(2,2) = 0.001;
 	}
 	return diag_noise;
 }
@@ -207,7 +217,12 @@ MatZZd BeliefRobotAndDOF::GetObsNoise() {
 VecXd BeliefRobotAndDOF::Dynamics(const VecXd& dofs, const VecUd& u, const VecQd& q) {
 	assert(X_DIM == U_DIM);
 	assert(X_DIM == Q_DIM);
-	return (dofs + u + GetDynNoise()*q);
+	VecXd d = (dofs + u + GetDynNoise()*q);
+//	if (X_DIM == 7) {
+//		if (d[6] > 3.00197) d[6] = 3.00197;
+//		if (d[5] > 1.5708) d[5] = 1.5708;
+//	}
+	return d;
 }
 
 MatXXd BeliefRobotAndDOF::dfdx(const VecXd& x, const VecXd& u, const VecQd& q) {
@@ -312,7 +327,7 @@ VecBd BeliefRobotAndDOF::BeliefDynamics(const VecBd& theta0, const VecUd& u0) {
 	composeBelief(x, rtSigma, theta);
 
 	//	cout << "rtSigma " << endl << rtSigma << endl;
-	//	cout << "theta " << theta.transpose() << endl << endl;
+//		cout << "theta " << theta.transpose() << endl << endl;
 	//	decomposeBelief(theta, x, rtSigma);
 	//	cout << "rtSigma " << endl << rtSigma << endl;
 	//	cout << "theta " << theta.transpose() << endl << endl;
@@ -327,6 +342,8 @@ MatBBd BeliefRobotAndDOF::dgdb(const VecBd& theta, const VecUd& u) {
 	for (int i = 0; i < B_DIM; ++i) {
 		theta_plus[i] += STEP; theta_minus[i] -= STEP;
 		J.col(i) = (BeliefDynamics(theta_plus, u) - BeliefDynamics(theta_minus, u)) / (2*STEP);
+//		for (int j=0; j<J.rows(); j++)
+//			if (isnan(J(j,i))) J(j,i) = 0;
 		theta_plus[i] = theta_minus[i] = theta[i];
 	}
 	return J;
@@ -338,6 +355,8 @@ MatBUd BeliefRobotAndDOF::dgdu(const VecBd& theta, const VecUd& u) {
 	for (int i = 0; i < U_DIM; ++i) {
 		u_plus[i] += STEP; u_minus[i] -= STEP;
 		J.col(i) = (BeliefDynamics(theta, u_plus) - BeliefDynamics(theta, u_minus)) / (2*STEP);
+//		for (int j=0; j<J.rows(); j++)
+//			if (isnan(J(j,i))) J(j,i) = 0;
 		u_plus[i] = u_minus[i] = u[i];
 	}
 	return J;
@@ -345,7 +364,11 @@ MatBUd BeliefRobotAndDOF::dgdu(const VecBd& theta, const VecUd& u) {
 
 VectorXd BeliefRobotAndDOF::VectorXdRand(int size) {
 	VectorXd v(size);
-	for (int i=0; i<size; i++) v(i) = generator();
+	for (int i=0; i<size; i++) {
+		v(i) = generator();
+		if (v(i) > 2) v(i) = 2;
+		if (v(i) < -2) v(i) = -2;
+	}
 	return v;
 }
 
@@ -374,10 +397,9 @@ MatrixXd BeliefRobotAndDOF::sigmaPoints(const VecXd& mean, const MatXXd& sqrtcov
 	sigmapts.col(0) = mean;
 
 //	double scale = sqrt(L+lambda);
-	double scale = 2;
 	for(int i = 0; i < X_DIM; ++i){
-		sigmapts.col(2*i+1) = (mean + scale*sqrtcov.col(i));
-		sigmapts.col(2*i+2) = (mean - scale*sqrtcov.col(i));
+		sigmapts.col(2*i+1) = (mean + sigma_pts_scale*sqrtcov.col(i));
+		sigmapts.col(2*i+2) = (mean - sigma_pts_scale*sqrtcov.col(i));
 	}
 
 	return sigmapts;
@@ -405,7 +427,11 @@ void BeliefRobotAndDOF::ekfUpdate(const VecUd& u0, const VecXd& x0, const MatXXd
 	//rtSigma = svd.matrixU() * svd.singularValues().array().sqrt().matrix().asDiagonal() * svd.matrixV().transpose();
 
 	SelfAdjointEigenSolver<MatXXd> es(Sigma_pred - K*C*Sigma_pred);
-	rtSigma = es.eigenvectors().real() * es.eigenvalues().real().cwiseSqrt().asDiagonal() * es.eigenvectors().real().transpose();
+	if (std::isnan(es.eigenvalues().real().sum())) {
+		cout << ((VectorXd)es.eigenvalues().real()).transpose() << endl;
+	} else {
+		rtSigma = es.eigenvectors().real() * es.eigenvalues().real().cwiseSqrt().asDiagonal() * es.eigenvectors().real().transpose();
+	}
 }
 
 void BeliefRobotAndDOF::ukfUpdate(const VecUd& u0, const VecXd& x0, const MatXXd& rtSigma0, VecXd& x, MatXXd& rtSigma, bool observe, const VecZd& z)

@@ -198,10 +198,15 @@ PyTrajOptProb PyConstructProblem(const std::string& json_string, py::object py_e
 	return PyTrajOptProb(cpp_prob);
 }
 
-void PySimulateAndReplan(const std::string& json_string, py::object py_env)  {
+py::object PySimulateAndReplan(const std::string& json_string, py::object py_env, double sigma_pts_scale)  {
 	EnvironmentBasePtr cpp_env = GetCppEnv(py_env);
 	Json::Value json_root = readJsonFile(json_string);
-	SimulateAndReplan(json_root, cpp_env, gInteractive);
+	VectorXd stats = SimulateAndReplan(json_root, cpp_env, sigma_pts_scale, gInteractive);
+	py::object out = np_mod.attr("empty")(py::make_tuple(stats.rows(), 1));
+	for (int i=0; i<stats.rows(); i++) {
+		out[i] = stats(i);
+	}
+	return out;
 }
 
 void SetInteractive(py::object b) {
