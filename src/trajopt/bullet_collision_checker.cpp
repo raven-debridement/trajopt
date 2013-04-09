@@ -100,11 +100,11 @@ btCollisionShape* createShapePrimitive(OR::KinBody::Link::GeometryPtr geom, bool
 		break;
 	case KinBody::Link::GEOMPROPERTIES::GeomCylinder:
 		// cylinder axis aligned to Y
-		{
-			float r = geom->GetCylinderRadius(), h = geom->GetCylinderHeight() / 2;
-			subshape = new btCylinderShapeZ(btVector3(r, r, h / 2));
-			break;
-		}
+	{
+		float r = geom->GetCylinderRadius(), h = geom->GetCylinderHeight() / 2;
+		subshape = new btCylinderShapeZ(btVector3(r, r, h / 2));
+		break;
+	}
 	case KinBody::Link::GEOMPROPERTIES::GeomTrimesh: {
 		const KinBody::Link::TRIMESH &mesh = geom->GetCollisionMesh();
 		assert(mesh.indices.size() >= 3);
@@ -376,7 +376,7 @@ void nearCallback(btBroadphasePair& collisionPair,
 
 
 BulletCollisionChecker::BulletCollisionChecker(OR::EnvironmentBaseConstPtr env) :
-		  CollisionChecker(env) {
+				  CollisionChecker(env) {
 	m_coll_config = new btDefaultCollisionConfiguration();
 	m_dispatcher = new btCollisionDispatcher(m_coll_config);
 	m_broadphase = new btDbvtBroadphase();
@@ -628,7 +628,7 @@ void BulletCollisionChecker::DiscreteCheckTrajectory(const TrajArray& traj, Robo
 		BeliefRobotAndDOFPtr brad = boost::static_pointer_cast<BeliefRobotAndDOF>(rad);
 		assert(!!brad);
 		for (int iStep=0; iStep < traj.rows(); ++iStep) {
-			MatrixXd sigma_pts = brad->sigmaPoints(traj.block(iStep,0,1,B_DIM).transpose());
+			MatrixXd sigma_pts = brad->sigmaPoints(traj.block(iStep,0,1,brad->GetBDim()).transpose());
 			vector<DblVec> dofvals(sigma_pts.cols());
 			for (int i=0; i<sigma_pts.cols(); i++) {
 				dofvals[i] = toDblVec(sigma_pts.col(i));
@@ -729,7 +729,7 @@ void BulletCollisionChecker::ContinuousCheckTrajectory(const TrajArray& traj, Ro
 	}
 
 #if 0
-// add them back
+	// add them back
 	BOOST_FOREACH(CollisionObjectWrapper* cow, cows) {
 		m_world->addCollisionObject(cow);
 	}
@@ -752,45 +752,45 @@ class CompoundHullShape : public btConvexShape {
 		}
 	}
 #if 0
-void project(const btTransform& trans, const btVector3& dir, btScalar& min, btScalar& max) const {
-	m_children[0]->project(trans, dir, min, max);
-	for (int i=1; i < m_children.size(); ++i) {
-		btScalar newmin, newmax;
-		m_children[i]->project(trans, dir, newmin, newmax);
-		btSetMin(min, newmin);
-		btSetMax(max, newmax);
+	void project(const btTransform& trans, const btVector3& dir, btScalar& min, btScalar& max) const {
+		m_children[0]->project(trans, dir, min, max);
+		for (int i=1; i < m_children.size(); ++i) {
+			btScalar newmin, newmax;
+			m_children[i]->project(trans, dir, newmin, newmax);
+			btSetMin(min, newmin);
+			btSetMax(max, newmax);
+		}
 	}
-}
 #endif
 
-//notice that the vectors should be unit length
-void    batchedUnitVectorGetSupportingVertexWithoutMargin(const btVector3* vectors,btVector3* supportVerticesOut,int numVectors) const {
-	throw std::runtime_error("not implemented");
-}
-
-///getAabb's default implementation is brute force, expected derived classes to implement a fast dedicated version
-void getAabb(const btTransform& t,btVector3& aabbMin,btVector3& aabbMax) const {
-	m_children[0]->getAabb(t, aabbMin, aabbMax);
-	for (int i=1; i < m_children.size(); ++i) {
-		btVector3 newmin, newmax;
-		m_children[i]->getAabb(t, newmin, newmax);
-		aabbMin.setMin(newmin);
-		aabbMax.setMax(newmax);
+	//notice that the vectors should be unit length
+	void    batchedUnitVectorGetSupportingVertexWithoutMargin(const btVector3* vectors,btVector3* supportVerticesOut,int numVectors) const {
+		throw std::runtime_error("not implemented");
 	}
-}
 
-virtual void getAabbSlow(const btTransform& t,btVector3& aabbMin,btVector3& aabbMax) const {
-	throw std::runtime_error("shouldn't happen");
-}
+	///getAabb's default implementation is brute force, expected derived classes to implement a fast dedicated version
+	void getAabb(const btTransform& t,btVector3& aabbMin,btVector3& aabbMax) const {
+		m_children[0]->getAabb(t, aabbMin, aabbMax);
+		for (int i=1; i < m_children.size(); ++i) {
+			btVector3 newmin, newmax;
+			m_children[i]->getAabb(t, newmin, newmax);
+			aabbMin.setMin(newmin);
+			aabbMax.setMax(newmax);
+		}
+	}
 
-virtual void    setLocalScaling(const btVector3& scaling) {}
-virtual const btVector3& getLocalScaling() const {return btVector3(1,1,1);}
+	virtual void getAabbSlow(const btTransform& t,btVector3& aabbMin,btVector3& aabbMax) const {
+		throw std::runtime_error("shouldn't happen");
+	}
 
-virtual void    setMargin(btScalar margin) {}
-virtual btScalar    getMargin() const {return 0;}
+	virtual void    setLocalScaling(const btVector3& scaling) {}
+	virtual const btVector3& getLocalScaling() const {return btVector3(1,1,1);}
 
-virtual int     getNumPreferredPenetrationDirections() const {return 0;}
-virtual void    getPreferredPenetrationDirection(int index, btVector3& penetrationVector) const=0;
+	virtual void    setMargin(btScalar margin) {}
+	virtual btScalar    getMargin() const {return 0;}
+
+	virtual int     getNumPreferredPenetrationDirections() const {return 0;}
+	virtual void    getPreferredPenetrationDirection(int index, btVector3& penetrationVector) const=0;
 
 
 };

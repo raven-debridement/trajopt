@@ -14,90 +14,40 @@ using namespace util;
 
 namespace trajopt {
 
-// hack to set parameter sizes to avoid matrix allocations at runtime
-//#define X_DIM 2
-//#define U_DIM 2
-//#define Z_DIM 2
-//#define Q_DIM 2
-//#define R_DIM 2
-
-//#define X_DIM 3
-//#define U_DIM 3
-//#define Z_DIM 3
-//#define Q_DIM 3
-//#define R_DIM 3
-
-#define X_DIM 7
-#define U_DIM 7
-#define Z_DIM 3
-#define Q_DIM 7
-#define R_DIM 3
-
-#define S_DIM ((X_DIM*(X_DIM+1))/2)
-#define B_DIM (X_DIM + S_DIM)
-
-#define N_STEPS 10
-
 #define STEP 0.00048828125
 
-typedef Matrix<double,X_DIM,X_DIM> MatXXd;
-typedef Matrix<double,X_DIM,Q_DIM> MatXQd;
-typedef Matrix<double,Z_DIM,Z_DIM> MatZZd;
-typedef Matrix<double,Z_DIM,X_DIM> MatZXd;
-typedef Matrix<double,X_DIM,Z_DIM> MatXZd;
-typedef Matrix<double,Z_DIM,R_DIM> MatZRd;
-typedef Matrix<double,B_DIM,B_DIM> MatBBd;
-typedef Matrix<double,B_DIM,U_DIM> MatBUd;
-typedef Matrix<double,U_DIM,U_DIM> MatUUd;
-
-typedef Matrix<double,X_DIM,1> VecXd;
-typedef Matrix<double,U_DIM,1> VecUd;
-typedef Matrix<double,S_DIM,1> VecSd;
-typedef Matrix<double,Z_DIM,1> VecZd;
-typedef Matrix<double,U_DIM,1> VecUd;
-typedef Matrix<double,Q_DIM,1> VecQd;
-typedef Matrix<double,R_DIM,1> VecRd;
-typedef Matrix<double,B_DIM,1> VecBd;
-
-typedef Matrix<int,X_DIM,X_DIM> MatXXi;
-typedef Matrix<int,S_DIM,1> VecSi;
-
 class TRAJOPT_API BeliefRobotAndDOF : public RobotAndDOF {
-private:
-	boost::variate_generator<boost::mt19937, boost::normal_distribution<> > generator;
-	DblVec sigma_vec;
 public:
-
 	BeliefRobotAndDOF(OpenRAVE::RobotBasePtr _robot, const IntVec& _joint_inds, int _affinedofs=0, const OR::Vector _rotationaxis=OR::Vector());
 
-	void ForwardKinematics(const VecXd& dofs, Vector3d& eetrans);
+	void ForwardKinematics(const VectorXd& dofs, Vector3d& eetrans);
 
 	void SetBeliefValues(const DblVec& theta);
 	DblVec GetBeliefValues();
 
-	MatXXd GetDynNoise();
-	MatZZd GetObsNoise();
+	MatrixXd GetDynNoise();
+	MatrixXd GetObsNoise();
 
-	VecZd Observe(const VecXd& x, const VecRd& r);
-	VecXd Dynamics(const VecXd& x, const VecUd& u, const VecQd& q);
+	VectorXd Observe(const VectorXd& x, const VectorXd& r);
+	VectorXd Dynamics(const VectorXd& x, const VectorXd& u, const VectorXd& q);
 
-	MatXXd dfdx(const VecXd& x, const VecUd& u, const VecQd& q);
-	MatXXd dfdq(const VecXd& x, const VecUd& u, const VecQd& q);
-	MatZXd dhdx(const VecXd& x, const VecRd& r);
-	MatZZd dhdr(const VecXd& x, const VecRd& r);
+	MatrixXd dfdx(const VectorXd& x, const VectorXd& u, const VectorXd& q);
+	MatrixXd dfdq(const VectorXd& x, const VectorXd& u, const VectorXd& q);
+	MatrixXd dhdx(const VectorXd& x, const VectorXd& r);
+	MatrixXd dhdr(const VectorXd& x, const VectorXd& r);
 
-	VecBd BeliefDynamics(const VecBd& theta0, const VecUd& u0);
-	MatBBd dgdb(const VecBd& theta, const VecUd& u);
-	MatBUd dgdu(const VecBd& theta, const VecUd& u);
+	VectorXd BeliefDynamics(const VectorXd& theta0, const VectorXd& u0);
+	MatrixXd dgdb(const VectorXd& theta, const VectorXd& u);
+	MatrixXd dgdu(const VectorXd& theta, const VectorXd& u);
 
 	VectorXd VectorXdRand(int size);
-	VecXd mvnrnd(const VecXd& mu, const MatXXd& Sigma);
+	VectorXd mvnrnd(const VectorXd& mu, const MatrixXd& Sigma);
 
-	template <typename T> Eigen::Matrix<T,Eigen::Dynamic,1> toSigmaVec(const Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>& rt_S) {
-		Eigen::Matrix<T,Eigen::Dynamic,1> rt_S_vec(S_DIM);
+	template <typename T> Matrix<T,Dynamic,1> toSigmaVec(const Matrix<T,Dynamic,Dynamic>& rt_S) {
+		Matrix<T,Dynamic,1> rt_S_vec(s_dim);
 		int idx = 0;
-		for (int i=0; i<X_DIM; i++) {
-			for (int j=i; j<X_DIM; j++) {
+		for (int i=0; i < x_dim; i++) {
+			for (int j=i; j < x_dim; j++) {
 				rt_S_vec[idx] = 0.5 * (rt_S(i,j)+rt_S(j,i));
 				idx++;
 			}
@@ -105,11 +55,11 @@ public:
 		return rt_S_vec;
 	}
 
-	template <typename T> Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic> toSigmaMatrix(const Eigen::Matrix<T,Eigen::Dynamic,1>& rt_S_vec) {
-		Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic> rt_S(X_DIM, X_DIM);
+	template <typename T> Matrix<T,Dynamic,Dynamic> toSigmaMatrix(const Matrix<T,Dynamic,1>& rt_S_vec) {
+		Matrix<T,Dynamic,Dynamic> rt_S(x_dim, x_dim);
 		int idx = 0;
-		for (int j = 0; j < X_DIM; ++j) {
-			for (int i = j; i < X_DIM; ++i) {
+		for (int j = 0; j < x_dim; ++j) {
+			for (int i = j; i < x_dim; ++i) {
 				rt_S(i,j) = rt_S(j,i) = rt_S_vec[idx];
 				idx++;
 			}
@@ -117,23 +67,31 @@ public:
 		return rt_S;
 	}
 
-	void composeBelief(const VecXd& x, const MatXXd& rt_S, VecBd& theta);
-	void decomposeBelief(const VecBd& theta, VecXd& x, MatXXd& rt_S);
+	void composeBelief(const VectorXd& x, const MatrixXd& rt_S, VectorXd& theta);
+	void decomposeBelief(const VectorXd& theta, VectorXd& x, MatrixXd& rt_S);
 
-	void ekfUpdate(const VecUd& u0, const VecXd& x0, const MatXXd& rtSigma0, VecXd& x, MatXXd& rtSigma, bool observe, const VecZd& z);
+	void ekfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma, bool observe, const VectorXd& z);
 
-	MatrixXd sigmaPoints(const VecBd& theta);
-	MatrixXd sigmaPoints(const VecXd& mean, const MatXXd& sqrtcov);
-	VecXd sigmaPoint(const VecXd& mean, const MatXXd& cov, int idx);
+	MatrixXd sigmaPoints(const VectorXd& theta);
+	MatrixXd sigmaPoints(const VectorXd& mean, const MatrixXd& sqrtcov);
+	VectorXd sigmaPoint(const VectorXd& mean, const MatrixXd& cov, int idx);
 
-	void ukfUpdate(const VecUd& u0, const VecXd& x0, const MatXXd& rtSigma0, VecXd& x, MatXXd& rtSigma, bool observe, const VecZd& z);
+	void ukfUpdate(const VectorXd& u0, const VectorXd& x0, const MatrixXd& rtSigma0, VectorXd& x, MatrixXd& rtSigma, bool observe, const VectorXd& z);
 
-	void GetEndEffectorNoiseAsGaussian(const VecBd& theta, Vector3d& mean, Matrix3d& cov);
+	void GetEndEffectorNoiseAsGaussian(const VectorXd& theta, Vector3d& mean, Matrix3d& cov);
 
 	// theta needs to be set accordingly before calling this (i.e. call SetBeliefValues)
-	Matrix<double, 3, B_DIM> BeliefJacobian(int link_ind, int sigma_pt_ind, const OR::Vector& pt);
+	MatrixXd BeliefJacobian(int link_ind, int sigma_pt_ind, const OR::Vector& pt);
 
 	void SetSigmaPointsScale(double scale) { sigma_pts_scale = scale; }
+
+	inline int GetXDim() { return x_dim; }
+	inline int GetBDim() { return b_dim; }
+	inline int GetSDim() { return s_dim; }
+	inline int GetQDim() { return q_dim; }
+	inline int GetZDim() { return z_dim; }
+	inline int GetRDim() { return r_dim; }
+	inline int GetUDim() { return u_dim; }
 
 	OR::KinBody::LinkPtr endeffector;
 	// Scaled UKF update vars
@@ -142,8 +100,11 @@ public:
 private:
 	double sigma_pts_scale;
 	// returns the indices of the terms in Sigma_vec that are in the jth column of the corresponding Sigma_matrix
-	inline std::vector<int> sigmaColToSigmaIndices(int j) { return sigma_col_to_indices[j]; }
-	std::vector<std::vector<int> > sigma_col_to_indices;
+	inline vector<int> sigmaColToSigmaIndices(int j) { return sigma_col_to_indices[j]; }
+	vector<vector<int> > sigma_col_to_indices;
+	boost::variate_generator<boost::mt19937, boost::normal_distribution<> > generator;
+	DblVec sigma_vec;
+	int x_dim, b_dim, s_dim, z_dim, q_dim, r_dim, u_dim;
 };
 
 typedef boost::shared_ptr<BeliefRobotAndDOF> BeliefRobotAndDOFPtr;

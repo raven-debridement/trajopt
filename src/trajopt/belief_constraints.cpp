@@ -14,18 +14,18 @@ using namespace util;
 namespace {
 template <typename T>
 vector<T> concat(const vector<T>& a, const vector<T>& b) {
-  vector<T> out;
-  vector<int> x;
-  out.insert(out.end(), a.begin(), a.end());
-  out.insert(out.end(), b.begin(), b.end());
-  return out;
+	vector<T> out;
+	vector<int> x;
+	out.insert(out.end(), a.begin(), a.end());
+	out.insert(out.end(), b.begin(), b.end());
+	return out;
 }
 
 }
 namespace trajopt {
 
 BeliefDynamicsConstraint::BeliefDynamicsConstraint(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars, BeliefRobotAndDOFPtr brad) :
-    		Constraint("BeliefDynamics"), brad_(brad), theta0_vars_(theta0_vars), theta1_vars_(theta1_vars), u_vars_(u_vars), type_(EQ)
+    				Constraint("BeliefDynamics"), brad_(brad), theta0_vars_(theta0_vars), theta1_vars_(theta1_vars), u_vars_(u_vars), type_(EQ)
 {}
 
 vector<double> BeliefDynamicsConstraint::value(const vector<double>& xin) {
@@ -35,6 +35,7 @@ vector<double> BeliefDynamicsConstraint::value(const vector<double>& xin) {
 	return toDblVec(brad_->BeliefDynamics(theta0_hat, u_hat) - theta1_hat);
 }
 
+/*
 bool isMatrixNan(const MatrixXd& m) {
 	for (int i=0; i<m.rows(); i++)
 		for (int j=0; j<m.cols(); j++)
@@ -47,40 +48,41 @@ bool assertMatrixNotNan(const MatrixXd& m) {
 		for (int j=0; j<m.cols(); j++)
 			assert(!isnan(m(i,j)));
 }
+*/
 
 ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin, Model* model) {
 	VectorXd theta0_hat = getVec(xin, theta0_vars_);
 	VectorXd theta1_hat = getVec(xin, theta1_vars_);
 	VectorXd u_hat = getVec(xin, u_vars_);
 
-//	cout << "theta0_hat:\n" << theta0_hat.transpose() << endl;
-//	cout << "theta1_hat:\n" << theta1_hat.transpose() << endl;
-//	cout << "u_hat:\n" << u_hat.transpose() << endl;
+	//	cout << "theta0_hat:\n" << theta0_hat.transpose() << endl;
+	//	cout << "theta1_hat:\n" << theta1_hat.transpose() << endl;
+	//	cout << "u_hat:\n" << u_hat.transpose() << endl;
 
 	// linearize belief dynamics around theta0_hat and u_hat
-	MatBBd A = brad_->dgdb(theta0_hat, u_hat);
-	VecBd c = brad_->BeliefDynamics(theta0_hat, u_hat);
-	MatBUd B = brad_->dgdu(theta0_hat, u_hat);
+	MatrixXd A = brad_->dgdb(theta0_hat, u_hat);
+	VectorXd c = brad_->BeliefDynamics(theta0_hat, u_hat);
+	MatrixXd B = brad_->dgdu(theta0_hat, u_hat);
 
-//	cout << "theta0_hat " << theta0_hat.transpose() << endl;
-//	cout << "u_hat " << u_hat.transpose() << endl;
-//	if (isMatrixNan(A)) cout << "A" << endl << A << endl;
-//	if (isMatrixNan(B)) cout << "B" << endl << B << endl;
-//	if (isMatrixNan(c)) cout << "c" << endl << c << endl;
+	//	cout << "theta0_hat " << theta0_hat.transpose() << endl;
+	//	cout << "u_hat " << u_hat.transpose() << endl;
+	//	if (isMatrixNan(A)) cout << "A" << endl << A << endl;
+	//	if (isMatrixNan(B)) cout << "B" << endl << B << endl;
+	//	if (isMatrixNan(c)) cout << "c" << endl << c << endl;
 
-//	cout << "A matrix:\n" << A << endl;
-//	cout << "B matrix:\n" << B << endl;
-//	cout << "c vector:\n" << c.transpose() << endl;
+	//	cout << "A matrix:\n" << A << endl;
+	//	cout << "B matrix:\n" << B << endl;
+	//	cout << "c vector:\n" << c.transpose() << endl;
 
-//	  // test convexification
-//	  VectorXd theta0 = theta0_hat + brad_->VectorXdRand(9)*0.1;
-//	  cout << "theta0" << theta0.transpose() << endl;
-//	  VectorXd u = u_hat +brad_->VectorXdRand(3)*0.1;
-//	  cout << "u "<< u.transpose() << endl;
-//	  VectorXd diff1_approx = A * (theta0 - theta0_hat) + B * (u - u_hat) + c - theta1_hat;
-//	  cout << "diff1_approx" << diff1_approx.transpose() << endl;
-//		VectorXd diff1 = brad_->BeliefDynamics(theta0_hat, u_hat) - theta1_hat;
-//	  cout << "diff1 " << diff1.transpose() << endl;
+	//	  // test convexification
+	//	  VectorXd theta0 = theta0_hat + brad_->VectorXdRand(9)*0.1;
+	//	  cout << "theta0" << theta0.transpose() << endl;
+	//	  VectorXd u = u_hat +brad_->VectorXdRand(3)*0.1;
+	//	  cout << "u "<< u.transpose() << endl;
+	//	  VectorXd diff1_approx = A * (theta0 - theta0_hat) + B * (u - u_hat) + c - theta1_hat;
+	//	  cout << "diff1_approx" << diff1_approx.transpose() << endl;
+	//		VectorXd diff1 = brad_->BeliefDynamics(theta0_hat, u_hat) - theta1_hat;
+	//	  cout << "diff1 " << diff1.transpose() << endl;
 
 	// equality constraint
 	// theta1_vars_ = A * (theta0_vars_ - theta0_hat) + B * (u_vars_ - u_hat) + c
@@ -112,36 +114,37 @@ ConvexConstraintsPtr BeliefDynamicsConstraint::convex(const vector<double>& xin,
 
 
 struct BeliefDynamicsErrCalculator : public VectorOfVector {
-  BeliefRobotAndDOFPtr brad_;
-  BeliefDynamicsErrCalculator(BeliefRobotAndDOFPtr brad) :
-  	brad_(brad)
-  {}
+	BeliefRobotAndDOFPtr brad_;
+	BeliefDynamicsErrCalculator(BeliefRobotAndDOFPtr brad) : brad_(brad) {}
 
-  VectorXd operator()(const VectorXd& vals) const {
-  	VectorXd theta0 = vals.topRows(B_DIM);
-  	VectorXd theta1 = vals.middleRows(B_DIM, B_DIM);
-  	VectorXd u0 = vals.bottomRows(U_DIM);
-  	assert(vals.size() == (2*B_DIM + U_DIM));
+	VectorXd operator()(const VectorXd& vals) const {
+		int b_dim = brad_->GetBDim();
+		int u_dim = brad_->GetUDim();
+		VectorXd theta0 = vals.topRows(b_dim);
+		VectorXd theta1 = vals.middleRows(b_dim, b_dim);
+		VectorXd u0 = vals.bottomRows(u_dim);
+		assert(vals.size() == (2*b_dim + u_dim));
 
-  	VectorXd err = brad_->BeliefDynamics(theta0, u0) - theta1;
+		VectorXd err = brad_->BeliefDynamics(theta0, u0) - theta1;
 
-    return err;
-  }
+		return err;
+	}
 };
 
 BeliefDynamicsConstraint2::BeliefDynamicsConstraint2(const VarVector& theta0_vars,	const VarVector& theta1_vars, const VarVector& u_vars,
 		BeliefRobotAndDOFPtr brad, const BoolVec& enabled) :
-    ConstraintFromFunc(VectorOfVectorPtr(new BeliefDynamicsErrCalculator(brad)),
-    		concat(concat(theta0_vars, theta1_vars), u_vars), EQ, "BeliefDynamics2")
+		ConstraintFromFunc(VectorOfVectorPtr(new BeliefDynamicsErrCalculator(brad)),
+				concat(concat(theta0_vars, theta1_vars), u_vars), EQ, "BeliefDynamics2")
 {
 }
 
 CovarianceCost::CovarianceCost(const VarVector& rtSigma_vars, const MatrixXd& Q, BeliefRobotAndDOFPtr brad) :
-    Cost("Covariance"), rtSigma_vars_(rtSigma_vars), Q_(Q), brad_(brad)
+    		Cost("Covariance"), rtSigma_vars_(rtSigma_vars), Q_(Q), brad_(brad)
 {
-	assert(rtSigma_vars_.size() == S_DIM);
-	assert(Q_.rows() == X_DIM);
-	assert(Q_.cols() == X_DIM);
+	int s_dim = brad_->GetSDim();
+	int q_dim = brad_->GetQDim();
+	assert(rtSigma_vars_.size() == s_dim);
+	assert(Q_.rows() == q_dim);
 
 	VarArray rtSigma_matrix_vars = toBasicArray(brad_->toSigmaMatrix(toVectorXd(rtSigma_vars_)));
 	QuadExprArray Sigma_vars = rtSigma_matrix_vars * rtSigma_matrix_vars.transpose();
@@ -150,42 +153,42 @@ CovarianceCost::CovarianceCost(const VarVector& rtSigma_vars, const MatrixXd& Q,
 }
 
 double CovarianceCost::value(const vector<double>& xin) {
+	int x_dim = brad_->GetXDim(), s_dim = brad_->GetSDim(), b_dim = brad_->GetBDim();
 	VectorXd rtSigma_vec = getVec(xin, rtSigma_vars_);
-	MatXXd rtSigma(X_DIM, X_DIM);
-	VecXd x_unused;
-	VecBd theta;
-	theta.bottomRows(S_DIM) = rtSigma_vec;
+	MatrixXd rtSigma(x_dim, x_dim);
+	VectorXd x_unused(x_dim);
+	VectorXd theta(b_dim);
+	theta.bottomRows(s_dim) = rtSigma_vec;
 	brad_->decomposeBelief(theta, x_unused, rtSigma);
 
 	return (Q_ * rtSigma * rtSigma.transpose()).trace();
 }
 
 ConvexObjectivePtr CovarianceCost::convex(const vector<double>& x, Model* model) {
-  ConvexObjectivePtr out(new ConvexObjective(model));
-  out->addQuadExpr(expr_);
-  return out;
+	ConvexObjectivePtr out(new ConvexObjective(model));
+	out->addQuadExpr(expr_);
+	return out;
 }
 
-
 ControlCost::ControlCost(const VarArray& vars, const VectorXd& coeffs) :
-    Cost("Control"), vars_(vars), coeffs_(coeffs) {
-  for (int i=0; i < vars.rows(); ++i) {
-  	QuadExpr expr;
+    		Cost("Control"), vars_(vars), coeffs_(coeffs) {
+	for (int i=0; i < vars.rows(); ++i) {
+		QuadExpr expr;
 		expr.vars1 = vars_.row(i);
 		expr.vars2 = vars_.row(i);
 		expr.coeffs = toDblVec(coeffs);
 		exprInc(expr_, expr);
-  }
+	}
 }
 double ControlCost::value(const vector<double>& xvec) {
-  MatrixXd traj = getTraj(xvec, vars_);
-  return (traj.array().square().matrix() * coeffs_.asDiagonal()).sum();
+	MatrixXd traj = getTraj(xvec, vars_);
+	return (traj.array().square().matrix() * coeffs_.asDiagonal()).sum();
 }
 ConvexObjectivePtr ControlCost::convex(const vector<double>& x, Model* model) {
-  ConvexObjectivePtr out(new ConvexObjective(model));
-  out->addQuadExpr(expr_);
+	ConvexObjectivePtr out(new ConvexObjective(model));
+	out->addQuadExpr(expr_);
 
-  return out;
+	return out;
 }
 
 }

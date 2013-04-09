@@ -188,6 +188,8 @@ void InitInfo::fromJson(const Json::Value& v) {
 	childFromJson(v, type_str, "type");
 	int n_steps = gPCI->basic_info.n_steps;
 	int n_dof = gPCI->rad->GetDOF();
+	int b_dim = gPCI->rad->GetBDim(), u_dim = gPCI->rad->GetUDim();
+
 	bool belief_space = gPCI->basic_info.belief_space;
 	MatrixXd rt_Sigma0;
 	if (belief_space && (type_str == "stationary" || type_str == "given_traj")) {
@@ -202,25 +204,26 @@ void InitInfo::fromJson(const Json::Value& v) {
 		if (!belief_space) {
 			data = toVectorXd(gPCI->rad->GetDOFValues()).transpose().replicate(n_steps, 1);
 		} else {
-			data.resize(n_steps, B_DIM+U_DIM);
-			VecBd theta;
+			data.resize(n_steps, b_dim+u_dim);
+			VectorXd theta;
 			//gPCI->rad->composeBelief(toVectorXd(gPCI->rad->GetDOFValues()), rt_Sigma0, theta);
-			VecXd x;
+			VectorXd x;
 			const DblVec& xvec = gPCI->rad->GetDOFValues();
 			for(int i = 0; i < xvec.size(); ++i) { x[i] = xvec[i]; }
-			cout << x << endl;
-			cout << rt_Sigma0 << endl;
-			cout << theta << endl;
+
+			//cout << x << endl;
+			//cout << rt_Sigma0 << endl;
+			//cout << theta << endl;
 
 			gPCI->rad->composeBelief(x, rt_Sigma0, theta);
 			for (int i=0; i < n_steps; i++) {
-				data.block(i,0,1,B_DIM) = theta.transpose();
+				data.block(i,0,1,b_dim) = theta.transpose();
 				if (i != (n_steps-1)) {
-					VecUd u = VecUd::Zero();
-					data.block(i,B_DIM,1,U_DIM) = u.transpose();
+					VectorXd u = VectorXd::Zero(u_dim);
+					data.block(i,b_dim,1,u_dim) = u.transpose();
 					theta = gPCI->rad->BeliefDynamics(theta,u);
 				} else {
-					data.block(i,B_DIM,1,U_DIM) = VecUd::Zero().transpose();
+					data.block(i,b_dim,1,u_dim) = VectorXd::Zero(u_dim).transpose();
 				}
 			}
 		}
@@ -236,20 +239,20 @@ void InitInfo::fromJson(const Json::Value& v) {
 			if (x_data.cols()!=n_dof) PRINT_AND_THROW("x data has wrong number of cols");
 			data = x_data;
 		} else {
-			if (x_data.cols() == B_DIM+U_DIM) {
+			if (x_data.cols() == b_dim+u_dim) {
 				data = x_data;
 			} else if (x_data.cols() == n_dof) {
-				data.resize(n_steps, B_DIM+U_DIM);
-				VecBd theta;
+				data.resize(n_steps, b_dim+u_dim);
+				VectorXd theta;
 				gPCI->rad->composeBelief(x_data.row(0).transpose(), rt_Sigma0, theta);
 				for (int i=0; i < n_steps; i++) {
-					data.block(i,0,1,B_DIM) = theta.transpose();
+					data.block(i,0,1,b_dim) = theta.transpose();
 					if (i != (n_steps-1)) {
-						VecUd u = x_data.row(i+1).transpose() - x_data.row(i).transpose();
-						data.block(i,B_DIM,1,U_DIM) = u.transpose();
+						VectorXd u = x_data.row(i+1).transpose() - x_data.row(i).transpose();
+						data.block(i,b_dim,1,u_dim) = u.transpose();
 						theta = gPCI->rad->BeliefDynamics(theta,u);
 					} else {
-						data.block(i,B_DIM,1,U_DIM) = VecUd::Zero().transpose();
+						data.block(i,b_dim,1,u_dim) = VectorXd::Zero(u_dim).transpose();
 					}
 				}
 			} else {
@@ -298,8 +301,8 @@ void CntInfo::RegisterMaker(const std::string& type, MakerFunc f) {
 }
 
 TrajOptResult::TrajOptResult(OptResults& opt, TrajOptProb& prob) :
-		  cost_vals(opt.cost_vals),
-		  cnt_viols(opt.cnt_viols) {
+				  cost_vals(opt.cost_vals),
+				  cnt_viols(opt.cnt_viols) {
 	BOOST_FOREACH(const CostPtr& cost, prob.getCosts()) {
 		cost_names.push_back(cost->name());
 	}
@@ -328,7 +331,7 @@ void ExecuteTrajectory(TrajOptProbPtr prob, TrajOptResultPtr result) {
 	}
 }
 
-Vector3d endEffectorPosition(BeliefRobotAndDOFPtr brad, VecXd dofs) {
+Vector3d endEffectorPosition(BeliefRobotAndDOFPtr brad, VectorXd dofs) {
 	Vector3d eetrans;
 	brad->ForwardKinematics(dofs, eetrans);
 
@@ -348,13 +351,13 @@ void renderSigmaPts(BeliefRobotAndDOFPtr rad, const MatrixXd& sigma_pts, const o
 	rad->GetAffectedLinks(links, true, joint_inds);
 
 	// render sigma points
-//	for (int j=0; j<sigma_pts.cols(); j++) {
-//		rad->SetDOFValues(toDblVec(sigma_pts.col(j)));
-//		handles.push_back(viewer->PlotKinBody(rad->GetRobot()));
-////		if (j==0) SetColor(handles.back(), osg::Vec4f(0,0,1,1));
-////		else //SetColor(handles.back(), osg::Vec4f(0,0,1,1));
-//		SetColor(handles.back(), colorvec);
-//	}
+	//	for (int j=0; j<sigma_pts.cols(); j++) {
+	//		rad->SetDOFValues(toDblVec(sigma_pts.col(j)));
+	//		handles.push_back(viewer->PlotKinBody(rad->GetRobot()));
+	////		if (j==0) SetColor(handles.back(), osg::Vec4f(0,0,1,1));
+	////		else //SetColor(handles.back(), osg::Vec4f(0,0,1,1));
+	//		SetColor(handles.back(), colorvec);
+	//	}
 
 	// render convex hulls of sigma points
 	vector<DblVec> dofvals(sigma_pts.cols());
@@ -366,26 +369,28 @@ void renderSigmaPts(BeliefRobotAndDOFPtr rad, const MatrixXd& sigma_pts, const o
 }
 
 void renderTrajectory(BeliefRobotAndDOFPtr brad, OSGViewerPtr viewer, const TrajArray& traj, vector<GraphHandlePtr>& handles, int sample_rate = 1) {
-//	viewer->GetEnv()->Load("/home/alex/rll/trajopt/data/barrett_sensor_wall.env.xml");
-//	KinBodyPtr wall = viewer->GetEnv()->GetKinBody("wall");
-//	handles.push_back(viewer->PlotKinBody(wall));
-//	SetColor(handles.back(), osg::Vec4f(0.8,0.8,0,1));
-//	SetTransparency(handles.back(), 0.1);
-//	viewer->GetEnv()->Remove(wall);
+	//	viewer->GetEnv()->Load("/home/alex/rll/trajopt/data/barrett_sensor_wall.env.xml");
+	//	KinBodyPtr wall = viewer->GetEnv()->GetKinBody("wall");
+	//	handles.push_back(viewer->PlotKinBody(wall));
+	//	SetColor(handles.back(), osg::Vec4f(0.8,0.8,0,1));
+	//	SetTransparency(handles.back(), 0.1);
+	//	viewer->GetEnv()->Remove(wall);
 
 	int n_skipped = sample_rate;
-	Vector3d last_ee_pos = endEffectorPosition(brad, traj.block(0,0,1,X_DIM).transpose());
+	int n_dof = brad->GetDOF();
+	int b_dim = brad->GetBDim();
+	Vector3d last_ee_pos = endEffectorPosition(brad, traj.block(0,0,1,n_dof).transpose());
 	for (int i=0; i<traj.rows(); i++) {
-		if ((n_skipped < sample_rate) && ((endEffectorPosition(brad, traj.block(i,0,1,X_DIM).transpose())-last_ee_pos).norm()<0.1) && (i != (traj.rows()-1))) {
+		if ((n_skipped < sample_rate) && ((endEffectorPosition(brad, traj.block(i,0,1,n_dof).transpose())-last_ee_pos).norm()<0.1) && (i != (traj.rows()-1))) {
 			n_skipped++;
 			continue;
 		}
 		n_skipped = 0;
-		last_ee_pos = endEffectorPosition(brad, traj.block(i,0,1,X_DIM).transpose());
+		last_ee_pos = endEffectorPosition(brad, traj.block(i,0,1,n_dof).transpose());
 
-		brad->SetDOFValues(toDblVec(traj.block(i,0,1,X_DIM).transpose()));
+		brad->SetDOFValues(toDblVec(traj.block(i,0,1,n_dof).transpose()));
 		handles.push_back(viewer->PlotKinBody(brad->GetRobot()));
-		if (i==0 || i==(traj.rows()-1)) renderSigmaPts(brad, brad->sigmaPoints(traj.block(i,0,1,B_DIM).transpose()), osg::Vec4f(0,1,0,0.2), handles, viewer);
+		if (i==0 || i==(traj.rows()-1)) renderSigmaPts(brad, brad->sigmaPoints(traj.block(i,0,1,b_dim).transpose()), osg::Vec4f(0,1,0,0.2), handles, viewer);
 		viewer->Idle();
 	}
 
@@ -406,19 +411,19 @@ bool isTrajectoryInCollision(CollisionCheckerPtr cc, TrajArray traj, BeliefRobot
 
 //double calcTrajectoryCost(ProblemConstructionInfo pci, const Json::Value& root, TrajArray traj) {
 //	cout << "traj cols " << traj.cols() << endl;
-//	if (traj.cols() == B_DIM) {
-//		TrajArray traj_ext = TrajArray::Zero(traj.rows(), B_DIM+U_DIM);
-//		traj_ext.leftCols(B_DIM) = traj;
+//	if (traj.cols() == b_dim) {
+//		TrajArray traj_ext = TrajArray::Zero(traj.rows(), b_dim+u_dim);
+//		traj_ext.leftCols(b_dim) = traj;
 //		traj = traj_ext;
 //	} else {
-//		assert(traj.cols() == (B_DIM+U_DIM));
+//		assert(traj.cols() == (b_dim+u_dim));
 //	}
 //	cout << "traj cols " << traj.cols() << endl;
 //
 //	// update traj in pci and update costs and constraints
 //	pci.init_info.data = traj;
 //	RobotBase::RobotStateSaver saver = pci.rad->Save();
-//	pci.rad->SetDOFValues(toDblVec(traj.block(0,0,1,X_DIM).transpose()));
+//	pci.rad->SetDOFValues(toDblVec(traj.block(0,0,1,GetDOF()).transpose()));
 //	gPCI = &pci;
 //	if (root.isMember("costs")) fromJsonArray(root["costs"], pci.cost_infos);
 //	if (root.isMember("constraints")) fromJsonArray(root["constraints"], pci.cnt_infos);
@@ -440,19 +445,20 @@ bool isTrajectoryInCollision(CollisionCheckerPtr cc, TrajArray traj, BeliefRobot
 //}
 
 double calcTrajectoryCost(BeliefRobotAndDOFPtr brad, const TrajArray& traj) {
-	VecBd theta;
-	VecUd u;
-	VecXd x;
-	MatXXd rt_Sigma;
-	MatXXd Sigma;
-	MatXXd Q = MatXXd::Identity()*10;
-	MatUUd R = MatUUd::Identity()*0.1;
+	int x_dim = brad->GetXDim(), b_dim = brad->GetBDim(), u_dim = brad->GetUDim();
+	VectorXd theta(b_dim);
+	VectorXd u(u_dim);
+	VectorXd x(x_dim);
+	MatrixXd rt_Sigma(x_dim,x_dim);
+	MatrixXd Sigma(x_dim,x_dim);
+	MatrixXd Q = MatrixXd::Identity(x_dim,x_dim)*10;
+	MatrixXd R = MatrixXd::Identity(u_dim,u_dim)*0.1;
 	double total_cost = 0;
 	for (int i=0; i<traj.rows(); i++) {
-		theta = traj.block(i,0,1,B_DIM).transpose();
-		u = traj.block(i,B_DIM,1,U_DIM).transpose();
+		theta = traj.block(i,0,1,b_dim).transpose();
+		u = traj.block(i,b_dim,1,u_dim).transpose();
 		brad->decomposeBelief(theta, x, rt_Sigma);
-		total_cost += ((MatXXd) (Q*rt_Sigma*rt_Sigma.transpose())).trace() + u.transpose()*R*u;
+		total_cost += ((MatrixXd) (Q*rt_Sigma*rt_Sigma.transpose())).trace() + u.transpose()*R*u;
 	}
 	return total_cost;
 }
@@ -466,37 +472,38 @@ VectorXd SimulateAndReplan(const Json::Value& root, OpenRAVE::EnvironmentBasePtr
 	BeliefRobotAndDOFPtr brad = pci.rad;
 	brad->SetSigmaPointsScale(sigma_pts_scale);
 	int n_steps = pci.basic_info.n_steps;
-	TrajArray plan_traj = TrajArray::Zero(n_steps, B_DIM+U_DIM);
-	TrajArray exec_mpc_traj = TrajArray::Zero(n_steps, B_DIM+U_DIM);
-	TrajArray exec_mpc_gt_traj = TrajArray::Zero(n_steps, X_DIM);
-	TrajArray exec_open_traj = TrajArray::Zero(n_steps, B_DIM+U_DIM);
-	TrajArray exec_open_gt_traj = TrajArray::Zero(n_steps, X_DIM);
-//	TrajArray exec_mpc_traj(n_steps, B_DIM);
-//	TrajArray plan_traj(n_steps, B_DIM+U_DIM);
-//	TrajArray exec_open_traj(n_steps, B_DIM);
+	int x_dim = brad->GetXDim(), b_dim = brad->GetBDim(), u_dim = brad->GetUDim(), q_dim = brad->GetQDim(), r_dim = brad->GetRDim();
+	TrajArray plan_traj = TrajArray::Zero(n_steps, b_dim+u_dim);
+	TrajArray exec_mpc_traj = TrajArray::Zero(n_steps, b_dim+u_dim);
+	TrajArray exec_mpc_gt_traj = TrajArray::Zero(n_steps, x_dim);
+	TrajArray exec_open_traj = TrajArray::Zero(n_steps, b_dim+u_dim);
+	TrajArray exec_open_gt_traj = TrajArray::Zero(n_steps, x_dim);
+	//	TrajArray exec_mpc_traj(n_steps, b_dim);
+	//	TrajArray plan_traj(n_steps, b_dim+u_dim);
+	//	TrajArray exec_open_traj(n_steps, b_dim);
 	double mpc_trans_err, open_trans_err;
 
-	VecBd theta_init = traj.block(0,0,1,B_DIM).transpose();
-	VecXd x_init;
-	MatXXd rt_Sigma_init;
+	VectorXd theta_init = traj.block(0,0,1,b_dim).transpose();
+	VectorXd x_init;
+	MatrixXd rt_Sigma_init;
 	brad->decomposeBelief(theta_init, x_init, rt_Sigma_init);
 	x_init = brad->mvnrnd(x_init, rt_Sigma_init * rt_Sigma_init.transpose());
 	brad->composeBelief(x_init, rt_Sigma_init, theta_init);
 
-	MatrixXd qq(Q_DIM, n_steps);
+	MatrixXd qq(q_dim, n_steps);
 	for (int j=0; j<n_steps; j++) {
-		qq.col(j) = brad->VectorXdRand(Q_DIM);
+		qq.col(j) = brad->VectorXdRand(q_dim);
 	}
-	MatrixXd rr(R_DIM, n_steps);
+	MatrixXd rr(r_dim, n_steps);
 	for (int j=0; j<n_steps; j++) {
-		rr.col(j) = brad->VectorXdRand(R_DIM);
+		rr.col(j) = brad->VectorXdRand(r_dim);
 	}
 
 
-	VecXd x;
-	VecXd x_gt;
-	MatXXd rt_Sigma;
-	VecBd theta;
+	VectorXd x;
+	VectorXd x_gt;
+	MatrixXd rt_Sigma;
+	VectorXd theta;
 	Vector3d trans_gt, trans_est;
 
 	struct timeval startTimeStruct;
@@ -518,15 +525,15 @@ VectorXd SimulateAndReplan(const Json::Value& root, OpenRAVE::EnvironmentBasePtr
 		TrajOptProbPtr prob = ConstructProblem(pci);
 		TrajOptResultPtr result = OptimizeProblem(prob, interactive);
 		if (i==0) plan_traj = result->traj;
-		VecUd u = result->traj.block(0,B_DIM,1,U_DIM).transpose();
-		exec_mpc_traj.block(i,0,1,B_DIM) = theta.transpose();
-		exec_mpc_traj.block(i,B_DIM,1,U_DIM) = u.transpose();
+		VectorXd u = result->traj.block(0,b_dim,1,u_dim).transpose();
+		exec_mpc_traj.block(i,0,1,b_dim) = theta.transpose();
+		exec_mpc_traj.block(i,b_dim,1,u_dim) = u.transpose();
 
 		// simulate dynamics and observe
-		VecQd q = qq.col(i);
-		VecRd r = rr.col(i);
+		VectorXd q = qq.col(i);
+		VectorXd r = rr.col(i);
 		x_gt = brad->Dynamics(x_gt,u,q);
-		VecZd z = brad->Observe(x_gt,r);
+		VectorXd z = brad->Observe(x_gt,r);
 		exec_mpc_gt_traj.row(i) = x_gt.transpose();
 
 		brad->ekfUpdate(u, x, rt_Sigma, x, rt_Sigma, true, z);
@@ -546,15 +553,15 @@ VectorXd SimulateAndReplan(const Json::Value& root, OpenRAVE::EnvironmentBasePtr
 		cout << "actual robot dofs values are " << endl;
 		cout << toVectorXd(brad->GetDOFValues()).transpose() << endl;
 		traj = result->traj.bottomRows(result->traj.rows()-1);
-		traj.block(0,0,1,B_DIM) = theta.transpose();
+		traj.block(0,0,1,b_dim) = theta.transpose();
 		pci.basic_info.n_steps--;
 
 		cout << "-------------------------------------------" << endl;
 
 		i++;
 	} while (pci.basic_info.n_steps > 1);
-	exec_mpc_traj.block(n_steps-1,0,1,B_DIM) = theta.transpose();
-	exec_mpc_traj.block(n_steps-1,B_DIM,1,U_DIM) = VecUd::Zero().transpose();
+	exec_mpc_traj.block(n_steps-1,0,1,b_dim) = theta.transpose();
+	exec_mpc_traj.block(n_steps-1,b_dim,1,u_dim) = VectorXd::Zero(u_dim).transpose();
 	exec_mpc_gt_traj.row(n_steps-1) = x_gt.transpose();
 	mpc_trans_err = (endEffectorPosition(brad, x) - endEffectorPosition(brad, x_gt)).norm();
 
@@ -569,31 +576,31 @@ VectorXd SimulateAndReplan(const Json::Value& root, OpenRAVE::EnvironmentBasePtr
 	rt_Sigma = rt_Sigma_init;
 	theta = theta_init;
 	for (int i=0; i<n_steps-1; i++) {
-		VecUd u = plan_traj.block(i,B_DIM,1,U_DIM).transpose();
+		VectorXd u = plan_traj.block(i,b_dim,1,u_dim).transpose();
 
-		exec_open_traj.block(i,0,1,B_DIM) = theta.transpose();
-		exec_open_traj.block(i,B_DIM,1,U_DIM) = u.transpose();
+		exec_open_traj.block(i,0,1,b_dim) = theta.transpose();
+		exec_open_traj.block(i,b_dim,1,u_dim) = u.transpose();
 
-		VecQd q = qq.col(i);
-		VecRd r = rr.col(i);
+		VectorXd q = qq.col(i);
+		VectorXd r = rr.col(i);
 		x_gt = brad->Dynamics(x_gt,u,q);
-		VecZd z = brad->Observe(x_gt,r);
+		VectorXd z = brad->Observe(x_gt,r);
 		exec_open_gt_traj.row(i) = x_gt.transpose();
 
 		brad->ekfUpdate(u, x, rt_Sigma, x, rt_Sigma, true, z);
 		brad->composeBelief(x, rt_Sigma, theta);
 	}
-	exec_open_traj.block(n_steps-1,0,1,B_DIM) = theta.transpose();
-	exec_open_traj.block(n_steps-1,B_DIM,1,U_DIM) = VecUd::Zero().transpose();
+	exec_open_traj.block(n_steps-1,0,1,b_dim) = theta.transpose();
+	exec_open_traj.block(n_steps-1,b_dim,1,u_dim) = VectorXd::Zero(u_dim).transpose();
 	exec_open_gt_traj.row(n_steps-1) = x_gt.transpose();
 	open_trans_err = (endEffectorPosition(brad, x) - endEffectorPosition(brad, x_gt)).norm();
 
-//	cout << "exec_mpc_traj" << endl;
-//	cout << exec_mpc_traj << endl;
-//	cout << "exec_open_traj" << endl;
-//	cout << exec_open_traj << endl;
-//	cout << "plan_traj" << endl;
-//	cout << plan_traj << endl;
+	//	cout << "exec_mpc_traj" << endl;
+	//	cout << exec_mpc_traj << endl;
+	//	cout << "exec_open_traj" << endl;
+	//	cout << exec_open_traj << endl;
+	//	cout << "plan_traj" << endl;
+	//	cout << plan_traj << endl;
 
 	cout << "-------------------------------------------" << endl;
 	cout << "cost exec_mpc_traj " << calcTrajectoryCost(brad, exec_mpc_traj) << "\t" << mpc_trans_err << endl;
@@ -601,14 +608,14 @@ VectorXd SimulateAndReplan(const Json::Value& root, OpenRAVE::EnvironmentBasePtr
 	cout << "cost plan_traj " << calcTrajectoryCost(brad, plan_traj) << endl;
 
 	boost::shared_ptr<CollisionChecker> cc = CollisionChecker::GetOrCreate(*brad->GetRobot()->GetEnv());
-	cout << isTrajectoryInCollision(cc, exec_mpc_gt_traj.leftCols(X_DIM), brad) << endl;
-	cout << isTrajectoryInCollision(cc, exec_open_gt_traj.leftCols(X_DIM), brad) << endl;
-	cout << isTrajectoryInCollision(cc, plan_traj.leftCols(X_DIM), brad) << endl;
+	cout << isTrajectoryInCollision(cc, exec_mpc_gt_traj.leftCols(x_dim), brad) << endl;
+	cout << isTrajectoryInCollision(cc, exec_open_gt_traj.leftCols(x_dim), brad) << endl;
+	cout << isTrajectoryInCollision(cc, plan_traj.leftCols(x_dim), brad) << endl;
 
 	VectorXd stats(8);
 	stats << calcTrajectoryCost(brad, exec_mpc_traj), calcTrajectoryCost(brad, exec_open_traj), calcTrajectoryCost(brad, plan_traj), mpc_trans_err, open_trans_err,
-			isTrajectoryInCollision(cc, exec_mpc_gt_traj.leftCols(X_DIM), brad), isTrajectoryInCollision(cc, exec_open_gt_traj.leftCols(X_DIM), brad),
-			isTrajectoryInCollision(cc, plan_traj.leftCols(X_DIM), brad);
+			isTrajectoryInCollision(cc, exec_mpc_gt_traj.leftCols(x_dim), brad), isTrajectoryInCollision(cc, exec_open_gt_traj.leftCols(x_dim), brad),
+			isTrajectoryInCollision(cc, plan_traj.leftCols(x_dim), brad);
 
 	OSGViewerPtr viewer = OSGViewer::GetOrCreate(brad->GetRobot()->GetEnv());
 	vector<GraphHandlePtr> handles;
@@ -696,7 +703,7 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
 
 	prob->m_rad = pci.rad;
 	int n_dof = prob->m_rad->GetDOF();
-
+	int x_dim = prob->m_rad->GetXDim(), b_dim = prob->m_rad->GetBDim(), u_dim = prob->m_rad->GetUDim();
 
 	DblVec lower, upper;
 	prob->m_rad->GetDOFLimits(lower, upper);
@@ -726,7 +733,7 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
 	prob->createVariables(names, vlower, vupper);
 
 	if (bi.belief_space)
-		prob->m_traj_vars = VarArray(n_steps, B_DIM + U_DIM, prob->vars_.data());
+		prob->m_traj_vars = VarArray(n_steps, b_dim + u_dim, prob->vars_.data());
 	else
 		prob->m_traj_vars = VarArray(n_steps, n_dof, prob->vars_.data());
 
@@ -739,7 +746,7 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
 			LOG_WARN("robot dof values don't match initialization. I don't know what you want me to use for the dof values");
 		}
 		int n_fixed_terms = n_dof;
-		if (bi.belief_space) n_fixed_terms = B_DIM;
+		if (bi.belief_space) n_fixed_terms = b_dim;
 		for (int j=0; j < n_fixed_terms; ++j) {
 			prob->addLinearConstr(exprSub(AffExpr(prob->m_traj_vars(0,j)), pci.init_info.data(0,j)), EQ);
 		}
@@ -762,9 +769,9 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci) {
 
 	if (bi.belief_space) {
 		for (int i=0; i < n_steps-1; i++) {
-			VarVector theta0_vars = prob->m_traj_vars.block(0,0,n_steps,B_DIM).row(i);
-			VarVector theta1_vars = prob->m_traj_vars.block(0,0,n_steps,B_DIM).row(i+1);
-			VarVector u_vars = prob->m_traj_vars.block(0,B_DIM,n_steps,U_DIM).row(i);
+			VarVector theta0_vars = prob->m_traj_vars.block(0,0,n_steps,b_dim).row(i);
+			VarVector theta1_vars = prob->m_traj_vars.block(0,0,n_steps,b_dim).row(i+1);
+			VarVector u_vars = prob->m_traj_vars.block(0,b_dim,n_steps,u_dim).row(i);
 			prob->addConstr(ConstraintPtr(new BeliefDynamicsConstraint(theta0_vars, theta1_vars, u_vars, prob->GetRAD())));
 		}
 	}
@@ -943,7 +950,7 @@ void CollisionCostInfo::fromJson(const Value& v) {
 void CollisionCostInfo::hatch(TrajOptProb& prob) {
 	for (int i=0; i < prob.GetNumSteps(); ++i) {
 		if (belief_space)
-			prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,B_DIM))));
+			prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetBDim()))));
 		else
 			prob.addCost(CostPtr(new CollisionCost(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()))));
 		prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
@@ -1008,7 +1015,7 @@ void CollisionCntInfo::fromJson(const Value& v) {
 void CollisionCntInfo::hatch(TrajOptProb& prob) {
 	for (int i=0; i < prob.GetNumSteps(); ++i) {
 		if (belief_space)
-			prob.addConstr(ConstraintPtr(new CollisionConstraint(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,B_DIM))));
+			prob.addConstr(ConstraintPtr(new CollisionConstraint(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetBDim()))));
 		else
 			prob.addConstr(ConstraintPtr(new CollisionConstraint(dist_pen[i], coeffs[i], prob.GetRAD(), prob.GetVars().rblock(i,0,prob.GetRAD()->GetDOF()))));
 		prob.getConstraints().back()->setName( (boost::format("%s_%i")%name%i).str() );
@@ -1099,7 +1106,7 @@ CostInfoPtr ControlCostInfo::create() {
 }
 void ControlCostInfo::hatch(TrajOptProb& prob) {
 	if (!belief_space) return;
-	prob.addCost(CostPtr(new ControlCost(prob.GetVars().block(0,B_DIM,prob.GetVars().m_nRow-1, prob.GetRAD()->GetDOF()), toVectorXd(coeffs))));
+	prob.addCost(CostPtr(new ControlCost(prob.GetVars().block(0,prob.GetRAD()->GetBDim(),prob.GetVars().m_nRow-1, prob.GetRAD()->GetDOF()), toVectorXd(coeffs))));
 }
 
 void ControlCntInfo::fromJson(const Value& v) {
@@ -1118,8 +1125,9 @@ CntInfoPtr ControlCntInfo::create() {
 }
 void ControlCntInfo::hatch(TrajOptProb& prob) {
 	if (!belief_space) return;
+	int b_dim = prob.GetRAD()->GetBDim(), u_dim = prob.GetRAD()->GetUDim();
 	for (int i=0; i < prob.GetVars().m_nRow-1; i++) {
-		for (int j=B_DIM; j < B_DIM+U_DIM; j++) {
+		for (int j=b_dim; j < b_dim+u_dim; j++) {
 			prob.addLinearConstr(exprSub(AffExpr(prob.GetVars()(i,j)), u_max), INEQ);
 			prob.addLinearConstr(exprMult(exprSub(AffExpr(prob.GetVars()(i,j)), u_min), -1), INEQ);
 		}
@@ -1149,8 +1157,9 @@ CostInfoPtr CovarianceCostInfo::create() {
 void CovarianceCostInfo::hatch(TrajOptProb& prob) {
 	if (!belief_space) return;
 	int n_steps = prob.GetVars().m_nRow;
+	int b_dim = prob.GetRAD()->GetBDim(), u_dim = prob.GetRAD()->GetUDim();
 	for (int i=0; i < n_steps; ++i) {
-		VarVector rtSigma_vars = prob.GetVars().rblock(i,U_DIM,B_DIM-U_DIM);
+		VarVector rtSigma_vars = prob.GetVars().rblock(i,u_dim,b_dim-u_dim);
 		prob.addCost(CostPtr(new CovarianceCost(rtSigma_vars, Q, prob.GetRAD())));
 	}
 }
