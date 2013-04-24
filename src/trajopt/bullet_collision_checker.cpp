@@ -2,6 +2,14 @@
 #include <btBulletCollisionCommon.h>
 #include <BulletCollision/CollisionShapes/btShapeHull.h>
 #include <BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.h>
+
+#include "BulletCollision/CollisionShapes/btConvexHullShape.h"
+#include "BulletCollision/NarrowPhaseCollision/btGjkEpaPenetrationDepthSolver.h"
+#include "BulletCollision/NarrowPhaseCollision/btGjkPairDetector.h"
+#include "BulletCollision/NarrowPhaseCollision/btPointCollector.h"
+#include "BulletCollision/NarrowPhaseCollision/btVoronoiSimplexSolver.h"
+#include "BulletCollision/NarrowPhaseCollision/btConvexPenetrationDepthSolver.h"
+
 #include <openrave-core.h>
 #include "utils/eigen_conversions.hpp"
 #include <boost/foreach.hpp>
@@ -316,6 +324,7 @@ public:
 	virtual void ContinuousCheckTrajectory(const TrajArray& traj, RobotAndDOFPtr rad, vector<Collision>&);
 	virtual void CastVsAll(RobotAndDOF& rad, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions);
 	virtual void MultiCastVsAll(RobotAndDOF& rad, const vector<KinBody::LinkPtr>& links, const vector<DblVec>& multi_joints, vector<Collision>& collisions);
+	virtual void MultiCastVsMultiCast(KinBody::LinkPtr link0, const vector<OR::Transform> tf0, KinBody::LinkPtr link1, const vector<OR::Transform> tf1, vector<Collision>& collisions);
 	////
 	///////
 
@@ -1180,6 +1189,86 @@ void BulletCollisionChecker::MultiCastVsAll(RobotAndDOF& rad, const vector<KinBo
 		CheckShapeMultiCast(cow->getCollisionShape(), multi_tf[i_link], cow, m_world, collisions);
 	}
 	LOG_DEBUG("MultiCastVsAll checked %i links and found %i collisions\n", (int)links.size(), (int)collisions.size());
+}
+
+void GKJDistance(btConvexShape* shape0, const btTransform& tf0, btConvexShape* shape1, const btTransform& tf1, vector<Collision>& collisions) {
+	btGjkEpaPenetrationDepthSolver epa;
+	btVoronoiSimplexSolver sGjkSimplexSolver;
+	btGjkPairDetector	convexConvex(shape0, shape1,&sGjkSimplexSolver,&epa);
+
+	btPointCollector gjkOutput;
+	btGjkPairDetector::ClosestPointInput input;
+	input.m_transformA = tf0;
+	input.m_transformB = tf1;
+
+	convexConvex.getClosestPoints(input, gjkOutput, 0);
+
+	if (gjkOutput.m_hasResult) {
+		collisions.push_back(Collision(NULL, NULL, toOR(gjkOutput.m_pointInWorld), toOR(gjkOutput.m_pointInWorld + gjkOutput.m_normalOnBInWorld*gjkOutput.m_distance),
+				toOR(gjkOutput.m_normalOnBInWorld), gjkOutput.m_distance));
+	}
+}
+void createMultiCastHullShape(btCollisionShape* shape, const vector<btTransform>& tfi,
+			CollisionObjectWrapper* cow, vector<CollisionObjectWrapper*>& objs) {
+	if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
+		vector<btTransform> t0i(tfi.size());
+		// transform all the points with respect to the first transform
+		for (int i=0; i<tfi.size(); i++) t0i[i] = tfi[0].inverseTimes(tfi[i]);
+		MultiCastHullShape* shape = new MultiCastHullShape(convex, t0i);
+		CollisionObjectWrapper* obj = new CollisionObjectWrapper(cow->m_link);
+		obj->setCollisionShape(shape);
+		obj->setWorldTransform(tfi[0]);
+		obj->m_index = cow->m_index;
+		objs.push_back(obj);
+	}
+	else if (btCompoundShape* compound = dynamic_cast<btCompoundShape*>(shape)) {
+		for (int child_ind = 0; child_ind < compound->getNumChildShapes(); ++child_ind) {
+			vector<btTransform> tfi_child(tfi.size());
+			for (int i=0; i<tfi.size(); i++) tfi_child[i] = tfi[i]*compound->getChildTransform(child_ind);
+			createMultiCastHullShape(compound->getChildShape(child_ind), tfi_child, cow, objs);
+		}
+	}
+	else {
+		throw std::runtime_error("I can only create MultiCastHullShape made of convex shapes and compound shapes made of convex shapes");
+	}
+}
+void BulletCollisionChecker::MultiCastVsMultiCast(KinBody::LinkPtr link0, const vector<OR::Transform> tf0, KinBody::LinkPtr link1,
+		const vector<OR::Transform> tf1, vector<Collision>& collisions) {
+	vector<btTransform> bt_tf0(tf0.size()), bt_tf1(tf1.size());
+	for (int i=0; i<tf0.size(); i++) bt_tf0[i] = toBt(tf0[i]);
+	for (int i=0; i<tf1.size(); i++) bt_tf1[i] = toBt(tf1[i]);
+
+	vector<CollisionObjectWrapper*> objs0, objs1;
+
+	assert(m_link2cow[link0.get()] != NULL);
+	CollisionObjectWrapper* cow0 = m_link2cow[link0.get()];
+	createMultiCastHullShape(cow0->getCollisionShape(), bt_tf0, cow0, objs0);
+
+	assert(m_link2cow[link1.get()] != NULL);
+	CollisionObjectWrapper* cow1 = m_link2cow[link1.get()];
+	createMultiCastHullShape(cow1->getCollisionShape(), bt_tf1, cow1, objs1);
+
+	for (int i=0; i<objs0.size(); i++) {
+		for (int j=0; j<objs1.size(); j++) {
+			btConvexShape* shape0 = dynamic_cast<btConvexShape*>(objs0[i]->getCollisionShape());
+			btConvexShape* shape1 = dynamic_cast<btConvexShape*>(objs1[j]->getCollisionShape());
+			assert(!!shape0);
+			assert(!!shape1);
+			GKJDistance(shape0, objs0[i]->getWorldTransform(), shape1, objs1[j]->getWorldTransform(), collisions);
+			for (int i=0; i<collisions.size(); i++) {
+				collisions[i].linkA = link0.get();
+				collisions[i].linkB = link1.get();
+			}
+		}
+	}
+	for (int i=0; i<objs0.size(); i++) {
+		delete objs0[i]->getCollisionShape();
+		delete objs0[i];
+	}
+	for (int i=0; i<objs0.size(); i++) {
+		delete objs1[i]->getCollisionShape();
+		delete objs1[i];
+	}
 }
 
 // almost copied from CheckShapeMultiCast

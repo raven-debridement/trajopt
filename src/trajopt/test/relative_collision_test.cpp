@@ -10,6 +10,8 @@
 #include <vector>
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <Eigen/Dense>
+
 using namespace OpenRAVE;
 using namespace std;
 using namespace trajopt;
@@ -70,6 +72,34 @@ BeliefRobotAndDOFPtr RADFromName(const string& name, RobotBasePtr robot) {
 	return BeliefRobotAndDOFPtr(new BeliefRobotAndDOF(robot, dof_inds, affinedofs, rotationaxis));
 }
 
+void DiscreteCheckSigmaSigma(BeliefRobotAndDOFPtr rad0, const MatrixXd& sigma_pts0, BeliefRobotAndDOFPtr rad1, const MatrixXd& sigma_pts1, vector<Collision>& collisions) {
+	OR::RobotBase::RobotStateSaver saver0 = rad0->Save();
+	OR::RobotBase::RobotStateSaver saver1 = rad1->Save();
+
+	vector<int> inds;
+
+	KinBody::LinkPtr link0, link1;
+	vector<KinBody::LinkPtr> links;
+	rad0->GetAffectedLinks(links, true, inds);
+	assert(links.size() == 1);
+	link0 = links[0];
+	rad1->GetAffectedLinks(links, true, inds);
+	assert(links.size() == 1);
+	link1 = links[0];
+
+	vector<OR::Transform> tf0(sigma_pts0.cols()), tf1(sigma_pts1.cols());
+
+	for (int i=0; i<sigma_pts0.cols(); i++) {
+		rad0->SetDOFValues(toDblVec(sigma_pts0.col(i)));
+		tf0[i] = link0->GetTransform();
+	}
+	for (int i=0; i<sigma_pts1.cols(); i++) {
+		rad1->SetDOFValues(toDblVec(sigma_pts1.col(i)));
+		tf1[i] = link1->GetTransform();
+	}
+	cc->MultiCastVsMultiCast(link0, tf0, link1, tf1, collisions);
+}
+
 float alpha = 1;
 void AdjustTransparency(float da) {
 	alpha += da;
@@ -99,18 +129,17 @@ Eigen::Matrix3d toMatrix3d(OR::RaveVector<float> rq) {
 }
 
 void renderSigmaPts(BeliefRobotAndDOFPtr rad, const MatrixXd& sigma_pts, const osg::Vec4f& colorvec) {
+	OR::RobotBase::RobotStateSaver saver = rad->Save();
+
 	vector<KinBody::LinkPtr> links;
 	vector<int> joint_inds;
 	rad->GetAffectedLinks(links, true, joint_inds);
 
 	// render sigma points
 	for (int j=0; j<sigma_pts.cols(); j++) {
-		cout << sigma_pts.col(j).transpose() << endl;
 		rad->SetDOFValues(toDblVec(sigma_pts.col(j)));
 		handles.push_back(viewer->PlotKinBody(rad->GetRobot()));
-		if (j==0) SetColor(handles.back(), osg::Vec4f(0,0,1,1));
-		else //SetColor(handles.back(), osg::Vec4f(0,0,1,1));
-			SetColor(handles.back(), colorvec);
+		SetColor(handles.back(), colorvec);
 	}
 
 	// render convex hulls of sigma points
@@ -118,7 +147,8 @@ void renderSigmaPts(BeliefRobotAndDOFPtr rad, const MatrixXd& sigma_pts, const o
 	for (int i=0; i<sigma_pts.cols(); i++)
 		dofvals[i] = toDblVec(sigma_pts.col(i));
 	cc->SetContactDistance(100);
-	//	cc->PlotCastHull(*rad, links, dofvals, handles);
+	cc->PlotCastHull(*rad, links, dofvals, handles);
+	SetTransparency(handles.back(), 0.2);
 }
 
 Matrix3d skewSymmetric(const Vector3d& v) {
@@ -127,99 +157,114 @@ Matrix3d skewSymmetric(const Vector3d& v) {
 	return m;
 }
 
+Matrix3d poseToRot(VectorXd x) {
+	Vector3d aa;
+	if (x.rows() == 3) aa = x;
+	else if (x.rows() == 6) aa = x.bottomRows(3);
+	Matrix3d rot;
+	if (aa.norm() > 1e-5)
+		rot = (Matrix3d) AngleAxisd(aa.norm(), aa.normalized());
+	else
+		rot = Matrix3d::Identity();
+	return rot;
+}
+Vector3d toEigenVector(OR::Vector v) {
+	return Vector3d(v[0], v[1], v[2]);
+}
+OR::Vector toORVector(Vector3d v) {
+	return OR::Vector(v[0], v[1], v[2]);
+}
+
+Collision transformedCollision(const Collision& col_rhs, const Vector6d& pose) {
+	Matrix3d rot = poseToRot(pose);
+	Vector3d pos = pose.topRows(3);
+	Collision col = col_rhs;
+	col.ptA = toORVector(rot * toEigenVector(col.ptA) + pos);
+	col.ptB = toORVector(rot * toEigenVector(col.ptB) + pos);
+	col.normalB2A = toORVector(rot * toEigenVector(col.normalB2A));
+	return col;
+}
+
 //VectorXd psi0, VectorXd psi1,
 // psi0 is robot
 // psi1 is obstacle
 Vector6d delta(const Vector6d& psi0, const Vector6d& psi1) {
 	Vector3d pos0 = psi0.topRows(3);
 	Vector3d pos1 = psi1.topRows(3);
-	Matrix3d rot0, rot1;
-	if (psi0.bottomRows(3).norm() > 1e-5)
-		rot0 = (Matrix3d) AngleAxisd(psi0.bottomRows(3).norm(), psi0.bottomRows(3).normalized());
-	else
-		rot0 = Matrix3d::Identity();
-	if (psi1.bottomRows(3).norm() > 1e-5)
-		rot1 = (Matrix3d) AngleAxisd(psi1.bottomRows(3).norm(), psi1.bottomRows(3).normalized());
-	else
-		rot1 = Matrix3d::Identity();
+	Matrix3d rot0 = poseToRot(psi0);
+	Matrix3d rot1 = poseToRot(psi1);
+//	if (psi0.bottomRows(3).norm() > 1e-5)
+//		rot0 = (Matrix3d) AngleAxisd(psi0.bottomRows(3).norm(), psi0.bottomRows(3).normalized());
+//	else
+//		rot0 = Matrix3d::Identity();
+//	if (psi1.bottomRows(3).norm() > 1e-5)
+//		rot1 = (Matrix3d) AngleAxisd(psi1.bottomRows(3).norm(), psi1.bottomRows(3).normalized());
+//	else
+//		rot1 = Matrix3d::Identity();
+
+//	Vector6d rel_old;
+//	rel_old.topRows(3) = rot1 * (pos0 - pos1);
+//	Vector3d rel_rot_old = Vector3d::Zero();
+//	for (int j=0; j<3; j++) {
+//		rel_rot_old += skewSymmetric(rot0.col(j)) * rot1.col(j);
+//	}
+//	rel_old.bottomRows(3) = 0.5 * rel_rot_old;
+
+	Matrix4d tf0 = Matrix4d::Identity();
+	tf0.topLeftCorner(3,3) = rot0;
+	tf0.topRightCorner(3,1) = pos0;
+	Matrix4d tf1 = Matrix4d::Identity();
+	tf1.topLeftCorner(3,3) = rot1;
+	tf1.topRightCorner(3,1) = pos1;
+	Matrix4d rel_tf = tf1.inverse() * tf0;
 
 	Vector6d rel;
-	rel.topRows(3) = rot1 * (pos0 - pos1);
-	Vector3d rel_rot = Vector3d::Zero();
-	for (int j=0; j<3; j++) {
-		rel_rot += skewSymmetric(rot0.col(j)) * rot1.col(j);
-	}
-	rel.bottomRows(3) = 0.5 * rel_rot;
+	Matrix3d rel_rot = rot1.transpose() * rot0;
+//	Matrix3d rel_rot = rel_tf.topLeftCorner(3,3);
+	Vector3d rel_pos = rot1.transpose() * (pos0 - pos1);
+//	Vector3d rel_pos = rel_tf.topRightCorner(3,1);
+	AngleAxisd rel_rot_aa(rel_rot);
+	rel.topRows(3) = rel_pos;
+	rel.bottomRows(3) = rel_rot_aa.axis() * rel_rot_aa.angle();
 
 	return rel;
 }
 
-
-// psi1 robot
-// psi2 obstacle
-Matrix6Xd relativeSigmaPts(const Matrix6Xd& psi1, const Matrix6Xd& psi2) {
-	Vector6d mean = delta(psi1.col(0), psi2.col(0));
-
-	Matrix6Xd sigmapts(6,13);
-	sigmapts.col(0) = mean;
-
-	for(int i = 0; i < 6; ++i) {
-		sigmapts.col(2*i+1) = (mean + (delta(psi1.col(2*i+1), psi1.col(0)) + delta(psi2.col(2*i+1), psi2.col(0))));
-		sigmapts.col(2*i+2) = (mean + (delta(psi1.col(2*i+2), psi1.col(0)) + delta(psi2.col(2*i+2), psi2.col(0))));
-	}
-
-	return sigmapts;
-}
-
-Matrix6Xd jointSigmaPts(const Vector12d& mean, const Matrix12d& rt_Sigma) {
-	int n_dof = 12;
-	//	int n_r = 6;
-	//	int L = n_dof + n_r;
-	int L = 12;
-	double alpha = 0.5;
-	double kappa = 5.0;
-	double lambda = alpha*alpha*(L + kappa) - L;
-	cout << "lambda" << endl;
-	cout << lambda << endl;
-
-	MatrixXd rt_scaled_cov = sqrt(L + lambda) * rt_Sigma;
+Matrix6Xd jointSigmaPts(const Vector12d& mean, const Matrix12d& rt_Sigma, BeliefRobotAndDOFPtr rad) {
+	double lambda = 2;
+	Matrix12d rt_scaled_cov = lambda * rt_Sigma;
 
 	Matrix6d cov = Matrix6d::Zero();
 	Matrix6d var1 = Matrix6d::Zero();
 	Matrix6d var2 = Matrix6d::Zero();
 
-	Matrix6Xd sigmapts(6,25);
-	sigmapts.col(0) = delta(mean.topRows(6), mean.bottomRows(6));
+	double w = (1/(2*lambda*lambda));
+
+	Matrix6Xd sigmapts(6,13);
 	for(int i = 0; i < 12; ++i) {
-		VectorXd sp = mean + rt_scaled_cov.col(i);
-		VectorXd sm = mean - rt_scaled_cov.col(i);
-		sigmapts.col(2*i+1) = (sigmapts.col(0) + (delta(sp.topRows(6), mean.topRows(6)) - delta(sp.bottomRows(6), mean.bottomRows(6))));
-		sigmapts.col(2*i+2) = (sigmapts.col(0) + (delta(sm.topRows(6), mean.topRows(6)) - delta(sm.bottomRows(6), mean.bottomRows(6))));
+		Vector12d sp = mean + rt_scaled_cov.col(i);
+		Vector12d sm = mean - rt_scaled_cov.col(i);
 
-		//		VectorXd spo = mean + rt_scaled_cov.col((i+6)%12);
-		//		VectorXd smo = mean - rt_scaled_cov.col((i+6)%12);
-		//		sigmapts.col(2*i+1) = (sigmapts.col(0) + (delta(sp.topRows(6), mean.topRows(6)) - delta(smo.bottomRows(6), mean.bottomRows(6))));
-		//		sigmapts.col(2*i+2) = (sigmapts.col(0) + (delta(sm.topRows(6), mean.topRows(6)) - delta(spo.bottomRows(6), mean.bottomRows(6))));
+		cov += w * delta(sp.topRows(6), mean.topRows(6)) * delta(sp.bottomRows(6), mean.bottomRows(6)).transpose();
+		cov += w * delta(sm.topRows(6), mean.topRows(6)) * delta(sm.bottomRows(6), mean.bottomRows(6)).transpose();
 
-		cov += delta(sp.topRows(6), mean.topRows(6)) * delta(sp.bottomRows(6), mean.bottomRows(6)).transpose();
-		cov += delta(sm.topRows(6), mean.topRows(6)) * delta(sm.bottomRows(6), mean.bottomRows(6)).transpose();
+		var1 += w * delta(sp.topRows(6), mean.topRows(6)) * delta(sp.topRows(6), mean.topRows(6)).transpose();
+		var1 += w * delta(sm.topRows(6), mean.topRows(6)) * delta(sm.topRows(6), mean.topRows(6)).transpose();
 
-		var1 += delta(sp.topRows(6), mean.topRows(6)) * delta(sp.topRows(6), mean.topRows(6)).transpose();
-		var1 += delta(sm.topRows(6), mean.topRows(6)) * delta(sm.topRows(6), mean.topRows(6)).transpose();
-
-		var2 += delta(sp.bottomRows(6), mean.bottomRows(6)) * delta(sp.bottomRows(6), mean.bottomRows(6)).transpose();
-		var2 += delta(sm.bottomRows(6), mean.bottomRows(6)) * delta(sm.bottomRows(6), mean.bottomRows(6)).transpose();
+		var2 += w * delta(sp.bottomRows(6), mean.bottomRows(6)) * delta(sp.bottomRows(6), mean.bottomRows(6)).transpose();
+		var2 += w * delta(sm.bottomRows(6), mean.bottomRows(6)) * delta(sm.bottomRows(6), mean.bottomRows(6)).transpose();
 	}
-	Matrix6d var_total = Matrix6d::Zero();
-	for (int i=1; i<sigmapts.cols(); i++) {
-		var_total += delta(sigmapts.col(i),sigmapts.col(0)) * delta(sigmapts.col(i),sigmapts.col(0)).transpose();
-	}
-	cout << "var_total" << endl;
-	cout << var_total << endl;
 
-	cov /= 12.0;
-	//	var1 /= 12.0;
-	//	var2 /= 12.0;
+	Vector6d rel_mean = delta(mean.topRows(6), mean.bottomRows(6));
+	Matrix6d rel_var = var1+var2-2*cov;
+
+	cout << "rel_var" << endl;
+	cout << rel_var << endl;
+
+	Eigen::SelfAdjointEigenSolver<MatrixXd> es(rel_var);
+	Matrix6d sqrt_rel_var = es.eigenvectors().real() * es.eigenvalues().real().cwiseSqrt().asDiagonal() * es.eigenvectors().real().transpose();
+	sigmapts = rad->sigmaPoints(rel_mean, sqrt_rel_var);
+
 	cout << "cov" << endl;
 	cout << cov << endl;
 	cout << "var1" << endl;
@@ -229,6 +274,38 @@ Matrix6Xd jointSigmaPts(const Vector12d& mean, const Matrix12d& rt_Sigma) {
 	cout << "sigmapts" << endl;
 	cout << sigmapts << endl;
 	return sigmapts;
+}
+
+Quaterniond quatAdd(const Quaterniond& q0, const Quaterniond& q1) {
+	return Quaterniond(q0.w()+q1.w(), q0.x()+q1.x(), q0.y()+q1.y(), q0.z()+q1.z());
+}
+
+class DualQuat {
+	Quaterniond m_qr;
+	Quaterniond m_qt;
+public:
+	DualQuat(const Quaterniond& qr, const Quaterniond& qt) : m_qr(qr), m_qt(qt) {}
+	DualQuat operator* (const DualQuat& dq) {
+		return DualQuat(m_qr*dq.m_qr, quatAdd(m_qr*dq.m_qt, m_qt*dq.m_qr));
+	}
+	VectorXd asVectorXd() {
+		VectorXd v(8);
+		v << m_qr.w(), m_qr.x(), m_qr.y(), m_qr.z(), m_qt.w(), m_qt.x(), m_qt.y(), m_qt.z();
+		return v;
+	}
+};
+
+DualQuat DOFToDualQuat(const VectorXd& x) {
+	DualQuat dqt(Quaterniond::Identity(), Quaterniond(0, x(0)/2.0, x(1)/2.0, x(2)/2.0));
+	Quaterniond qr = Quaterniond::Identity();
+	if (x.bottomRows(3).norm() > 1e-5)
+		qr = Quaterniond(AngleAxisd(x.bottomRows(3).norm(), x.bottomRows(3).normalized()));
+	DualQuat dqr(qr, Quaterniond(0,0,0,0));
+	cout << "---" << endl;
+	cout << dqt.asVectorXd().transpose() << endl;
+	cout << dqr.asVectorXd().transpose() << endl;
+	cout << "---" << endl;
+	return dqt*dqr;
 }
 
 int main() {
@@ -243,6 +320,11 @@ int main() {
 	RobotBasePtr robot = robots[0];
 	vector<RobotBase::ManipulatorPtr> manips = robot->GetManipulators();
 
+	BeliefRobotAndDOFPtr rad = RADFromName("base3d", robot);
+	const int n_steps = 10;
+
+	BeliefRobotAndDOFPtr obstacle = RADFromName("base3d", robots[1]);
+
 	cc = CollisionChecker::GetOrCreate(*env);
 	viewer.reset(new OSGViewer(env));
 	env->AddViewer(viewer);
@@ -251,80 +333,78 @@ int main() {
 	viewer->AddKeyCallback('=', boost::bind(&AdjustTransparency, .05));
 	viewer->AddKeyCallback('-', boost::bind(&AdjustTransparency, -.05));
 
-	BeliefRobotAndDOFPtr rad = RADFromName("base3d", robot);
-	const int n_steps = 10;
-
-	BeliefRobotAndDOFPtr obstacle = RADFromName("base3d", robots[1]);
-
 	//////////////////////////////////////////////
 
-	VectorXd x(6);
+	VectorXd x = toVectorXd(rad->GetDOFValues());
 	//  x << -0.3,0.4,-0.4,0,M_PI_4,M_PI_4/2.0;
-	x << -0.3,0.4,-0.4,0,0,0;
-	MatrixXd rt_Sigma = Eigen::MatrixXd::Identity(6,6)*0.1;
-	rt_Sigma.topLeftCorner(3,3) = MatrixXd::Identity(3,3)*0.1;
-	//	rt_Sigma.bottomRightCorner(3,3) = MatrixXd::Identity(3,3);
-	//	rt_Sigma.topRightCorner(3,3) = MatrixXd::Identity(3,3)*0.02;
-	//	rt_Sigma.bottomLeftCorner(3,3) = MatrixXd::Identity(3,3)*0.02;
+	//x << -0.3,0.5+0.4,0,0,0,0;
+	rad->SetDOFValues(toDblVec(x));
+	VectorXd rt_Sigma_diag(6);
+	rt_Sigma_diag << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
+	MatrixXd rt_Sigma = rt_Sigma_diag.asDiagonal();
 	VectorXd theta;
 	rad->composeBelief(x, rt_Sigma, theta);
 
 	VectorXd obstacle_x = toVectorXd(obstacle->GetDOFValues());
-	MatrixXd obstacle_rt_Sigma = Eigen::MatrixXd::Identity(6,6)*0.1;
-	obstacle_rt_Sigma.topLeftCorner(3,3) = MatrixXd::Identity(3,3)*0.05;
-	//	obstacle_rt_Sigma.bottomRightCorner(3,3) = MatrixXd::Identity(3,3)*0.05;
-	//	obstacle_rt_Sigma.topRightCorner(3,3) = MatrixXd::Identity(3,3)*0.01;
-	//	obstacle_rt_Sigma.bottomLeftCorner(3,3) = MatrixXd::Identity(3,3)*0.01;
+	//obstacle_x << 0.2,0.5+0.25,0,0,0,0;
+	obstacle->SetDOFValues(toDblVec(obstacle_x));
+	VectorXd obstacle_rt_Sigma_diag(6);
+	obstacle_rt_Sigma_diag << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
+	MatrixXd obstacle_rt_Sigma = obstacle_rt_Sigma_diag.asDiagonal();
 	VectorXd obstacle_theta;
 	obstacle->composeBelief(obstacle_x, obstacle_rt_Sigma, obstacle_theta);
 
-	renderSigmaPts(rad, rad->sigmaPoints(theta), osg::Vec4f(1,0,0,0.5));
-	//	SetTransparency(handles.back(), 1);
-	renderSigmaPts(obstacle, obstacle->sigmaPoints(obstacle_theta),osg::Vec4f(0,1,0,0.5));
-	//	SetTransparency(handles.back(), 1);
-
-	obstacle->SetDOFValues(toDblVec(obstacle_x));
+	renderSigmaPts(rad, rad->sigmaPoints(theta), osg::Vec4f(0,0,1,0.5));
+	renderSigmaPts(obstacle, obstacle->sigmaPoints(obstacle_theta), osg::Vec4f(0,0,1,0.5));
 
 	// plot collisions
-	//	vector<Collision> collisions;
-	//	cc->DiscreteCheckSigma(rad, rad->sigmaPoints(theta), collisions);
-	//	cout << "collision " << collisions.size() << " " << collisions.back().distance << endl;
+	vector<Collision> collisions;
+	DiscreteCheckSigmaSigma(rad, rad->sigmaPoints(theta), obstacle, obstacle->sigmaPoints(obstacle_theta), collisions);
+	cout << "collisions " << collisions.size() << ": ";
+	for (int i=0; i<collisions.size(); i++) cout << collisions[i].distance << " "; cout << endl;
 
-	VectorXd joint_x(12);
+	{
+	Vector12d joint_x;
 	joint_x.topRows(6) = x;
 	joint_x.bottomRows(6) = obstacle_x;
-	MatrixXd joint_rt_sigma = MatrixXd::Identity(12,12);
+	Matrix12d joint_rt_sigma = Matrix12d::Identity();
 	joint_rt_sigma.topLeftCorner(6,6) = rt_Sigma;
 	joint_rt_sigma.bottomRightCorner(6,6) = obstacle_rt_Sigma;
+	//joint_rt_sigma.bottomLeftCorner(6,6) = 0.099*Matrix6d::Identity();
+	//joint_rt_sigma.topRightCorner(6,6) = 0.099*Matrix6d::Identity();
 
-	//	MatrixXd  rel_sigmapts = relativeSigmaPts(rad->sigmaPoints(theta), obstacle->sigmaPoints(obstacle_theta));
-	MatrixXd  rel_sigmapts = jointSigmaPts(joint_x, joint_rt_sigma);
+	Matrix6Xd  rel_sigmapts = jointSigmaPts(joint_x, joint_rt_sigma, rad);
+
 	renderSigmaPts(rad, rel_sigmapts, osg::Vec4f(0,0,1,0.5));
-	SetColor(handles.back(), osg::Vec4f(0,0.6,0.6,0.2));
-	//	SetTransparency(handles.back(), 1);
+	renderSigmaPts(obstacle, Vector6d::Zero(), osg::Vec4f(0,0,1,0.5));
 
-	OR::Transform T_identity;
-	T_identity.identity();
-	KinBodyPtr obstacle_body = env->GetKinBody("obstacle");
-	cout << obstacle_body->GetTransform().trans << endl;
-	obstacle_body->SetTransform(T_identity);
-	cout << obstacle_body->GetTransform().trans << endl;
+	DiscreteCheckSigmaSigma(rad, rel_sigmapts, obstacle, Vector6d::Zero(), collisions);
+	collisions.push_back(transformedCollision(collisions.back(), obstacle_x));
+	cout << "collisions " << collisions.size() << ": ";
+	for (int i=0; i<collisions.size(); i++) cout << collisions[i].distance << " "; cout << endl;
+	}
 
-	// plot collisions
-	//	cc->DiscreteCheckSigma(rad, rel_sigmapts, collisions);
-	//	cout << "collision " << collisions.size() << " " << collisions.back().distance << endl;
-	////	cc->DiscreteCheckTrajectory(theta.transpose(), rad, collisions);
-	//	PlotCollisions(collisions, *env, handles, 0);
+	{
+	Vector12d joint_x;
+	joint_x.topRows(6) = obstacle_x;
+	joint_x.bottomRows(6) = x;
+	Matrix12d joint_rt_sigma = Matrix12d::Identity();
+	joint_rt_sigma.topLeftCorner(6,6) = obstacle_rt_Sigma;
+	joint_rt_sigma.bottomRightCorner(6,6) = rt_Sigma;
 
-	//	handles.push_back(viewer->PlotSphere(OR::Vector(x[0],x[1],x[2]), 0.1, OR::RaveVector<float>(1,0,0,0.8)));
+	Matrix6Xd  rel_sigmapts = jointSigmaPts(joint_x, joint_rt_sigma, obstacle);
 
-	//	OR::Transform T = robot->GetTransform();
-	//	T.rot = toQuat(AngleAxisd(M_PI_4, Vector3d(1,0,0)));
-	//	cout << toMatrix3d(toQuat(AngleAxisd(M_PI_4, Vector3d(1,0,0)))) << endl << endl;
-	//	cout << (Matrix3d) AngleAxisd(M_PI_4, Vector3d(1,0,0)) << endl << endl;
-	//	robot->SetTransform(T);
-	rad->SetDOFValues(toDblVec(VectorXd::Ones(6)*1000));
-	obstacle->SetDOFValues(toDblVec(VectorXd::Ones(6)*1000));
+	renderSigmaPts(rad, Vector6d::Zero(), osg::Vec4f(0,0,1,0.5));
+	renderSigmaPts(obstacle, rel_sigmapts, osg::Vec4f(0,0,1,0.5));
+
+	DiscreteCheckSigmaSigma(obstacle, rel_sigmapts, rad, Vector6d::Zero(), collisions);
+	collisions.push_back(transformedCollision(collisions.back(), x));
+	cout << "collisions " << collisions.size() << ": ";
+	for (int i=0; i<collisions.size(); i++) cout << collisions[i].distance << " "; cout << endl;
+	}
+
+	PlotCollisions(collisions, *env, handles, 0);
+
 	viewer->Idle();
 
 	env.reset();
