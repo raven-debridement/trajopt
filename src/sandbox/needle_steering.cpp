@@ -101,6 +101,7 @@ int main(int argc, char** argv)
 
   env->Load(string(DATA_DIR) + "/needleprob.env.xml");
   RobotBasePtr robot = GetRobot(*env);
+  RobotAndDOFPtr rad(new RobotAndDOF(robot, vector<int>(), 11, OR::Vector(0,0,1)));
 
   int n_steps = 19;
   int n_dof = 6;
@@ -134,6 +135,7 @@ int main(int argc, char** argv)
     VarVector vars = concat(vars0, vars1);  
     vars.push_back(dthetavar);
     prob->addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("needle%i")%i).str())));
+    prob->addCost(CostPtr(new CollisionCost(0.025, 20, helper.m_rbs[i], vars0)));//, vars1)));
   }
 
 
