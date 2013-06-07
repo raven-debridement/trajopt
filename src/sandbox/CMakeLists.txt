@@ -15,8 +15,8 @@ include_directories(
 
 # add_executable(polygon_expt polygon_expt.cpp)
 
-add_executable(quaternion_optimization quaternion_optimization.cpp)
-target_link_libraries(quaternion_optimization trajopt)
+#add_executable(quaternion_optimization quaternion_optimization.cpp o3.cpp)
+#target_link_libraries(quaternion_optimization trajopt)
 
 # add_executable(rigid_body_simulation rigid_body_simulation.cpp)
 # target_link_libraries(rigid_body_simulation trajopt)
@@ -32,3 +32,6 @@ target_link_libraries(dubins_car trajopt)
 
 add_executable(prostate prostate.cpp)
 target_link_libraries(prostate trajopt)
+
+add_executable(needle_steering needle_steering.cpp o3.cpp)
+target_link_libraries(needle_steering trajopt)
