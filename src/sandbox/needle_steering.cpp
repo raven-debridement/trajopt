@@ -100,10 +100,11 @@ int main(int argc, char** argv)
   assert(viewer);
 
   env->Load(string(DATA_DIR) + "/prostate.env.xml");//needleprob.env.xml");
+  viewer->SetAllTransparency(0.1);
   RobotBasePtr robot = GetRobot(*env);
   RobotAndDOFPtr rad(new RobotAndDOF(robot, vector<int>(), 11, OR::Vector(0,0,1)));
 
-  int n_steps = 19;
+  int n_steps = 30;
   int n_dof = 6;
 
 
@@ -117,7 +118,7 @@ int main(int argc, char** argv)
   helper.ConfigureProblem(*prob);
   
   double radius = 1; // turning radius for needle
-  VectorXd start(n_dof); start << -6.817, 1.032, 0.00000, 0, 0, 0;
+  VectorXd start(n_dof); start << -12.82092, 6.80976, 0.06844, 0, 0, 0;
   VectorXd goal(n_dof); goal <<  -3.21932, 6.87362, -1.21877, 0, 0, 0;
 
   VectorXd vel_coeffs = VectorXd::Ones(3);
@@ -130,14 +131,19 @@ int main(int argc, char** argv)
 
   Str2Dbl tag2dist_pen(0.025), tag2coeff(20);
 
+  tag2coeff.insert( std::pair<string, double>("KinBodyProstate", 0.0) );
+  tag2coeff.insert( std::pair<string, double>("KinBodyDermis", 0.0) );
+  tag2coeff.insert( std::pair<string, double>("KinBodyEpidermis", 0.0) );
+  tag2coeff.insert( std::pair<string, double>("KinBodyHypodermis", 0.0) );
+
   for (int i=0; i < n_steps-1; ++i) {
     VarVector vars0 = trajvars.row(i), vars1 = trajvars.row(i+1);
     VectorOfVectorPtr f(new NeedleError(helper.m_rbs[i], helper.m_rbs[i+1], radius));
     VectorXd coeffs = VectorXd::Ones(6);
     VarVector vars = concat(vars0, vars1);  
     vars.push_back(dthetavar);
-    prob->addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("needle%i")%i).str())));
-    prob->addCost(CostPtr(new CollisionTaggedCost(tag2dist_pen, tag2coeff, helper.m_rbs[i], vars0)));//, vars1)));
+    //prob->addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("needle%i")%i).str())));
+    prob->addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, helper.m_rbs[i], vars0)));//, vars1)));
   }
 
 
