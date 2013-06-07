@@ -130,10 +130,6 @@ Cnt GurobiModel::addIneqCnt(const AffExpr& expr, const string& name) {
   vector<int> inds = vars2inds(expr.vars);
   vector<double> vals = expr.coeffs;
   simplify2(inds, vals);
-  for (int i = 0; i < vals.size(); ++i) {
-    cout << vals[i] << " ";
-  }
-  cout << endl;
   ENSURE_SUCCESS(GRBaddconstr(m_model, inds.size(),
       inds.data(), vals.data(), GRB_LESS_EQUAL, -expr.constant, const_cast<char*>(name.c_str())));
   m_cnts.push_back(new CntRep(m_cnts.size(), this));

@@ -99,7 +99,7 @@ int main(int argc, char** argv)
   OSGViewerPtr viewer = OSGViewer::GetOrCreate(env);
   assert(viewer);
 
-  env->Load(string(DATA_DIR) + "/needleprob.env.xml");
+  env->Load(string(DATA_DIR) + "/prostate.env.xml");//needleprob.env.xml");
   RobotBasePtr robot = GetRobot(*env);
   RobotAndDOFPtr rad(new RobotAndDOF(robot, vector<int>(), 11, OR::Vector(0,0,1)));
 
@@ -117,8 +117,8 @@ int main(int argc, char** argv)
   helper.ConfigureProblem(*prob);
   
   double radius = 1; // turning radius for needle
-  VectorXd start(n_dof); start << 0,0,0,0,0,0;
-  VectorXd goal(n_dof); goal <<  4,.25,0, 0,0,0;
+  VectorXd start(n_dof); start << -6.817, 1.032, 0.00000, 0, 0, 0;
+  VectorXd goal(n_dof); goal <<  -3.21932, 6.87362, -1.21877, 0, 0, 0;
 
   VectorXd vel_coeffs = VectorXd::Ones(3);
   prob->addCost(CostPtr(new JointVelCost(trajvars.block(0,0,n_steps, 3), vel_coeffs)));
@@ -128,6 +128,8 @@ int main(int argc, char** argv)
   double dtheta_lb = (goal.topRows(3) - start.topRows(3)).norm() / (n_steps-1)/radius;
   Var dthetavar = prob->createVariables(singleton<string>("speed"), singleton<double>(dtheta_lb),singleton<double>(INFINITY))[0];
 
+  Str2Dbl tag2dist_pen(0.025), tag2coeff(20);
+
   for (int i=0; i < n_steps-1; ++i) {
     VarVector vars0 = trajvars.row(i), vars1 = trajvars.row(i+1);
     VectorOfVectorPtr f(new NeedleError(helper.m_rbs[i], helper.m_rbs[i+1], radius));
@@ -135,7 +137,7 @@ int main(int argc, char** argv)
     VarVector vars = concat(vars0, vars1);  
     vars.push_back(dthetavar);
     prob->addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("needle%i")%i).str())));
-    prob->addCost(CostPtr(new CollisionCost(0.025, 20, helper.m_rbs[i], vars0)));//, vars1)));
+    prob->addCost(CostPtr(new CollisionTaggedCost(tag2dist_pen, tag2coeff, helper.m_rbs[i], vars0)));//, vars1)));
   }
 
 
