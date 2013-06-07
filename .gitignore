@@ -28,6 +28,7 @@ bigdata/*
 !bigdata/*.py
 sphinx_build
 dox_build
+<<<<<<< HEAD
 .hg
 ext/rbdl/addons
 ext/rbdl/src/Eigen
@@ -36,3 +37,8 @@ ext/rbdl/doc
 *.vcproj
 *.sln
 callgrind.*
+=======
+.*.swo
+.*.swm
+.*.swp
+>>>>>>> c602a40f1f5264479d3173b00a84ec958d7c383b

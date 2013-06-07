@@ -356,6 +356,7 @@ int main(int argc, char** argv)
       VarVector vars = concat(vars0, vars1);  vars.push_back(lvar);
       assert(vars.size() == 13);
       prob->addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("neelde%i")%i).str())));
+      prob->addCost(CostPtr(new CollisionCost(0.025, 20, prob->GetRAD(), prob->GetVarRow(i))));//;, prob->GetVarRow(i+1))));
     }
 
 //    for (int i=0; i < n_steps; ++i) {

@@ -1,5 +1,6 @@
 #include "trajopt/common.hpp"
 #include "json_marshal.hpp"
+#include "utils/default_map.hpp"
 #include <boost/function.hpp>
 
 namespace sco{struct OptResults;}
@@ -10,6 +11,7 @@ using namespace json_marshal;
 using namespace Json;
 typedef Json::Value TrajOptRequest;
 typedef Json::Value TrajOptResponse;
+typedef DefaultMap<string, double> Str2Dbl;
 using std::string;
 
 struct TermInfo;
@@ -241,6 +243,8 @@ struct CollisionCostInfo : public TermInfo, public MakesCost {
   /// safety margin: contacts with distance < dist_pen are penalized
   DblVec dist_pen;
   bool continuous;
+  std::vector<Str2Dbl> tag2coeffs;
+  std::vector<Str2Dbl> tag2dist_pen;
   void fromJson(const Value& v);
   void hatch(TrajOptProb& prob);
   DEFINE_CREATE(CollisionCostInfo)
@@ -260,7 +264,5 @@ struct JointConstraintInfo : public TermInfo, public MakesConstraint {
   void hatch(TrajOptProb& prob);
   DEFINE_CREATE(JointConstraintInfo)
 };
-
-
 
 }
