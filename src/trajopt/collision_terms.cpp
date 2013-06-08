@@ -290,10 +290,11 @@ ConvexObjectivePtr CollisionTaggedCost::convex(const vector<double>& x, Model* m
   m_calc->CalcDistExpressions(x, exprs, weights, bodyNames);
   for (int i=0; i < exprs.size(); ++i) {
     double dist_pen = min(m_tag2dist_pen[bodyNames[i].first], m_tag2dist_pen[bodyNames[i].second]);
-    double coeff = (m_tag2coeff[bodyNames[i].first] + m_tag2coeff[bodyNames[i].second]) * 0.5;
-    std::cout << "coefficients: " << dist_pen << " " << coeff << " " << weights[i] << std::endl;
-    AffExpr viol = exprSub(AffExpr(dist_pen), exprs[i]);
-    out->addHinge(viol, coeff*weights[i]);
+    double coeff = min(m_tag2coeff[bodyNames[i].first], m_tag2coeff[bodyNames[i].second]);
+    if (fabs(coeff) > 1e-8) {
+      AffExpr viol = exprSub(AffExpr(dist_pen), exprs[i]);
+      out->addHinge(viol, coeff*weights[i]);
+    }
   }
   return out;
 }
@@ -305,8 +306,7 @@ double CollisionTaggedCost::value(const vector<double>& x) {
   double out = 0;
   for (int i=0; i < dists.size(); ++i) {
     double dist_pen = min(m_tag2dist_pen[bodyNames[i].first], m_tag2dist_pen[bodyNames[i].second]);
-    double coeff = (m_tag2coeff[bodyNames[i].first] + m_tag2coeff[bodyNames[i].second]) * 0.5;
-    std::cout << "coefficients: " << dist_pen << " " << coeff << " " << weights[i] << std::endl;
+    double coeff = min(m_tag2coeff[bodyNames[i].first], m_tag2coeff[bodyNames[i].second]);
     out += pospart(dist_pen - dists[i]) * coeff * weights[i];
   }
   return out;
@@ -348,7 +348,7 @@ ConvexConstraintsPtr CollisionTaggedConstraint::convex(const vector<double>& x, 
   m_calc->CalcDistExpressions(x, exprs, weights, bodyNames);
   for (int i=0; i < exprs.size(); ++i) {
     double dist_pen = min(m_tag2dist_pen[bodyNames[i].first], m_tag2dist_pen[bodyNames[i].second]);
-    double coeff = (m_tag2coeff[bodyNames[i].first] + m_tag2coeff[bodyNames[i].second]) * 0.5;
+    double coeff = min(m_tag2coeff[bodyNames[i].first], m_tag2coeff[bodyNames[i].second]);
     AffExpr viol = exprSub(AffExpr(dist_pen), exprs[i]);
     out->addIneqCnt(exprMult(viol, coeff*weights[i]));
   }
@@ -362,7 +362,7 @@ DblVec CollisionTaggedConstraint::value(const vector<double>& x) {
   DblVec out(dists.size());
   for (int i=0; i < dists.size(); ++i) {
     double dist_pen = min(m_tag2dist_pen[bodyNames[i].first], m_tag2dist_pen[bodyNames[i].second]);
-    double coeff = (m_tag2coeff[bodyNames[i].first] + m_tag2coeff[bodyNames[i].second]);
+    double coeff = min(m_tag2coeff[bodyNames[i].first], m_tag2coeff[bodyNames[i].second]);
     out[i] = pospart(dist_pen - dists[i]) * coeff * weights[i];
   }
   return out;

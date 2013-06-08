@@ -47,7 +47,7 @@ osg::Drawable* toOsgDrawable(const KinBody::Link::TRIMESH& mesh) {
     (*vec)[i].set( v.x, v.y, v.z );
   }
 
-  osg::DrawElementsUInt* deui = new osg::DrawElementsUInt( GL_TRIANGLES );
+  osg::DrawElementsUInt* deui = new osg::DrawElementsUInt( GL_LINE_STRIP );
   for(int i = 0; i < mesh.indices.size(); ++i)
     deui->push_back( mesh.indices[ i ] );
 

@@ -84,11 +84,32 @@ void TrajPlotter::OptimizerCallback(OptProb*, DblVec& x) {
 int main(int argc, char** argv)
 {
   bool plotting=false, verbose=false;
+  double env_transparency = 0.5;
+  int n_steps = 25;
+  double turning_radius = 2; // turning radius for needle
+  int n_dof = 6;
+  double improve_ratio_threshold = 0.25;
+  double trust_shrink_ratio = 0.7;
+  double trust_expand_ratio = 1.2;
+  
+  double start_vec_array[] = {-12.82092, 6.80976, 0.06844, 0, 0, 0};
+  double goal_vec_array[] = {-3.21932, 6.87362, -1.21877, 0, 0, 0};
+
+  vector<double> start_vec(start_vec_array, start_vec_array + n_dof);
+  vector<double> goal_vec(goal_vec_array, goal_vec_array + n_dof);
 
   {
     Config config;
     config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
     config.add(new Parameter<bool>("verbose", &verbose, "verbose"));
+    config.add(new Parameter<double>("env_transparency", &env_transparency, "env_transparency"));
+    config.add(new Parameter<int>("n_steps", &n_steps, "n_steps"));
+    config.add(new Parameter<double>("turning_radius", &turning_radius, "turning_radius"));
+    config.add(new Parameter<double>("improve_ratio_threshold", &improve_ratio_threshold, "improve_ratio_threshold"));
+    config.add(new Parameter<double>("trust_shrink_ratio", &trust_shrink_ratio, "trust_shrink_ratio"));
+    config.add(new Parameter<double>("trust_expand_ratio", &trust_expand_ratio, "trust_expand_ratio"));
+    config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
+    config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
     CommandParser parser(config);
     parser.read(argc, argv);
   }
@@ -100,13 +121,9 @@ int main(int argc, char** argv)
   assert(viewer);
 
   env->Load(string(DATA_DIR) + "/prostate.env.xml");//needleprob.env.xml");
-  viewer->SetAllTransparency(0.1);
+  viewer->SetAllTransparency(env_transparency);
   RobotBasePtr robot = GetRobot(*env);
   RobotAndDOFPtr rad(new RobotAndDOF(robot, vector<int>(), 11, OR::Vector(0,0,1)));
-
-  int n_steps = 30;
-  int n_dof = 6;
-
 
 
   OptProbPtr prob(new OptProb());
@@ -117,16 +134,15 @@ int main(int argc, char** argv)
   O3Helper helper(robot, trajvars.block(0,3,n_steps,3));
   helper.ConfigureProblem(*prob);
   
-  double radius = 1; // turning radius for needle
-  VectorXd start(n_dof); start << -12.82092, 6.80976, 0.06844, 0, 0, 0;
-  VectorXd goal(n_dof); goal <<  -3.21932, 6.87362, -1.21877, 0, 0, 0;
+  VectorXd start(n_dof); for (int i = 0; i < n_dof; ++i) start[i] = start_vec[i];
+  VectorXd goal(n_dof); for (int i = 0; i < n_dof; ++i) goal[i] = goal_vec[i];
 
   VectorXd vel_coeffs = VectorXd::Ones(3);
   prob->addCost(CostPtr(new JointVelCost(trajvars.block(0,0,n_steps, 3), vel_coeffs)));
 
   helper.AddAngVelCosts(*prob, vel_coeffs[0]);
 
-  double dtheta_lb = (goal.topRows(3) - start.topRows(3)).norm() / (n_steps-1)/radius;
+  double dtheta_lb = (goal.topRows(3) - start.topRows(3)).norm() / (n_steps-1)/turning_radius;
   Var dthetavar = prob->createVariables(singleton<string>("speed"), singleton<double>(dtheta_lb),singleton<double>(INFINITY))[0];
 
   Str2Dbl tag2dist_pen(0.025), tag2coeff(20);
@@ -138,11 +154,11 @@ int main(int argc, char** argv)
 
   for (int i=0; i < n_steps-1; ++i) {
     VarVector vars0 = trajvars.row(i), vars1 = trajvars.row(i+1);
-    VectorOfVectorPtr f(new NeedleError(helper.m_rbs[i], helper.m_rbs[i+1], radius));
+    VectorOfVectorPtr f(new NeedleError(helper.m_rbs[i], helper.m_rbs[i+1], turning_radius));
     VectorXd coeffs = VectorXd::Ones(6);
     VarVector vars = concat(vars0, vars1);  
     vars.push_back(dthetavar);
-    //prob->addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("needle%i")%i).str())));
+    prob->addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("needle%i")%i).str())));
     prob->addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, helper.m_rbs[i], vars0)));//, vars1)));
   }
 
@@ -158,6 +174,9 @@ int main(int argc, char** argv)
   BasicTrustRegionSQP opt(prob);
   helper.ConfigureOptimizer(opt);
   opt.max_iter_ = 500;    
+  opt.improve_ratio_threshold_ = improve_ratio_threshold;
+  opt.trust_shrink_ratio_ = trust_shrink_ratio;
+  opt.trust_expand_ratio_ = trust_expand_ratio;
 
   boost::shared_ptr<TrajPlotter> plotter;
   if (plotting) {
