@@ -91,12 +91,6 @@ namespace Needle {
     AddVarArray(prob, rows, colss, -INFINITY, INFINITY, prefixes, arrs);
   }
 
-  struct LocalConfiguration : public Configuration {
-
-  };
-
-  typedef boost::shared_ptr<LocalConfiguration> LocalConfigurationPtr;
-
   class SpeedCost : public Cost {
   public:
     SpeedCost(const Var& var, double coeff) : Cost("Speed"), var_(var), coeff_(coeff) :
@@ -136,6 +130,64 @@ namespace Needle {
     VarVector vars_;
     double coeff_;
   };
+
+  struct LocalConfiguration : public Configuration {
+    KinBodyPtr body_;
+    Matrix4d pose_;
+
+    LocalConfiguration(KinBodyPtr body, const Matrix4d& pose) :
+      body_(body), pose_(pose) {}
+
+  };
+
+  typedef boost::shared_ptr<LocalConfiguration> LocalConfigurationPtr;
+
+  Matrix3d rotMat(const Vector3d& x) {
+    Matrix3d out;
+    out << 0, -x(2), x(1),
+           x(2), 0, -x(0),
+           -x(1), x(0), 0;
+    return out;
+  }
+
+  Matrix3d expRot(const Vector3d& x) {
+    double rr = x.squaredNorm();
+    if (fabs(rr) < 1e-10) {
+      return Matrix3d::Identity();
+    } else {
+      double r = sqrt(rr);
+      return rotMat(x * (sin(r) / r)) + Matrix3d::Identity() * cos(r) + (x*x.transpose()) * ((1 - cos(r)) / rr);
+    }
+  }
+
+  Vector3d logRot(const Matrix3d& X) {
+    Vector3d x;
+    x << X(2, 1) - X(1, 2),
+         X(0, 2) - X(2, 0),
+         X(1, 0) - X(0, 1);
+    double r = x.norm();
+    double t = X(0, 0) + X(1, 1) + X(2, 2) - 1;
+
+    if (r == 0) {
+      return Vector3d::Zero();
+    } else {
+      return x * (atan2(r, t) / r);
+    }
+  }
+
+  Matrix4d expUp(const VectorXd& x) {
+    assert(x.size() == 6);
+    Matrix4d X = Matrix4d::Identity();
+    X.block<3, 3>(0, 0) = expRot(x.tail<3>());
+    X.block<3, 1>(0, 3) = x.head<3>();
+    return X;
+  }
+
+  VectorXd logDown(const Matrix4d& X) {
+    VectorXd x(6);
+    x.head<3>() = X.block<3, 1>(0, 3);
+    x.tail<3>() = logRot(X.block<3, 3>(0, 0));
+  }
 
   struct EntryError : public VectorOfVector {
 
