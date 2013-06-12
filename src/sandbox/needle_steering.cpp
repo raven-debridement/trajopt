@@ -1,6 +1,7 @@
 #include "o3.hpp"
 #include "sco/expr_ops.hpp"
 #include "sco/modeling_utils.hpp"
+#include "sco/modeling.hpp"
 #include "osgviewer/osgviewer.hpp"
 #include "trajopt/collision_checker.hpp"
 #include "trajopt/collision_terms.hpp"
@@ -75,7 +76,7 @@ namespace Needle {
   void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<string>& name_prefix, const vector<VarArray*>& newvars) {
     vector<double> lbs(newvars.size(), -INFINITY);
     vector<double> ubs(newvars.size(), INFINITY);
-    AddVrArrays(prob, rows, cols, lbs, ubs, name_prefix, new_vars);
+    AddVarArrays(prob, rows, cols, lbs, ubs, name_prefix, newvars);
   }
 
   void AddVarArray(OptProb& prob, int rows, int cols, double lb, double ub, const string& name_prefix, VarArray& newvars) {
@@ -88,59 +89,8 @@ namespace Needle {
   }
 
   void AddVarArray(OptProb& prob, int rows, int cols, const string& name_prefix, VarArray& newvars) {
-    AddVarArray(prob, rows, colss, -INFINITY, INFINITY, prefixes, arrs);
+    AddVarArray(prob, rows, cols, -INFINITY, INFINITY, name_prefix, newvars);
   }
-
-  class SpeedCost : public Cost {
-  public:
-    SpeedCost(const Var& var, double coeff) : Cost("Speed"), var_(var), coeff_(coeff) :
-      exprInc(expr_, exprMult(var, coeff));
-    }
-    virtual double value(const vector<double>& xvec) {
-      double speed = getVec(xvec, singleton<Var>(var_))[0];
-      return speed * coeff;
-    }
-    virtual ConvexObjectivePtr convex(const vector<double>& xvec, Model* model) {
-      ConvexObjectivePtr out(new ConvexObjective(model));
-      out->addAffExpr(expr_);
-      return out;
-    }
-  private:
-    Var var_;
-    double coeff_;
-  };
-
-  class RotationCost : public Cost {
-  public:
-    RotationCost(const VarVector& vars, double coeff) : Cost("Rotation"), vars_(vars), coeff_(coeff) :
-      for (int i = 0; i < vars.size(); ++i) {
-        exprInc(expr_, exprMult(exprSquare(vars[i]), coeff));
-      }
-    }
-    virtual double value(const vector<double>& xvec) {
-      VectorXd vals = getVec(xvec, vars_);
-      return vals.array().square().sum() * coeff_;
-    }
-    virtual ConvexObjectivePtr convex(const vector<double>& xvec, Model* model) {
-      ConvexObjectivePtr out(new ConvexObjective(model));
-      out->addQuadExpr(expr_);
-      return out;
-    }
-  private:
-    VarVector vars_;
-    double coeff_;
-  };
-
-  struct LocalConfiguration : public Configuration {
-    KinBodyPtr body_;
-    Matrix4d pose_;
-
-    LocalConfiguration(KinBodyPtr body, const Matrix4d& pose) :
-      body_(body), pose_(pose) {}
-
-  };
-
-  typedef boost::shared_ptr<LocalConfiguration> LocalConfigurationPtr;
 
   Matrix3d rotMat(const Vector3d& x) {
     Matrix3d out;
@@ -187,14 +137,179 @@ namespace Needle {
     VectorXd x(6);
     x.head<3>() = X.block<3, 1>(0, 3);
     x.tail<3>() = logRot(X.block<3, 3>(0, 0));
+    return x;
   }
 
-  struct EntryError : public VectorOfVector {
+  OpenRAVE::Transform matrixToTransform(const Matrix4d& X) {
+    OpenRAVE::TransformMatrix M;
+    M.trans.x = X(0, 3);
+    M.trans.y = X(1, 3);
+    M.trans.z = X(2, 3);
+    for (int row = 0; row < 3; ++row) {
+      for (int col = 0; col < 3; ++col) {
+        M.m[row*4+col] = X(row, col);
+      }
+    }
+    return OpenRAVE::Transform(M);
+  }
 
+  OpenRAVE::Transform vecToTransform(const VectorXd& x) {
+    OpenRAVE::Transform T;
+    OpenRAVE::Vector trans(x[0], x[1], x[2]);
+    OpenRAVE::Vector rot(x[3], x[4], x[5]);
+    T.trans = trans;
+    T.rot = OpenRAVE::geometry::quatFromAxisAngle(rot);
+    return T;
+  }
+
+  class SpeedCost : public Cost {
+  public:
+    SpeedCost(const Var& var, double coeff) : Cost("Speed"), var_(var), coeff_(coeff) {
+      exprInc(expr_, exprMult(var, coeff));
+    }
+    virtual double value(const vector<double>& xvec) {
+      double speed = getVec(xvec, singleton<Var>(var_))[0];
+      return speed * coeff_;
+    }
+    virtual ConvexObjectivePtr convex(const vector<double>& xvec, Model* model) {
+      ConvexObjectivePtr out(new ConvexObjective(model));
+      out->addAffExpr(expr_);
+      return out;
+    }
+  private:
+    Var var_;
+    double coeff_;
+    AffExpr expr_;
   };
 
-  struct GoalError : public VectorOfVector {
+  class RotationCost : public Cost {
+  public:
+    RotationCost(const VarVector& vars, double coeff) : Cost("Rotation"), vars_(vars), coeff_(coeff) {
+      for (int i = 0; i < vars.size(); ++i) {
+        exprInc(expr_, exprMult(exprSquare(vars[i]), coeff));
+      }
+    }
+    virtual double value(const vector<double>& xvec) {
+      VectorXd vals = getVec(xvec, vars_);
+      return vals.array().square().sum() * coeff_;
+    }
+    virtual ConvexObjectivePtr convex(const vector<double>& xvec, Model* model) {
+      ConvexObjectivePtr out(new ConvexObjective(model));
+      out->addQuadExpr(expr_);
+      return out;
+    }
+  private:
+    VarVector vars_;
+    double coeff_;
+    QuadExpr expr_;
+  };
 
+  struct LocalConfiguration : public Configuration {
+    KinBodyPtr body_;
+    Matrix4d pose_;
+
+    LocalConfiguration(KinBodyPtr body, const Matrix4d& pose) :
+      body_(body), pose_(pose) {}
+      
+    LocalConfiguration(KinBodyPtr body) :
+      body_(body) {}
+
+    virtual void SetDOFValues(const DblVec& dofs) {
+      VectorXd x(dofs.size());
+      for (int i = 0; i < dofs.size(); ++i) {
+        x[i] = dofs[i];
+      }
+      OpenRAVE::Transform T = matrixToTransform(pose_ * expUp(x));
+      body_->SetTransform(T);
+    }
+
+    virtual void GetDOFLimits(DblVec& lower, DblVec& upper) const {
+      lower = DblVec(6, -INFINITY);
+      upper = DblVec(6, INFINITY);
+    }
+
+    virtual DblVec GetDOFValues() {
+      DblVec out(6);
+      OpenRAVE::Transform T = body_->GetTransform();
+      out[0] = T.trans.x;
+      out[1] = T.trans.y;
+      out[2] = T.trans.z;
+      OpenRAVE::Vector rot = OpenRAVE::geometry::axisAngleFromQuat(T.rot);
+      out[3] = rot.x;
+      out[4] = rot.y;
+      out[5] = rot.z;
+      return out;
+    }
+
+    virtual int GetDOF() const {
+      return 6;
+    }
+    virtual OpenRAVE::EnvironmentBasePtr GetEnv() {
+      return body_->GetEnv();
+    }
+
+    virtual DblMatrix PositionJacobian(int link_ind, const OpenRAVE::Vector& pt) const {
+      PRINT_AND_THROW("not implemented");
+    }
+    virtual DblMatrix RotationJacobian(int link_ind) const {
+      PRINT_AND_THROW("not implemented");
+    }
+    virtual bool DoesAffect(const KinBody::Link& link) {
+      const vector<KinBody::LinkPtr>& links = body_->GetLinks();
+      for (int i=0; i < links.size(); ++i) {
+        if (links[i].get() == &link) return true;
+      }
+      return false;
+    }
+
+    virtual std::vector<KinBody::LinkPtr> GetAffectedLinks() {
+      return body_->GetLinks();
+    }
+
+    virtual void GetAffectedLinks(std::vector<KinBody::LinkPtr>& links,
+        bool only_with_geom, vector<int>& link_inds) {
+      links = GetAffectedLinks();
+      link_inds.resize(links.size());
+      for (int i = 0; i < links.size(); ++i)
+        link_inds.push_back(links[i]->GetIndex());
+    }
+
+    virtual DblVec RandomDOFValues() {
+      return toDblVec(VectorXd::Random(6));
+    }
+    virtual vector<OpenRAVE::KinBodyPtr> GetBodies() {
+      return singleton(body_);
+    }
+  };
+
+  typedef boost::shared_ptr<LocalConfiguration> LocalConfigurationPtr;
+
+  struct PositionError : public VectorOfVector {
+    LocalConfigurationPtr cfg;
+    KinBodyPtr body;
+    VectorXd target_pos;
+    PositionError(LocalConfigurationPtr cfg, const VectorXd& target_pos) : cfg(cfg), target_pos(target_pos), body(cfg->GetBodies()[0]) {}
+    VectorXd operator()(const VectorXd& a) const {
+      return logDown(cfg->pose_ * expUp(a)) - target_pos;
+    }
+  };
+
+  struct ControlError : public VectorOfVector {
+
+    LocalConfigurationPtr cfg0, cfg1;
+    double r_min;
+    KinBodyPtr body;
+    ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]) {}
+    VectorXd operator()(const VectorXd& a) const {
+      Matrix4d pose1 = cfg0->pose_ * expUp(a.topRows(6));
+      Matrix4d pose2 = cfg1->pose_ * expUp(a.middleRows(6,6));
+      double phi = a(12), Delta = a(13);
+      VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
+      VectorXd v(6); v << 0, 0, Delta, Delta / r_min, 0, 0;
+      //VectorXd w(6); w << 0, 0, 0, phi, 0, 0;
+      //VectorXd v(6); v << Delta, 0, 0, 0, Delta / r_min, 0;
+      return logDown((pose1 * expUp(w) * expUp(v)).inverse() * pose2);
+    }
   };
 
   struct NeedleProblemHelper {
@@ -209,6 +324,7 @@ namespace Needle {
     vector<string> ignored_kinbody_names;
     double collision_dist_pen;
     double collision_coeff;
+    double Delta_lb;
     // Variables
     VarArray twistvars;
     VarArray phivars;
@@ -219,21 +335,53 @@ namespace Needle {
     void ConfigureProblem(const KinBodyPtr robot, OptProb& prob) {
       CreateVariables(prob);
       InitLocalConfigurations(robot, prob);
+      InitTrajectory(prob);
       prob.addCost(CostPtr(new RotationCost(phivars.col(0), coeff_rotation)));
       prob.addCost(CostPtr(new SpeedCost(Delta, coeff_speed)));
-      AddEntryConstraint(prob);
+      AddStartConstraint(prob);
       AddGoalConstraint(prob);
       AddControlConstraint(prob);
       AddCollisionConstraint(prob);
     }
 
+    void InitOptimizeVariables(BasicTrustRegionSQP& opt) {
+      DblVec initVec;
+      // Initialize twistvars
+      for (int i = 0; i <= T; ++i) {
+        for (int j = 0; j < n_dof; ++j) {
+          initVec.push_back(0.);
+        }
+      }
+      // Initialize phivars
+      for (int i = 0; i < T; ++i) {
+        initVec.push_back(0.);
+      }
+      // Initialize Delta
+      initVec.push_back(Delta_lb);
+      opt.initialize(initVec);
+    }
+
+    void OptimizerCallback(OptProb*, DblVec& x) {
+      MatrixXd twistvals = getTraj(x, twistvars);
+      for (int i = 0; i < local_configs.size(); ++i) {
+        local_configs[i]->pose_ = local_configs[i]->pose_ * expUp(twistvals.row(i));
+      }
+      setVec(x, twistvars.m_data, DblVec(twistvars.size(), 0));
+    }
+
+    void ConfigureOptimizer(BasicTrustRegionSQP& opt) {
+      InitOptimizeVariables(opt);
+      opt.addCallback(boost::bind(&Needle::NeedleProblemHelper::OptimizerCallback, this, _1, _2));
+    }
+
     void CreateVariables(OptProb& prob) {
-      AddVarArray(prob, T+1, 6, "twist", twistvars);
+      // Time frame varies from 0 to T instead of from 0 to T-1
+      AddVarArray(prob, T+1, n_dof, "twist", twistvars);
       AddVarArray(prob, T, 1, -PI, PI, "phi", phivars);
-      double Delta_lb = (goal.topRows(3) - start.topRows(3)).norm() / T / r_min;
+      Delta_lb = (goal.topRows(3) - start.topRows(3)).norm() / T / r_min;
       Delta = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
       // Only the twist variables are incremental (i.e. their trust regions should be around zero)
-      prob.setIncremental(twistvars);
+      prob.setIncremental(twistvars.flatten());
     }
 
     void InitLocalConfigurations(const KinBodyPtr robot, OptProb& prob) {
@@ -242,87 +390,76 @@ namespace Needle {
       }
     }
 
-    void AddEntryConstraint(OptProb& prob) {
+    void InitTrajectory(OptProb& prob) {
+      MatrixXd initTraj(T+1, n_dof);
+      for (int idof = 0; idof < n_dof; ++idof) {
+        initTraj.col(idof) = VectorXd::LinSpaced(T+1, start[idof], goal[idof]);
+      }
+      for (int i = 0; i <= T; ++i) {
+        local_configs[i]->pose_ = expUp(initTraj.row(i));
+      }
+    }
+
+    void AddStartConstraint(OptProb& prob) {
       VarVector vars = twistvars.row(0);
-      VectorOfVectorPtr f(new Needle::EntryError(local_configs[0]));
+      VectorOfVectorPtr f(new Needle::PositionError(local_configs[0], start));
       VectorXd coeffs = VectorXd::Ones(6);
-      prob.addConstraint(ConstraintFromFunc(f, vars, coeffs, EQ, "entry"));
+      prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "entry")));
     }
 
     void AddGoalConstraint(OptProb& prob) {
       VarVector vars = twistvars.row(T);
-      VectorOfVectorPtr f(new Needle::GoalError(local_configs[T]));
-      VectorXd coeffs = VectorXd::Ones(6);
-      prob.addConstraint(ConstraintFromFunc(f, vars, coeffs, EQ, "goal"));
+      VectorOfVectorPtr f(new Needle::PositionError(local_configs[T], goal));
+      VectorXd coeffs(n_dof); coeffs << 1., 1., 1., 0., 0., 0.;// = VectorXd::Ones(6);
+      prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "goal")));
     }
 
     void AddControlConstraint(OptProb& prob) {
-
+      for (int i = 0; i < T; ++i) {
+        VarVector vars = concat(concat(twistvars.row(i), twistvars.row(i+1)), phivars.row(i));
+        vars.push_back(Delta);
+        VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], r_min));
+        VectorXd coeffs = VectorXd::Ones(6);
+        prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("control%i")%i).str())));
+      }
     }
 
     void AddCollisionConstraint(OptProb& prob) {
+      // TODO
 
     }
 
-  };
-
-  
-
-  struct NeedleError : public VectorOfVector {
-    ConfigurationPtr cfg0, cfg1;
-    double radius;
-    KinBodyPtr body;
-    NeedleError(ConfigurationPtr cfg0, ConfigurationPtr cfg1, double radius) : cfg0(cfg0), cfg1(cfg1), radius(radius), body(cfg0->GetBodies()[0]) {}
-    VectorXd operator()(const VectorXd& a) const {
-      cfg0->SetDOFValues(toDblVec(a.topRows(6)));
-      OR::Transform Tw0 = body->GetTransform();
-      cfg1->SetDOFValues(toDblVec(a.middleRows(6,6)));
-      OR::Transform Tw1 = body->GetTransform();
-      double theta = a(12);
-      OR::Transform Ttarg0(OR::geometry::quatFromAxisAngle(OR::Vector(0,0,1), theta),
-          OR::Vector(radius*sin(theta), radius*(1-cos(theta)),0));
-          
-      OR::Transform Ttargw = Tw0 * Ttarg0;
-      OR::Vector position_errA = Ttargw.trans - Tw1.trans;
-      OR::Vector ori_err = Ttargw * OR::Vector(1,0,0) - Tw1 * OR::Vector(1,0,0);
-      return concat(toVector3d(position_errA), toVector3d(ori_err));
-
-    }
   };
 
   struct TrajPlotter {
-    vector<IncrementalRBPtr> rbs;
+    vector<LocalConfigurationPtr> local_configs;
     VarArray vars;
     OSGViewerPtr viewer;
-    TrajPlotter(const vector<IncrementalRBPtr>& rbs, const VarArray& vars);
-    void OptimizerCallback(OptProb*, DblVec& x);
-  };
-
-  TrajPlotter::TrajPlotter(const vector<IncrementalRBPtr>& rbs, const VarArray& vars) : rbs(rbs), vars(vars) {
-    viewer = OSGViewer::GetOrCreate(rbs[0]->GetEnv());
-  }
-  void TrajPlotter::OptimizerCallback(OptProb*, DblVec& x) {
-    vector<GraphHandlePtr> handles;
-    vector<KinBodyPtr> bodies = rbs[0]->GetBodies();
-    MatrixXd traj = getTraj(x,vars);
-    for (int i=0; i < traj.rows(); ++i) {
-      rbs[i]->SetDOFValues(toDblVec(traj.row(i)));
-      BOOST_FOREACH(const KinBodyPtr& body, bodies) {
-        handles.push_back(viewer->PlotKinBody(body));
-        SetTransparency(handles.back(), .35);
-      }
+    TrajPlotter(const vector<LocalConfigurationPtr>& local_configs, const VarArray& vars) : local_configs(local_configs), vars(vars) {
+      viewer = OSGViewer::GetOrCreate(local_configs[0]->GetEnv());
     }
-    viewer->Idle();
-  }  
-
+    void OptimizerCallback(OptProb*, DblVec& x) {
+      vector<GraphHandlePtr> handles;
+      vector<KinBodyPtr> bodies = local_configs[0]->GetBodies();
+      MatrixXd vals = getTraj(x, vars);
+      for (int i=0; i < vals.rows(); ++i) {
+        local_configs[i]->SetDOFValues(toDblVec(vals.row(i)));
+        BOOST_FOREACH(const KinBodyPtr& body, bodies) {
+          handles.push_back(viewer->PlotKinBody(body));
+          SetTransparency(handles.back(), .35);
+        }
+      }
+      viewer->Idle();
+    }
+  };
 }
 
 int main(int argc, char** argv)
 {
-  bool plotting=false, verbose=false;
+  bool plotting=true, verbose=false;
   double env_transparency = 0.5;
 
-  int T = 25;
+  int T = 10;
   double r_min = 2;
   int n_dof = 6;
 
@@ -330,8 +467,8 @@ int main(int argc, char** argv)
   double trust_shrink_ratio = 0.7;
   double trust_expand_ratio = 1.2;
   
-  double start_vec_array[] = {-12.82092, 6.80976, 0.06844, 0, 0, 0};
-  double goal_vec_array[] = {-3.21932, 6.87362, -1.21877, 0, 0, 0};
+  double start_vec_array[] = {0, 0, 0, 0, 0, 0};//-12.82092, 6.80976, 0.06844, 0, 0, 0};
+  double goal_vec_array[] = {9, 0, 0, 0, 0, 0};//-3.21932, 6.87362, -1.21877, 0, 0, 0};
 
   vector<double> start_vec(start_vec_array, start_vec_array + n_dof);
   vector<double> goal_vec(goal_vec_array, goal_vec_array + n_dof);
@@ -370,8 +507,8 @@ int main(int argc, char** argv)
   VectorXd start(n_dof); for (int i = 0; i < n_dof; ++i) start[i] = start_vec[i];
   VectorXd goal(n_dof); for (int i = 0; i < n_dof; ++i) goal[i] = goal_vec[i];
 
-  const char *ignored_kinbody_c_strs = { "KinBodyProstate", "KinBodyDermis", "KinBodyEpidermis", "KinBodyHypodermis" };
-  vector<string> ignored_kinbody_names(ignored_kinbody_c_strs, end(ignored_kinbody_c_strs));
+  const char *ignored_kinbody_c_strs[] = { "KinBodyProstate", "KinBodyDermis", "KinBodyEpidermis", "KinBodyHypodermis" };
+  vector<string> ignored_kinbody_names(ignored_kinbody_c_strs, Needle::end(ignored_kinbody_c_strs));
 
   OptProbPtr prob(new OptProb());
 
@@ -386,29 +523,22 @@ int main(int argc, char** argv)
   helper.ignored_kinbody_names = ignored_kinbody_names;
   helper.collision_dist_pen = 0.025;
   helper.collision_coeff = 20;
-  helper.ConfigureProblem(*prob);
+  helper.ConfigureProblem(robot, *prob);
 
   BasicTrustRegionSQP opt(prob);
-  helper.ConfigureOptimizer(opt);
   opt.max_iter_ = 500;    
   opt.improve_ratio_threshold_ = improve_ratio_threshold;
   opt.trust_shrink_ratio_ = trust_shrink_ratio;
   opt.trust_expand_ratio_ = trust_expand_ratio;
 
+  helper.ConfigureOptimizer(opt);
+
   boost::shared_ptr<Needle::TrajPlotter> plotter;
   if (plotting) {
-    plotter.reset(new Needle::TrajPlotter(helper.m_rbs, trajvars));
+    plotter.reset(new Needle::TrajPlotter(helper.local_configs, helper.twistvars));
     opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2));
   }
 
-  MatrixXd initTraj(n_steps, n_dof);  
-  for (int idof = 0; idof < n_dof; ++idof) {
-    initTraj.col(idof) = VectorXd::LinSpaced(n_steps, start[idof], goal[idof]);
-  }
-  DblVec initVec = trajToDblVec(initTraj);
-  initVec.push_back(dtheta_lb);
-  opt.initialize(initVec);
-  
   opt.optimize();
 
   RaveDestroy();
