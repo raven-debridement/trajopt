@@ -29,8 +29,7 @@ using namespace boost::assign;
 using namespace Eigen;
 
 
-#define NEEDLE_RETURN_EMPTY Matrix<double, 0, 1> empty; \
-                            return empty;
+#define NEEDLE_RETURN_EMPTY 
 
 namespace Needle {
 
@@ -278,7 +277,7 @@ namespace Needle {
     return logDown(cfg->pose_ * expUp(a)) - target_pos;
   }
 
-  ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int strategy, int curvature_constraint) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]), formulation(formulation), strategy(strategy), curvature_constraint(curvature_constraint) {}
+  ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]), formulation(formulation), curvature_constraint(curvature_constraint) {}
   VectorXd ControlError::operator()(const VectorXd& a) const {
     Matrix4d pose1 = cfg0->pose_ * expUp(a.topRows(6));
     Matrix4d pose2 = cfg1->pose_ * expUp(a.middleRows(6,6));
@@ -292,7 +291,7 @@ namespace Needle {
         radius = a(14);
         break;
       default:
-        NEEDLE_RETURN_EMPTY;
+        PRINT_AND_THROW("not implemented");
     }
     switch (formulation) {
       case NeedleProblemHelper::Form1: {
@@ -312,8 +311,12 @@ namespace Needle {
           Delta - radius * atan2(z, radius - sqrt(x*x + y*y));
         return err;
       }
+      case NeedleProblemHelper::Form3: {
+        VectorXd w(6); w << 0, 0, Delta, Delta / radius, 0, phi;
+        return logDown((pose1 * expUp(w)).inverse() * pose2);
+      }
       default:
-        NEEDLE_RETURN_EMPTY;
+        PRINT_AND_THROW("not implemented");
     }
   }
 
@@ -323,18 +326,19 @@ namespace Needle {
         return 6;
       case NeedleProblemHelper::Form2:
         return 3;
+      case NeedleProblemHelper::Form3:
+        return 6;
       default:
-        return 0;
+        PRINT_AND_THROW("not implemented");
     }
   }
 
   void NeedleProblemHelper::ConfigureProblem(const KinBodyPtr robot, OptProb& prob) {
-    if (strategy != NeedleProblemHelper::StopAndTurn) PRINT_AND_THROW("not implemented");
     CreateVariables(prob);
     InitLocalConfigurations(robot, prob);
     InitTrajectory(prob);
     prob.addCost(CostPtr(new RotationCost(phivars.col(0), coeff_rotation)));
-    prob.addCost(CostPtr(new SpeedCost(Delta, coeff_speed)));
+    prob.addCost(CostPtr(new SpeedCost(Deltavar, coeff_speed)));
     AddStartConstraint(prob);
     AddGoalConstraint(prob);
     AddControlConstraint(prob);
@@ -365,11 +369,55 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::OptimizerCallback(OptProb*, DblVec& x) {
-    MatrixXd twistvals = getTraj(x, twistvars);
-    for (int i = 0; i < local_configs.size(); ++i) {
-      local_configs[i]->pose_ = local_configs[i]->pose_ * expUp(twistvals.row(i));
+    switch (method) {
+      case Colocation: {
+        MatrixXd twistvals = getTraj(x, twistvars);
+        for (int i = 0; i < local_configs.size(); ++i) {
+          local_configs[i]->pose_ = local_configs[i]->pose_ * expUp(twistvals.row(i));
+        }
+        setVec(x, twistvars.m_data, DblVec(twistvars.size(), 0));
+        break;
+      }
+      case Shooting: {
+        // execute the control input to set local configuration poses
+        local_configs[0]->pose_ = expUp(start);
+        for (int i = 0; i < T; ++i) {
+          double phi = x[phivars.row(i)[0].var_rep->index];
+          double Delta = x[Deltavar.var_rep->index];
+          double radius;
+          switch (curvature_constraint) {
+            case ConstantRadius:
+              radius = r_min;
+              break;
+            case BoundedRadius:
+              radius = x[radiusvars.row(i)[0].var_rep->index];
+              break;
+            default:
+              PRINT_AND_THROW("not implemented");
+          }
+          switch (formulation) {
+            case NeedleProblemHelper::Form1:
+            case NeedleProblemHelper::Form2: {
+              VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
+              VectorXd v(6); v << 0, 0, Delta, Delta / radius, 0, 0;
+              local_configs[i+1]->pose_ = local_configs[i]->pose_ * expUp(w) * expUp(v);
+              break;
+            }
+            case NeedleProblemHelper::Form3: {
+              VectorXd w(6); w << 0, 0, Delta, Delta / radius, 0, phi;
+              local_configs[i+1]->pose_ = local_configs[i]->pose_ * expUp(w);
+              break;
+            }
+            default:
+              PRINT_AND_THROW("not implemented");
+          }
+        }
+        setVec(x, twistvars.m_data, DblVec(twistvars.size(), 0));
+        break;
+      }
+      default:
+        PRINT_AND_THROW("not implemented");
     }
-    setVec(x, twistvars.m_data, DblVec(twistvars.size(), 0));
   }
 
   void NeedleProblemHelper::ConfigureOptimizer(BasicTrustRegionSQP& opt) {
@@ -382,11 +430,11 @@ namespace Needle {
     AddVarArray(prob, T+1, n_dof, "twist", twistvars);
     AddVarArray(prob, T, 1, -PI, PI, "phi", phivars);
     Delta_lb = (goal.topRows(3) - start.topRows(3)).norm() / T / r_min;
-    Delta = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
+    Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
     // Only the twist variables are incremental (i.e. their trust regions should be around zero)
     prob.setIncremental(twistvars.flatten());
     if (curvature_constraint == BoundedRadius) {
-      AddVarArray(prob, T, 1, r_min, INFINITY, "radius", radiusvars);
+      AddVarArray(prob, T, 1, -INFINITY/*r_min*/, INFINITY, "radius", radiusvars);
     }
   }
 
@@ -421,17 +469,15 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::AddControlConstraint(OptProb& prob) {
-    if (formulation == Form1 || formulation == Form2) {
-      for (int i = 0; i < T; ++i) {
-        VarVector vars = concat(concat(twistvars.row(i), twistvars.row(i+1)), phivars.row(i));
-        vars.push_back(Delta);
-        if (curvature_constraint == BoundedRadius) {
-          vars = concat(vars, radiusvars.row(i));
-        }
-        VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], r_min, formulation, strategy, curvature_constraint));
-        VectorXd coeffs = VectorXd::Ones(boost::static_pointer_cast<Needle::ControlError>(f)->outputSize());
-        prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("control%i")%i).str())));
+    for (int i = 0; i < T; ++i) {
+      VarVector vars = concat(concat(twistvars.row(i), twistvars.row(i+1)), phivars.row(i));
+      vars.push_back(Deltavar);
+      if (curvature_constraint == BoundedRadius) {
+        vars = concat(vars, radiusvars.row(i));
       }
+      VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], r_min, formulation, curvature_constraint));
+      VectorXd coeffs = VectorXd::Ones(boost::static_pointer_cast<Needle::ControlError>(f)->outputSize());
+      prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("control%i")%i).str())));
     }
   }
 
@@ -470,8 +516,8 @@ int main(int argc, char** argv)
   int n_dof = 6;
 
   int formulation = Needle::NeedleProblemHelper::Form1;
-  int strategy = Needle::NeedleProblemHelper::StopAndTurn;
   int curvature_constraint = Needle::NeedleProblemHelper::ConstantRadius;
+  int method = Needle::NeedleProblemHelper::Colocation;
 
   double improve_ratio_threshold = 0.1;//0.25;
   double trust_shrink_ratio = 0.9;//0.7;
@@ -490,8 +536,8 @@ int main(int argc, char** argv)
     config.add(new Parameter<double>("env_transparency", &env_transparency, "env_transparency"));
     config.add(new Parameter<int>("T", &T, "T"));
     config.add(new Parameter<int>("formulation", &formulation, "formulation"));
-    config.add(new Parameter<int>("strategy", &strategy, "strategy"));
     config.add(new Parameter<int>("curvature_constraint", &curvature_constraint, "curvature_constraint"));
+    config.add(new Parameter<int>("method", &method, "method"));
     config.add(new Parameter<double>("r_min", &r_min, "r_min"));
     config.add(new Parameter<double>("improve_ratio_threshold", &improve_ratio_threshold, "improve_ratio_threshold"));
     config.add(new Parameter<double>("trust_shrink_ratio", &trust_shrink_ratio, "trust_shrink_ratio"));
@@ -501,8 +547,6 @@ int main(int argc, char** argv)
     CommandParser parser(config);
     parser.read(argc, argv);
   }
-
-  
 
   double coeff_rotation = 1.;
   double coeff_speed = 1.;
@@ -537,8 +581,8 @@ int main(int argc, char** argv)
   helper.collision_dist_pen = 0.025;
   helper.collision_coeff = 20;
   helper.formulation = formulation;
-  helper.strategy = strategy;
   helper.curvature_constraint = curvature_constraint;
+  helper.method = method;
   helper.ConfigureProblem(robot, *prob);
 
   BasicTrustRegionSQP opt(prob);

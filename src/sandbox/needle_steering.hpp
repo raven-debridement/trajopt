@@ -72,18 +72,17 @@ namespace Needle {
     double r_min;
     KinBodyPtr body;
     int formulation;
-    int strategy;
     int curvature_constraint;
-    ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int strategy, int curvature_constraint);
+    ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint);
     VectorXd operator()(const VectorXd& a) const;
     int outputSize() const;
   };
 
   struct NeedleProblemHelper {
     // Formulation flag
-    enum Formulation { Form1 = 1, Form2 = 2 };
-    enum Strategy { StopAndTurn = 1, ConstantTwist = 2 };
+    enum Formulation { Form1 = 1, Form2 = 2, Form3 = 3 };
     enum CurvatureConstraint { ConstantRadius = 1, BoundedRadius = 2 };
+    enum Method { Colocation = 1, Shooting = 2 };
     // Config parameters
     VectorXd start;
     VectorXd goal;
@@ -92,8 +91,8 @@ namespace Needle {
     int T;
     int n_dof;
     int formulation;
-    int strategy;
     int curvature_constraint;
+    int method;
     double r_min;
     vector<string> ignored_kinbody_names;
     double collision_dist_pen;
@@ -103,7 +102,7 @@ namespace Needle {
     VarArray twistvars;
     VarArray phivars;
     VarArray radiusvars;
-    Var Delta;
+    Var Deltavar;
     // Local configurations
     vector<LocalConfigurationPtr> local_configs;
 
