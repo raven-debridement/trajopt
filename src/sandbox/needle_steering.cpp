@@ -234,8 +234,16 @@ namespace Needle {
   }
 
   DblMatrix LocalConfiguration::PositionJacobian(int link_ind, const OpenRAVE::Vector& pt) const {
-    PRINT_AND_THROW("not implemented");
+    MatrixXd out(3, 6);
+    out.leftCols(3) = Matrix3d::Identity();
+    assert(link_ind == 0);
+    KinBody::LinkPtr link = body_->GetLinks()[link_ind];
+    OpenRAVE::Vector dr = pt - link->GetTransform().trans;
+    double matdata[9] = { 0, dr[2], -dr[1], -dr[2], 0, dr[0], dr[1], -dr[0], 0 };
+    out.rightCols(3) = Eigen::Map<MatrixXd>(matdata, 3, 3);
+    return out;
   }
+
   DblMatrix LocalConfiguration::RotationJacobian(int link_ind) const {
     PRINT_AND_THROW("not implemented");
   }
@@ -522,8 +530,13 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::AddCollisionConstraint(OptProb& prob) {
-    // TODO
-
+    //Str2Dbl tag2dist_pen(collision_dist_pen), tag2coeff(collision_coeff);
+    //for (int i = 0; i < ignored_kinbody_names.size(); ++i) {
+    //  tag2coeff.insert( std::pair<string, double>(ignored_kinbody_names[i], 0.0) );
+    //}
+    //for (int i = 0; i <= T; ++i) {
+    //  prob.addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, local_configs[i], twistvars.row(i))));
+    //}
   }
 
   TrajPlotter::TrajPlotter(const vector<LocalConfigurationPtr>& local_configs, const VarArray& vars) : local_configs(local_configs), vars(vars) {
@@ -563,8 +576,8 @@ int main(int argc, char** argv)
   double trust_shrink_ratio = 0.9;//0.7;
   double trust_expand_ratio = 1.3;//1.2;
   
-  double start_vec_array[] = {0, 0, 0, 0, 0, 0};//-12.82092, 6.80976, 0.06844, 0, 0, 0};
-  double goal_vec_array[] = {0, 0, 6, 0, 0, 0};//-3.21932, 6.87362, -1.21877, 0, 0, 0};
+  double start_vec_array[] = {-12.82092, 6.80976, 0.06844, 0, 0, 0};
+  double goal_vec_array[] = {-3.21932, 6.87362, -1.21877, 0, 0, 0};
 
   vector<double> start_vec(start_vec_array, start_vec_array + n_dof);
   vector<double> goal_vec(goal_vec_array, goal_vec_array + n_dof);
