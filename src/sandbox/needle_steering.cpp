@@ -122,7 +122,7 @@ namespace Needle {
   Matrix3d logInvA(const Vector3d& w) {
     double theta = w.norm();
     Matrix3d w_hat = rotMat(w);
-    if (theta < 1e-8) {
+    if (fabs(theta) < 1e-8) {
       return Matrix3d::Identity();
     }
     return Matrix3d::Identity() - 0.5*w_hat + (2*sin(theta) - theta*(1 + cos(theta))) / (2 * theta*theta * sin(theta)) * w_hat*w_hat;
@@ -140,29 +140,32 @@ namespace Needle {
   }
 
   Vector3d logRot(const Matrix3d& X) {
-    //double theta = acos(0.5 * (X.trace() - 1));
-    //if (fabs(sin(theta)) < 1e-8) {
-    //  return Vector3d::Zero();
-    //}
-    //Matrix3d w_hat = (X - X.transpose()) / (2 * sin(theta));
-    //return theta * rotVec(w_hat);
-
-    // Using the old implementation since it seems more robust in practice
-    Vector3d x;
-    x << X(2, 1) - X(1, 2),
-         X(0, 2) - X(2, 0),
-         X(1, 0) - X(0, 1);
-    double r = x.norm();
-    double t = X(0, 0) + X(1, 1) + X(2, 2) - 1;
-
-    if (r == 0) {
+    if (fabs(X.trace() - 3) < 1e-8) {
       return Vector3d::Zero();
     } else {
-      return x * (atan2(r, t) / r);
+      double theta = acos(0.5 * (X.trace() - 1));
+      Matrix3d w_hat = (X - X.transpose()) / (2 * sin(theta));
+      return theta * rotVec(w_hat);
     }
+
+    //// Using the old implementation since it seems more robust in practice
+    //Vector3d x;
+    //x << X(2, 1) - X(1, 2),
+    //     X(0, 2) - X(2, 0),
+    //     X(1, 0) - X(0, 1);
+    //double r = x.norm();
+    //double t = X(0, 0) + X(1, 1) + X(2, 2) - 1;
+
+    //if (fabs(r) < 1e-8) {
+    //  return Vector3d::Zero();
+    //} else {
+    //  return x * (atan2(r, t) / r);
+    //}
   }
 
-  Matrix4d expUp(const VectorXd& x) {
+  
+
+  Matrix4d expUpNew(const VectorXd& x) {
     assert(x.size() == 6);
     Matrix4d X = Matrix4d::Identity();
     X.block<3, 3>(0, 0) = expRot(x.tail<3>());
@@ -171,11 +174,34 @@ namespace Needle {
     return X;
   }
 
-  VectorXd logDown(const Matrix4d& X) {
+  VectorXd logDownNew(const Matrix4d& X) {
     VectorXd x(6);
     x.tail<3>() = logRot(X.block<3, 3>(0, 0));
     x.head<3>() = logInvA(x.tail<3>()) * X.block<3, 1>(0, 3);
     return x;
+  }
+
+  Matrix4d expUpOld(const VectorXd& x) {
+    assert(x.size() == 6);
+    Matrix4d X = Matrix4d::Identity();
+    X.block<3, 3>(0, 0) = expRot(x.tail<3>());
+    X.block<3, 1>(0, 3) = x.head<3>();
+    return X;
+  }
+
+  VectorXd logDownOld(const Matrix4d& X) {
+    VectorXd x(6);
+    x.head<3>() = X.block<3, 1>(0, 3);
+    x.tail<3>() = logRot(X.block<3, 3>(0, 0));
+    return x;
+  }
+
+  Matrix4d expUp(const VectorXd& x) {
+    return expUpOld(x);
+  }
+
+  VectorXd logDown(const Matrix4d& X) {
+    return logDownOld(X);
   }
 
   OpenRAVE::Transform matrixToTransform(const Matrix4d& X) {
@@ -239,6 +265,8 @@ namespace Needle {
     for (int i = 0; i < dofs.size(); ++i) {
       x[i] = dofs[i];
     }
+    //cout << "before transform: " << x << endl;
+    //cout << "after transform: " << logDown(expUp(x)) << endl;
     OpenRAVE::Transform T = vecToTransform(logDown(pose_ * expUp(x)));//matrixToTransform(pose_ * expUp(x));
     body_->SetTransform(T);
   }
@@ -319,6 +347,8 @@ namespace Needle {
 
   ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]), formulation(formulation), curvature_constraint(curvature_constraint) {}
   VectorXd ControlError::operator()(const VectorXd& a) const {
+    cout << "before transform: " << endl << a.topRows(6) << endl << "after transform: " << endl << logDown(expUp(a.topRows(6))) << endl;
+    cout << "before transform: " << endl << a.middleRows(6, 6) << endl << "after transform: " << endl << logDown(expUp(a.middleRows(6, 6))) << endl;
     Matrix4d pose1 = cfg0->pose_ * expUp(a.topRows(6));
     Matrix4d pose2 = cfg1->pose_ * expUp(a.middleRows(6,6));
     double phi = a(12), Delta = a(13);
