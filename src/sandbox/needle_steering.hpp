@@ -7,6 +7,8 @@
 #include <openrave/openrave.h>
 #include "osgviewer/osgviewer.hpp"
 
+#define NEEDLE_TEST
+
 using namespace trajopt;
 using namespace std;
 using namespace OpenRAVE;
@@ -117,6 +119,9 @@ namespace Needle {
     void AddGoalConstraint(OptProb& prob);
     void AddControlConstraint(OptProb& prob);
     void AddCollisionConstraint(OptProb& prob);
+    #ifdef NEEDLE_TEST
+    void checkAlignment(DblVec& x);
+    #endif
   };
 
   struct TrajPlotter {

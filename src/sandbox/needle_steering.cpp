@@ -28,8 +28,6 @@ using namespace boost::assign;
 using namespace Eigen;
 
 
-#define NEEDLE_RETURN_EMPTY 
-
 namespace Needle {
 
   template<typename T, size_t N>
@@ -123,7 +121,7 @@ namespace Needle {
     double r = x.norm();
     double t = X(0, 0) + X(1, 1) + X(2, 2) - 1;
 
-    if (r == 0) {
+    if (fabs(r) < 1e-10) {
       return Vector3d::Zero();
     } else {
       return x * (atan2(r, t) / r);
@@ -367,13 +365,56 @@ namespace Needle {
     opt.initialize(initVec);
   }
 
+  
+  #ifdef NEEDLE_TEST
+  void NeedleProblemHelper::checkAlignment(DblVec& x) {
+    double diff = 0.;
+    for (int i = 0; i < T; ++i) {
+      double phi = x[phivars.row(i)[0].var_rep->index];
+      double Delta = x[Deltavar.var_rep->index];
+      double radius;
+      switch (curvature_constraint) {
+        case ConstantRadius:
+          radius = r_min;
+          break;
+        case BoundedRadius:
+          radius = x[radiusvars.row(i)[0].var_rep->index];
+          break;
+        default:
+          PRINT_AND_THROW("not implemented");
+      }
+      switch (formulation) {
+        case NeedleProblemHelper::Form1:
+        case NeedleProblemHelper::Form2: {
+          VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
+          VectorXd v(6); v << 0, 0, Delta, Delta / radius, 0, 0;
+          diff += (local_configs[i+1]->pose_ - local_configs[i]->pose_ * expUp(w) * expUp(v)).norm();
+          break;
+        }
+        case NeedleProblemHelper::Form3: {
+          VectorXd w(6); w << 0, 0, Delta, Delta / radius, 0, phi;
+          diff += (local_configs[i+1]->pose_ - local_configs[i]->pose_ * expUp(w)).norm();
+          break;
+        }
+        default:
+          PRINT_AND_THROW("not implemented");
+      }
+    }
+    cout << "alignment cost: " << diff << endl;
+  }
+  #endif
+
   void NeedleProblemHelper::OptimizerCallback(OptProb*, DblVec& x) {
+    
     switch (method) {
       case Colocation: {
         MatrixXd twistvals = getTraj(x, twistvars);
         for (int i = 0; i < local_configs.size(); ++i) {
           local_configs[i]->pose_ = local_configs[i]->pose_ * expUp(twistvals.row(i));
         }
+        #ifdef NEEDLE_TEST
+        checkAlignment(x);
+        #endif
         setVec(x, twistvars.m_data, DblVec(twistvars.size(), 0));
         break;
       }
