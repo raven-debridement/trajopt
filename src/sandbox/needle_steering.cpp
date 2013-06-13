@@ -103,17 +103,51 @@ namespace Needle {
     return out;
   }
 
-  Matrix3d expRot(const Vector3d& x) {
-    double rr = x.squaredNorm();
-    if (fabs(rr) < 1e-10) {
+  Vector3d rotVec(const Matrix3d& X) {
+    Vector3d out;
+    out << X(2, 1), X(0, 2), X(1, 0);
+    return out;
+  }
+
+  Matrix3d expA(const Vector3d& w) {
+    double theta = w.norm();
+    if (fabs(theta) < 1e-10) {
       return Matrix3d::Identity();
     } else {
-      double r = sqrt(rr);
-      return rotMat(x * (sin(r) / r)) + Matrix3d::Identity() * cos(r) + (x*x.transpose()) * ((1 - cos(r)) / rr);
+      Matrix3d w_hat = rotMat(w);
+      return Matrix3d::Identity() + w_hat / (theta*theta) * (1 - cos(theta)) + w_hat*w_hat / (theta*theta*theta) * (theta - sin(theta));
+    }
+  }
+
+  Matrix3d logInvA(const Vector3d& w) {
+    double theta = w.norm();
+    Matrix3d w_hat = rotMat(w);
+    if (theta < 1e-8) {
+      return Matrix3d::Identity();
+    }
+    return Matrix3d::Identity() - 0.5*w_hat + (2*sin(theta) - theta*(1 + cos(theta))) / (2 * theta*theta * sin(theta)) * w_hat*w_hat;
+  }
+
+  Matrix3d expRot(const Vector3d& x) {
+    double theta = x.norm();
+    if (fabs(theta) < 1e-8) {
+      return Matrix3d::Identity();
+    } else {
+      Vector3d w = x / theta; 
+      Matrix3d w_hat = rotMat(w);
+      return Matrix3d::Identity() + w_hat * sin(theta) + w_hat*w_hat * (1 - cos(theta));
     }
   }
 
   Vector3d logRot(const Matrix3d& X) {
+    //double theta = acos(0.5 * (X.trace() - 1));
+    //if (fabs(sin(theta)) < 1e-8) {
+    //  return Vector3d::Zero();
+    //}
+    //Matrix3d w_hat = (X - X.transpose()) / (2 * sin(theta));
+    //return theta * rotVec(w_hat);
+
+    // Using the old implementation since it seems more robust in practice
     Vector3d x;
     x << X(2, 1) - X(1, 2),
          X(0, 2) - X(2, 0),
@@ -121,7 +155,7 @@ namespace Needle {
     double r = x.norm();
     double t = X(0, 0) + X(1, 1) + X(2, 2) - 1;
 
-    if (fabs(r) < 1e-10) {
+    if (r == 0) {
       return Vector3d::Zero();
     } else {
       return x * (atan2(r, t) / r);
@@ -132,14 +166,15 @@ namespace Needle {
     assert(x.size() == 6);
     Matrix4d X = Matrix4d::Identity();
     X.block<3, 3>(0, 0) = expRot(x.tail<3>());
-    X.block<3, 1>(0, 3) = x.head<3>();
+    X.block<3, 1>(0, 3) = expA(x.tail<3>()) * x.head<3>();
+    X(3, 3) = 1;
     return X;
   }
 
   VectorXd logDown(const Matrix4d& X) {
     VectorXd x(6);
-    x.head<3>() = X.block<3, 1>(0, 3);
     x.tail<3>() = logRot(X.block<3, 3>(0, 0));
+    x.head<3>() = logInvA(x.tail<3>()) * X.block<3, 1>(0, 3);
     return x;
   }
 
@@ -204,7 +239,7 @@ namespace Needle {
     for (int i = 0; i < dofs.size(); ++i) {
       x[i] = dofs[i];
     }
-    OpenRAVE::Transform T = matrixToTransform(pose_ * expUp(x));
+    OpenRAVE::Transform T = vecToTransform(logDown(pose_ * expUp(x)));//matrixToTransform(pose_ * expUp(x));
     body_->SetTransform(T);
   }
 
@@ -570,7 +605,7 @@ int main(int argc, char** argv)
 
   int formulation = Needle::NeedleProblemHelper::Form1;
   int curvature_constraint = Needle::NeedleProblemHelper::ConstantRadius;
-  int method = Needle::NeedleProblemHelper::Colocation;
+  int method = Needle::NeedleProblemHelper::Shooting;
 
   double improve_ratio_threshold = 0.1;//0.25;
   double trust_shrink_ratio = 0.9;//0.7;
