@@ -545,7 +545,7 @@ namespace Needle {
     // Only the twist variables are incremental (i.e. their trust regions should be around zero)
     prob.setIncremental(twistvars.flatten());
     if (curvature_constraint == BoundedRadius) {
-      AddVarArray(prob, T, 1, -INFINITY/*r_min*/, INFINITY, "radius", radiusvars);
+      AddVarArray(prob, T, 1, r_min, INFINITY, "radius", radiusvars);
     }
   }
 
@@ -672,7 +672,8 @@ void printVector(VectorXd x) {
 int main(int argc, char** argv)
 {
 
-  bool plotting=true, verbose=false;
+  bool plotting=false, verbose=false;
+  bool plot_final_result=false;
   double env_transparency = 0.5;
 
   int T = 10;
@@ -696,6 +697,7 @@ int main(int argc, char** argv)
   {
     Config config;
     config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
+    config.add(new Parameter<bool>("plot_final_result", &plot_final_result, "plot_final_result"));
     config.add(new Parameter<bool>("verbose", &verbose, "verbose"));
     config.add(new Parameter<double>("env_transparency", &env_transparency, "env_transparency"));
     config.add(new Parameter<int>("T", &T, "T"));
@@ -778,7 +780,7 @@ int main(int argc, char** argv)
     cout << endl;
   }
   
-  plotter->PlotBothTrajectories(prob, opt, helper);
+  if (plot_final_result) plotter->PlotBothTrajectories(prob, opt, helper);
 
   RaveDestroy();
 
