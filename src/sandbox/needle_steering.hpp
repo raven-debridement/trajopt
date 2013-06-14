@@ -7,7 +7,7 @@
 #include <openrave/openrave.h>
 #include "osgviewer/osgviewer.hpp"
 
-#define NEEDLE_TEST
+//#define NEEDLE_TEST
 
 using namespace trajopt;
 using namespace std;
@@ -100,6 +100,7 @@ namespace Needle {
     double collision_dist_pen;
     double collision_coeff;
     double Delta_lb;
+    KinBodyPtr robot;
     // Variables
     VarArray twistvars;
     VarArray phivars;
@@ -108,7 +109,7 @@ namespace Needle {
     // Local configurations
     vector<LocalConfigurationPtr> local_configs;
 
-    void ConfigureProblem(const KinBodyPtr robot, OptProb& prob);
+    void ConfigureProblem(OptProb& prob);
     void InitOptimizeVariables(BasicTrustRegionSQP& opt);
     void OptimizerCallback(OptProb*, DblVec& x);
     void ConfigureOptimizer(BasicTrustRegionSQP& opt);
@@ -128,7 +129,9 @@ namespace Needle {
     vector<LocalConfigurationPtr> local_configs;
     VarArray vars;
     OSGViewerPtr viewer;
+    boost::shared_ptr<NeedleProblemHelper> helper;
     TrajPlotter(const vector<LocalConfigurationPtr>& local_configs, const VarArray& vars);
     void OptimizerCallback(OptProb*, DblVec& x);
+    KinBodyPtr PlotGoal();
   };
 }

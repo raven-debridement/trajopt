@@ -353,6 +353,13 @@ namespace Needle {
   PositionError::PositionError(LocalConfigurationPtr cfg, const VectorXd& target_pos) : cfg(cfg), target_pos(target_pos), body(cfg->GetBodies()[0]) {}
 
   VectorXd PositionError::operator()(const VectorXd& a) const {
+    Matrix4d X = cfg->pose_ * expUp(a);
+    VectorXd x(6);
+    x.head<3>() = X.block<3, 1>(0, 3) - target_pos.head<3>();
+    x.tail<3>() = Vector3d::Zero();
+    //cout << "compare" << endl << x << endl << "with" << endl << logDown((cfg->pose_ * expUp(a)).inverse() * expUp(target_pos)) << endl;
+    //cout << "compare" << endl << logDown((cfg->pose_ * expUp(a)).inverse() * expUp(target_pos)) << endl << "with" << endl << logDown(cfg->pose_ * expUp(a)) - target_pos << endl;
+    //return x;
     return logDown((cfg->pose_ * expUp(a)).inverse() * expUp(target_pos));
     //return logDown(cfg->pose_ * expUp(a)) - target_pos;
   }
@@ -420,7 +427,7 @@ namespace Needle {
     }
   }
 
-  void NeedleProblemHelper::ConfigureProblem(const KinBodyPtr robot, OptProb& prob) {
+  void NeedleProblemHelper::ConfigureProblem(OptProb& prob) {
     CreateVariables(prob);
     InitLocalConfigurations(robot, prob);
     InitTrajectory(prob);
@@ -493,7 +500,7 @@ namespace Needle {
           PRINT_AND_THROW("not implemented");
       }
     }
-    cout << "alignment cost: " << diff << endl;
+    //cout << "alignment cost: " << diff << endl;
   }
   #endif
 
@@ -643,7 +650,20 @@ namespace Needle {
         SetTransparency(handles.back(), .35);
       }
     }
+    handles.push_back(viewer->PlotKinBody(PlotGoal())); 
+    SetTransparency(handles.back(), 1);
     viewer->Idle();
+  }
+
+  KinBodyPtr TrajPlotter::PlotGoal() {
+    OpenRAVE::Transform T;
+    T.trans.x = helper->goal[0];
+    T.trans.y = helper->goal[1];
+    T.trans.z = helper->goal[2];
+    OpenRAVE::Vector rot(helper->goal[3], helper->goal[4], helper->goal[5]);
+    T.rot = OpenRAVE::geometry::quatFromAxisAngle(rot);
+    helper->robot->SetTransform(T);
+    return helper->robot;
   }
 
 }
@@ -742,7 +762,8 @@ int main(int argc, char** argv)
   helper.formulation = formulation;
   helper.curvature_constraint = curvature_constraint;
   helper.method = method;
-  helper.ConfigureProblem(robot, *prob);
+  helper.robot = robot;
+  helper.ConfigureProblem(*prob);
 
   BasicTrustRegionSQP opt(prob);
   opt.max_iter_ = 500;    
@@ -755,6 +776,7 @@ int main(int argc, char** argv)
   boost::shared_ptr<Needle::TrajPlotter> plotter;
   if (plotting) {
     plotter.reset(new Needle::TrajPlotter(helper.local_configs, helper.twistvars));
+    plotter->helper.reset(&helper);
     opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2));
   }
 
