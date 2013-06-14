@@ -26,60 +26,6 @@ using namespace util;
 using namespace boost::assign;
 using namespace Eigen;
 
-
-
-struct NeedleError : public VectorOfVector {
-  ConfigurationPtr cfg0, cfg1;
-  double radius;
-  KinBodyPtr body;
-  NeedleError(ConfigurationPtr cfg0, ConfigurationPtr cfg1, double radius) : cfg0(cfg0), cfg1(cfg1), radius(radius), body(cfg0->GetBodies()[0]) {}
-  VectorXd operator()(const VectorXd& a) const {
-    cfg0->SetDOFValues(toDblVec(a.topRows(6)));
-    OR::Transform Tw0 = body->GetTransform();
-    cfg1->SetDOFValues(toDblVec(a.middleRows(6,6)));
-    OR::Transform Tw1 = body->GetTransform();
-    double theta = a(12);
-    OR::Transform Ttarg0(OR::geometry::quatFromAxisAngle(OR::Vector(0,0,1), theta),
-        OR::Vector(radius*sin(theta), radius*(1-cos(theta)),0));
-        
-    OR::Transform Ttargw = Tw0 * Ttarg0;
-    OR::Vector position_errA = Ttargw.trans - Tw1.trans;
-    OR::Vector ori_err = Ttargw * OR::Vector(1,0,0) - Tw1 * OR::Vector(1,0,0);
-    return concat(toVector3d(position_errA), toVector3d(ori_err));
-
-  }
-};
-
-
-
-
-struct TrajPlotter {
-  vector<IncrementalRBPtr> rbs;
-  VarArray vars;
-  OSGViewerPtr viewer;
-  TrajPlotter(const vector<IncrementalRBPtr>& rbs, const VarArray& vars);
-  void OptimizerCallback(OptProb*, DblVec& x);
-
-};
-
-TrajPlotter::TrajPlotter(const vector<IncrementalRBPtr>& rbs, const VarArray& vars) : rbs(rbs), vars(vars) {
-  viewer = OSGViewer::GetOrCreate(rbs[0]->GetEnv());
-}
-void TrajPlotter::OptimizerCallback(OptProb*, DblVec& x) {
-  vector<GraphHandlePtr> handles;
-  vector<KinBodyPtr> bodies = rbs[0]->GetBodies();
-  MatrixXd traj = getTraj(x,vars);
-  for (int i=0; i < traj.rows(); ++i) {
-    rbs[i]->SetDOFValues(toDblVec(traj.row(i)));
-    BOOST_FOREACH(const KinBodyPtr& body, bodies) {
-      handles.push_back(viewer->PlotKinBody(body));
-      SetTransparency(handles.back(), .35);
-    }
-  }
-  viewer->Idle();
-}  
-
-
 Matrix3d rotMat(const Vector3d& x) {
   Matrix3d out;
   out << 0, -x(2), x(1),
@@ -169,6 +115,115 @@ void printVector(VectorXd x) {
     if (i < x.size() - 1) cout << ", ";
   }
 }
+
+OpenRAVE::Transform matrixToTransform(const Matrix4d& X) {
+  OpenRAVE::TransformMatrix M;
+  M.trans.x = X(0, 3);
+  M.trans.y = X(1, 3);
+  M.trans.z = X(2, 3);
+  for (int row = 0; row < 3; ++row) {
+    for (int col = 0; col < 3; ++col) {
+      M.m[row*4+col] = X(row, col);
+    }
+  }
+  return OpenRAVE::Transform(M);
+}
+
+struct NeedleError : public VectorOfVector {
+  ConfigurationPtr cfg0, cfg1;
+  double radius;
+  KinBodyPtr body;
+  NeedleError(ConfigurationPtr cfg0, ConfigurationPtr cfg1, double radius) : cfg0(cfg0), cfg1(cfg1), radius(radius), body(cfg0->GetBodies()[0]) {}
+  VectorXd operator()(const VectorXd& a) const {
+    cfg0->SetDOFValues(toDblVec(a.topRows(6)));
+    OR::Transform Tw0 = body->GetTransform();
+    cfg1->SetDOFValues(toDblVec(a.middleRows(6,6)));
+    OR::Transform Tw1 = body->GetTransform();
+    double theta = a(12);
+    OR::Transform Ttarg0(OR::geometry::quatFromAxisAngle(OR::Vector(0,0,1), theta),
+        OR::Vector(radius*sin(theta), radius*(1-cos(theta)),0));
+        
+    OR::Transform Ttargw = Tw0 * Ttarg0;
+    OR::Vector position_errA = Ttargw.trans - Tw1.trans;
+    OR::Vector ori_err = Ttargw * OR::Vector(1,0,0) - Tw1 * OR::Vector(1,0,0);
+    return concat(toVector3d(position_errA), toVector3d(ori_err));
+
+  }
+};
+
+
+
+
+struct TrajPlotter {
+  vector<IncrementalRBPtr> rbs;
+  VarArray vars;
+  OSGViewerPtr viewer;
+  TrajPlotter(const vector<IncrementalRBPtr>& rbs, const VarArray& vars);
+  void OptimizerCallback(OptProb*, DblVec& x);
+  void PlotBothTrajectories(OptProbPtr prob, const BasicTrustRegionSQP& opt, const VectorXd& start);
+};
+
+TrajPlotter::TrajPlotter(const vector<IncrementalRBPtr>& rbs, const VarArray& vars) : rbs(rbs), vars(vars) {
+  viewer = OSGViewer::GetOrCreate(rbs[0]->GetEnv());
+}
+
+void TrajPlotter::OptimizerCallback(OptProb*, DblVec& x) {
+  vector<GraphHandlePtr> handles;
+  vector<KinBodyPtr> bodies = rbs[0]->GetBodies();
+  MatrixXd traj = getTraj(x,vars);
+  for (int i=0; i < traj.rows(); ++i) {
+    rbs[i]->SetDOFValues(toDblVec(traj.row(i)));
+    BOOST_FOREACH(const KinBodyPtr& body, bodies) {
+      handles.push_back(viewer->PlotKinBody(body));
+      SetTransparency(handles.back(), .35);
+    }
+  }
+  viewer->Idle();
+}  
+
+void TrajPlotter::PlotBothTrajectories(OptProbPtr prob, const BasicTrustRegionSQP& opt, const VectorXd& start) {
+  DblVec x = prob->getModel()->getVarValues(prob->getModel()->getVars());
+  MatrixXd traj = getTraj(x,vars);
+  vector<GraphHandlePtr> handles;
+  KinBodyPtr robot = rbs[0]->GetBodies()[0];
+  // plot real trajectory
+  vector<Matrix4d> poses;
+  vector<VectorXd> twists;
+  for (int i = 0; i < rbs.size(); ++i) {
+    rbs[i]->SetDOFValues(toDblVec(traj.row(i)));
+    OR::TransformMatrix M(rbs[i]->m_body->GetTransform());
+    Matrix4d pose;
+    pose << M.m[0], M.m[1], M.m[2], M.trans[0],
+            M.m[4], M.m[5], M.m[6], M.trans[1],
+            M.m[8], M.m[9], M.m[10], M.trans[2],
+            0,      0,      0,                1;
+    poses.push_back(pose);
+  }
+  for (int i = 0; i < poses.size() - 1; ++i) {
+    twists.push_back(logDown(poses[i].inverse() * poses[i+1]));
+  }
+  Matrix4d current_pose = expUp(start);
+  robot->SetTransform(matrixToTransform(current_pose));
+  handles.push_back(viewer->PlotKinBody(robot));
+  SetTransparency(handles.back(), .5);
+  for (int i = 0; i < twists.size(); ++i) {
+    twists[i][1] = twists[i][2] = twists[i][4] = 0;
+    current_pose = current_pose * expUp(twists[i]);
+    robot->SetTransform(matrixToTransform(current_pose));
+    handles.push_back(viewer->PlotKinBody(robot));
+    SetTransparency(handles.back(), .5);
+  }
+  // plot ideal trajectory
+  MatrixXd vals = getTraj(x, vars);
+  for (int i=0; i < vals.rows(); ++i) {
+    rbs[i]->SetDOFValues(toDblVec(vals.row(i)));
+    handles.push_back(viewer->PlotKinBody(robot));
+    SetTransparency(handles.back(), .35);
+  }
+  viewer->Idle();
+}
+
+
 
 
 int main(int argc, char** argv)
@@ -269,8 +324,8 @@ int main(int argc, char** argv)
   opt.trust_expand_ratio_ = trust_expand_ratio;
 
   boost::shared_ptr<TrajPlotter> plotter;
+  plotter.reset(new TrajPlotter(helper.m_rbs, trajvars));
   if (plotting) {
-    plotter.reset(new TrajPlotter(helper.m_rbs, trajvars));
     opt.addCallback(boost::bind(&TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2));
   }
 
@@ -306,6 +361,9 @@ int main(int argc, char** argv)
     printVector(logDown(poses[i].inverse() * poses[i+1]));
     cout << endl;
   }
+
+  plotter->PlotBothTrajectories(prob, opt, start);
+  
   RaveDestroy();
 
 }
