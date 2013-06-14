@@ -80,20 +80,110 @@ void TrajPlotter::OptimizerCallback(OptProb*, DblVec& x) {
 }  
 
 
+Matrix3d rotMat(const Vector3d& x) {
+  Matrix3d out;
+  out << 0, -x(2), x(1),
+         x(2), 0, -x(0),
+         -x(1), x(0), 0;
+  return out;
+}
+
+Vector3d rotVec(const Matrix3d& X) {
+  Vector3d out;
+  out << X(2, 1), X(0, 2), X(1, 0);
+  return out;
+}
+
+Matrix3d expA(const Vector3d& w) {
+  double theta = w.norm();
+  if (fabs(theta) < 1e-10) {
+    return Matrix3d::Identity();
+  } else {
+    Matrix3d w_hat = rotMat(w);
+    return Matrix3d::Identity() + w_hat / (theta*theta) * (1 - cos(theta)) + w_hat*w_hat / (theta*theta*theta) * (theta - sin(theta));
+  }
+}
+
+Matrix3d logInvA(const Vector3d& w) {
+  double theta = w.norm();
+  Matrix3d w_hat = rotMat(w);
+  if (theta < 1e-8) {
+    return Matrix3d::Identity();
+  }
+  return Matrix3d::Identity() - 0.5*w_hat + (2*sin(theta) - theta*(1 + cos(theta))) / (2 * theta*theta * sin(theta)) * w_hat*w_hat;
+}
+
+Matrix3d expRot(const Vector3d& x) {
+  double theta = x.norm();
+  if (fabs(theta) < 1e-8) {
+    return Matrix3d::Identity();
+  } else {
+    Vector3d w = x / theta; 
+    Matrix3d w_hat = rotMat(w);
+    return Matrix3d::Identity() + w_hat * sin(theta) + w_hat*w_hat * (1 - cos(theta));
+  }
+}
+
+Vector3d logRot(const Matrix3d& X) {
+  //double theta = acos(0.5 * (X.trace() - 1));
+  //if (fabs(sin(theta)) < 1e-8) {
+  //  return Vector3d::Zero();
+  //}
+  //Matrix3d w_hat = (X - X.transpose()) / (2 * sin(theta));
+  //return theta * rotVec(w_hat);
+
+  // Using the old implementation since it seems more robust in practice
+  Vector3d x;
+  x << X(2, 1) - X(1, 2),
+       X(0, 2) - X(2, 0),
+       X(1, 0) - X(0, 1);
+  double r = x.norm();
+  double t = X(0, 0) + X(1, 1) + X(2, 2) - 1;
+
+  if (r == 0) {
+    return Vector3d::Zero();
+  } else {
+    return x * (atan2(r, t) / r);
+  }
+}
+
+Matrix4d expUp(const VectorXd& x) {
+  assert(x.size() == 6);
+  Matrix4d X = Matrix4d::Identity();
+  X.block<3, 3>(0, 0) = expRot(x.tail<3>());
+  X.block<3, 1>(0, 3) = expA(x.tail<3>()) * x.head<3>();
+  X(3, 3) = 1;
+  return X;
+}
+
+VectorXd logDown(const Matrix4d& X) {
+  VectorXd x(6);
+  x.tail<3>() = logRot(X.block<3, 3>(0, 0));
+  x.head<3>() = logInvA(x.tail<3>()) * X.block<3, 1>(0, 3);
+  return x;
+}
+
+void printVector(VectorXd x) {
+  for (int i = 0; i < x.size(); ++i) {
+    cout << x(i);
+    if (i < x.size() - 1) cout << ", ";
+  }
+}
+
 
 int main(int argc, char** argv)
 {
   bool plotting=false, verbose=false;
   double env_transparency = 0.5;
   int n_steps = 25;
-  double turning_radius = 2; // turning radius for needle
+  double turning_radius = 2.85; // turning radius for needle
   int n_dof = 6;
-  double improve_ratio_threshold = 0.25;
-  double trust_shrink_ratio = 0.7;
-  double trust_expand_ratio = 1.2;
+  double improve_ratio_threshold = 0.1;
+  double trust_shrink_ratio = 0.9;
+  double trust_expand_ratio = 1.3;
   
-  double start_vec_array[] = {-12.82092, 6.80976, 0.06844, 0, 0, 0};
-  double goal_vec_array[] = {-3.21932, 6.87362, -1.21877, 0, 0, 0};
+  double start_vec_array[] = {0, 0, 0, 0, 0, 0};
+  double goal_vec_array[] = {6, 0, 6, 0, 0, 0};
 
   vector<double> start_vec(start_vec_array, start_vec_array + n_dof);
   vector<double> goal_vec(goal_vec_array, goal_vec_array + n_dof);
@@ -194,9 +284,22 @@ int main(int argc, char** argv)
   
   opt.optimize();
 
+  vector<Matrix4d> poses;
 
+  for (int i = 0; i < helper.m_rbs.size(); ++i) {
+    helper.m_rbs[i]->SetDOFValues(prob->getModel()->getVarValues(trajvars.row(i)));
+    OR::Transform T = helper.m_rbs[i]->m_body->GetTransform();
+    OR::Vector trans = T.trans;
+    OR::Vector rot = OpenRAVE::geometry::axisAngleFromQuat(T.rot);
+    VectorXd x(6); x << trans[0], trans[1], trans[2], rot[0], rot[1], rot[2];
+    poses.push_back(expUp(x));
+  }
 
+  for (int i = 0; i < poses.size() - 1; ++i) {
+    cout << "twist at time " << i << ": ";
+    printVector(logDown(poses[i].inverse() * poses[i+1]));
+    cout << endl;
+  }
   RaveDestroy();
-
 
 }
