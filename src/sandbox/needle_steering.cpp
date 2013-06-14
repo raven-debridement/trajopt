@@ -288,11 +288,17 @@ int main(int argc, char** argv)
 
   for (int i = 0; i < helper.m_rbs.size(); ++i) {
     helper.m_rbs[i]->SetDOFValues(prob->getModel()->getVarValues(trajvars.row(i)));
-    OR::Transform T = helper.m_rbs[i]->m_body->GetTransform();
-    OR::Vector trans = T.trans;
-    OR::Vector rot = OpenRAVE::geometry::axisAngleFromQuat(T.rot);
-    VectorXd x(6); x << trans[0], trans[1], trans[2], rot[0], rot[1], rot[2];
-    poses.push_back(expUp(x));
+    OR::TransformMatrix M(helper.m_rbs[i]->m_body->GetTransform());
+    Matrix4d pose;
+    pose << M.m[0], M.m[1], M.m[2], M.trans[0],
+            M.m[4], M.m[5], M.m[6], M.trans[1],
+            M.m[8], M.m[9], M.m[10], M.trans[2],
+            0,      0,      0,                1;
+
+    //OR::Vector trans = T.trans;
+    //OR::Vector rot = OpenRAVE::geometry::axisAngleFromQuat(T.rot);
+    //VectorXd x(6); x << trans[0], trans[1], trans[2], rot[0], rot[1], rot[2];
+    poses.push_back(pose);//expUp(x));
   }
 
   for (int i = 0; i < poses.size() - 1; ++i) {
