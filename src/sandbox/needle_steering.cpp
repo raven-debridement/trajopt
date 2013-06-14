@@ -360,7 +360,9 @@ namespace Needle {
     return logDown((cfg->pose_ * expUp(a)).inverse() * expUp(target_pos));
   }
 
-  ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]), formulation(formulation), curvature_constraint(curvature_constraint) {}
+  ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint, NeedleProblemHelper& helper) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]), formulation(formulation), curvature_constraint(curvature_constraint) {
+    this->helper.reset(&helper);
+  }
   VectorXd ControlError::operator()(const VectorXd& a) const {
     Matrix4d pose1 = cfg0->pose_ * expUp(a.topRows(6));
     Matrix4d pose2 = cfg1->pose_ * expUp(a.middleRows(6,6));
@@ -379,7 +381,7 @@ namespace Needle {
     switch (formulation) {
       case NeedleProblemHelper::Form1:
       case NeedleProblemHelper::Form3: {
-        return logDown(transformPose(pose1, phi, Delta, radius).inverse() * pose2);
+        return logDown(helper->TransformPose(pose1, phi, Delta, radius).inverse() * pose2);
       }
       case NeedleProblemHelper::Form2: {
         VectorXd trans1 = pose1.block<3, 1>(0, 3);
@@ -446,7 +448,7 @@ namespace Needle {
     opt.initialize(initVec);
   }
 
-  Matrix4d NeedleProblemHelper::transformPose(const Matrix4d& pose, double phi, double Delta, double radius) {
+  Matrix4d NeedleProblemHelper::TransformPose(const Matrix4d& pose, double phi, double Delta, double radius) const {
     double theta = Delta / radius;
     switch (formulation) {
       case NeedleProblemHelper::Form1:
@@ -464,15 +466,15 @@ namespace Needle {
     }
   }
 
-  double NeedleProblemHelper::getPhi(DblVec& x, int i) {
+  double NeedleProblemHelper::GetPhi(const DblVec& x, int i) const {
     return x[phivars.row(i)[0].var_rep->index];
   }
 
-  double NeedleProblemHelper::getDelta(DblVec& x, int i) {
+  double NeedleProblemHelper::GetDelta(const DblVec& x, int i) const {
     return x[Deltavar.var_rep->index];
   }
 
-  double NeedleProblemHelper::getRadius(DblVec& x, int i) {
+  double NeedleProblemHelper::GetRadius(const DblVec& x, int i) const {
     switch (curvature_constraint) {
       case ConstantRadius:
         return r_min;
@@ -489,10 +491,10 @@ namespace Needle {
   void NeedleProblemHelper::checkAlignment(DblVec& x) {
     double diff = 0.;
     for (int i = 0; i < T; ++i) {
-      double phi = getPhi(x, i);
-      double Delta = getDelta(x, i);
-      double radius = getRadius(x, i);
-      diff += (local_configs[i+1]->pose_ - transfromPose(local_configs[i]->pose_, phi, Delta, radius)).norm();
+      double phi = GetPhi(x, i);
+      double Delta = GetDelta(x, i);
+      double radius = GetRadius(x, i);
+      diff += (local_configs[i+1]->pose_ - TransformPose(local_configs[i]->pose_, phi, Delta, radius)).norm();
     }
   }
   #endif
@@ -516,10 +518,10 @@ namespace Needle {
         // execute the control input to set local configuration poses
         local_configs[0]->pose_ = expUp(start);
         for (int i = 0; i < T; ++i) {
-          double phi = getPhi(x, i);
-          double Delta = getDelta(x, i);
-          double radius = getRadius(x, i);
-          local_configs[i+1]->pose_ = transformPose(local_configs[i]->pose_, phi, Delta, radius);
+          double phi = GetPhi(x, i);
+          double Delta = GetDelta(x, i);
+          double radius = GetRadius(x, i);
+          local_configs[i+1]->pose_ = TransformPose(local_configs[i]->pose_, phi, Delta, radius);
         }
         setVec(x, twistvars.m_data, DblVec(twistvars.size(), 0));
         break;
@@ -584,7 +586,7 @@ namespace Needle {
       if (curvature_constraint == BoundedRadius) {
         vars = concat(vars, radiusvars.row(i));
       }
-      VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], r_min, formulation, curvature_constraint));
+      VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], r_min, formulation, curvature_constraint, *this));
       VectorXd coeffs = VectorXd::Ones(boost::static_pointer_cast<Needle::ControlError>(f)->outputSize());
       prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("control%i")%i).str())));
     }
@@ -615,12 +617,12 @@ namespace Needle {
         SetTransparency(handles.back(), .35);
       }
     }
-    handles.push_back(viewer->PlotKinBody(PlotGoal())); 
+    handles.push_back(viewer->PlotKinBody(GetGoalKinBody())); 
     SetTransparency(handles.back(), 1);
     viewer->Idle();
   }
 
-  KinBodyPtr TrajPlotter::PlotGoal() {
+  KinBodyPtr TrajPlotter::GetGoalKinBody() {
     OpenRAVE::Transform T;
     T.trans.x = helper->goal[0];
     T.trans.y = helper->goal[1];
@@ -631,20 +633,33 @@ namespace Needle {
     return helper->robot;
   }
 
-  void TrajPlotter::PlotRealTrajectory(OptProbPtr prob, const BasicTrustRegionSQP& opt, const NeedleProblemHelper& helper) {
+  void TrajPlotter::PlotBothTrajectories(OptProbPtr prob, const BasicTrustRegionSQP& opt, const NeedleProblemHelper& helper) {
     DblVec x = prob->getModel()->getVarValues(prob->getModel()->getVars());
     vector<GraphHandlePtr> handles;
-    vector<KinBodyPtr> bodies = local_configs[0]->GetBodies();
+    KinBodyPtr robot = helper.robot;
+    // plot real trajectory
     Matrix4d current_pose = expUp(helper.start);
+    robot->SetTransform(Needle::matrixToTransform(current_pose));
+    handles.push_back(viewer->PlotKinBody(robot));
+    SetTransparency(handles.back(), .5);
     for (int i = 0; i < helper.T; ++i) {
-      double phi = helper.getPhi(x, i);
-      double Delta = helper.getDelta(x, i);
-      double radius = helper.getRadius(x, i);
-      current_pose = helper.transformPose(current_pose, phi, Delta, radius);
+      double phi = helper.GetPhi(x, i);
+      double Delta = helper.GetDelta(x, i);
+      double radius = helper.GetRadius(x, i);
+      current_pose = helper.TransformPose(current_pose, phi, Delta, radius);
+      robot->SetTransform(Needle::matrixToTransform(current_pose));
+      handles.push_back(viewer->PlotKinBody(robot));
+      SetTransparency(handles.back(), .5);
     }
-
+    // plot ideal trajectory
+    MatrixXd vals = getTraj(x, vars);
+    for (int i=0; i < vals.rows(); ++i) {
+      local_configs[i]->SetDOFValues(toDblVec(vals.row(i)));
+      handles.push_back(viewer->PlotKinBody(robot));
+      SetTransparency(handles.back(), .35);
+    }
+    viewer->Idle();
   }
-
 }
 
 void printVector(VectorXd x) {
@@ -657,22 +672,6 @@ void printVector(VectorXd x) {
 int main(int argc, char** argv)
 {
 
-  //Matrix4d X; X << 1, 0, 0, 0,
-  //                 0, 1, 0, 0,
-  //                 0, 0, 1, 0,
-  //                 0, 0, 0, 1;
-  //double radius = 5;
-  //double theta = PI/2;
-  //double Delta = radius * theta;
-  //VectorXd w(6); w << 0, 0, 0, 0, 0, PI/2;
-  //VectorXd v(6); v << 0, 0, PI*5/2, PI/2, 0, 0;
-  ////VectorXd v(6); v << 0, radius * (cos(theta) - 1), -radius*sin(theta), theta, 0, 0;
-  //cout << X * Needle::expUp(w) * Needle::expUp(v) << endl;
-  //cout << X * Needle::expUp(v) * Needle::expUp(w) << endl;
-  //cout << Needle::logDown(Needle::expUp(a)) << endl;
-  //cout << Needle::logDown(Needle::expUp(b)) << endl;
-  //cout << Needle::logDown(Needle::expUp(c)) << endl;
-  //return 0;
   bool plotting=true, verbose=false;
   double env_transparency = 0.5;
 
@@ -760,9 +759,9 @@ int main(int argc, char** argv)
   helper.ConfigureOptimizer(opt);
 
   boost::shared_ptr<Needle::TrajPlotter> plotter;
+  plotter.reset(new Needle::TrajPlotter(helper.local_configs, helper.twistvars));
+  plotter->helper.reset(&helper);
   if (plotting) {
-    plotter.reset(new Needle::TrajPlotter(helper.local_configs, helper.twistvars));
-    plotter->helper.reset(&helper);
     opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2));
   }
 
@@ -779,7 +778,7 @@ int main(int argc, char** argv)
     cout << endl;
   }
   
-  plotter->PlotRealTrajectory(prob, opt, helper);
+  plotter->PlotBothTrajectories(prob, opt, helper);
 
   RaveDestroy();
 

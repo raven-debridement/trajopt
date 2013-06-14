@@ -7,7 +7,7 @@
 #include <openrave/openrave.h>
 #include "osgviewer/osgviewer.hpp"
 
-//#define NEEDLE_TEST
+#define NEEDLE_TEST
 
 using namespace trajopt;
 using namespace std;
@@ -59,7 +59,10 @@ namespace Needle {
     virtual vector<OpenRAVE::KinBodyPtr> GetBodies();
   };
 
+  struct NeedleProblemHelper;
+
   typedef boost::shared_ptr<LocalConfiguration> LocalConfigurationPtr;
+  typedef boost::shared_ptr<NeedleProblemHelper> NeedleProblemHelperPtr;
 
   struct PositionError : public VectorOfVector {
     LocalConfigurationPtr cfg;
@@ -75,7 +78,8 @@ namespace Needle {
     KinBodyPtr body;
     int formulation;
     int curvature_constraint;
-    ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint);
+    NeedleProblemHelperPtr helper;
+    ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint, NeedleProblemHelper& helper);
     VectorXd operator()(const VectorXd& a) const;
     int outputSize() const;
   };
@@ -120,6 +124,10 @@ namespace Needle {
     void AddGoalConstraint(OptProb& prob);
     void AddControlConstraint(OptProb& prob);
     void AddCollisionConstraint(OptProb& prob);
+    Matrix4d TransformPose(const Matrix4d& pose, double phi, double Delta, double radius) const;
+    double GetPhi(const DblVec& x, int i) const;
+    double GetDelta(const DblVec& x, int i) const;
+    double GetRadius(const DblVec& x, int i) const;
     #ifdef NEEDLE_TEST
     void checkAlignment(DblVec& x);
     #endif
@@ -129,9 +137,10 @@ namespace Needle {
     vector<LocalConfigurationPtr> local_configs;
     VarArray vars;
     OSGViewerPtr viewer;
-    boost::shared_ptr<NeedleProblemHelper> helper;
+    NeedleProblemHelperPtr helper;
     TrajPlotter(const vector<LocalConfigurationPtr>& local_configs, const VarArray& vars);
     void OptimizerCallback(OptProb*, DblVec& x);
-    KinBodyPtr PlotGoal();
+    KinBodyPtr GetGoalKinBody();
+    void PlotBothTrajectories(OptProbPtr prob, const BasicTrustRegionSQP& opt, const NeedleProblemHelper& helper);
   };
 }
