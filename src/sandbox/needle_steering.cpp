@@ -357,21 +357,13 @@ namespace Needle {
     VectorXd x(6);
     x.head<3>() = X.block<3, 1>(0, 3) - target_pos.head<3>();
     x.tail<3>() = Vector3d::Zero();
-    //cout << "compare" << endl << x << endl << "with" << endl << logDown((cfg->pose_ * expUp(a)).inverse() * expUp(target_pos)) << endl;
-    //cout << "compare" << endl << logDown((cfg->pose_ * expUp(a)).inverse() * expUp(target_pos)) << endl << "with" << endl << logDown(cfg->pose_ * expUp(a)) - target_pos << endl;
-    //return x;
     return logDown((cfg->pose_ * expUp(a)).inverse() * expUp(target_pos));
-    //return logDown(cfg->pose_ * expUp(a)) - target_pos;
   }
 
   ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]), formulation(formulation), curvature_constraint(curvature_constraint) {}
   VectorXd ControlError::operator()(const VectorXd& a) const {
-    //cout << "before transform: " << endl << a.topRows(6) << endl << "after transform: " << endl << logDown(expUp(a.topRows(6))) << endl;
-    //cout << "before transform: " << endl << a.middleRows(6, 6) << endl << "after transform: " << endl << logDown(expUp(a.middleRows(6, 6))) << endl;
     Matrix4d pose1 = cfg0->pose_ * expUp(a.topRows(6));
-    //Matrix4d pose1 = expUp(a.topRows(6)) * cfg0->pose_;
     Matrix4d pose2 = cfg1->pose_ * expUp(a.middleRows(6,6));
-    //Matrix4d pose2 = expUp(a.middleRows(6,6)) * cfg1->pose_;
     double phi = a(12), Delta = a(13);
     double radius;
     switch (curvature_constraint) {
@@ -384,14 +376,10 @@ namespace Needle {
       default:
         PRINT_AND_THROW("not implemented");
     }
-    double theta = Delta / radius;
     switch (formulation) {
-      case NeedleProblemHelper::Form1: {
-        VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
-        VectorXd v(6); v << 0, 0, Delta, Delta / radius, 0, 0;
-        //VectorXd v(6); v << 0, radius * (1 - cos(theta)), radius*sin(theta), theta, 0, 0;
-        return logDown((pose1 * expUp(w) * expUp(v)).inverse() * pose2);
-        //return logDown((expUp(v) * expUp(w) * pose1).inverse() * pose2);
+      case NeedleProblemHelper::Form1:
+      case NeedleProblemHelper::Form3: {
+        return logDown(transformPose(pose1, phi, Delta, radius).inverse() * pose2);
       }
       case NeedleProblemHelper::Form2: {
         VectorXd trans1 = pose1.block<3, 1>(0, 3);
@@ -404,10 +392,6 @@ namespace Needle {
           bound_inf(radius - (x*x + y*y + z*z) / (2 * sqrt(x*x + y*y)), 100), // sketchy lol
           Delta - radius * atan2(z, radius - sqrt(x*x + y*y));
         return err;
-      }
-      case NeedleProblemHelper::Form3: {
-        VectorXd w(6); w << 0, 0, Delta, Delta / radius, 0, phi;
-        return logDown((pose1 * expUp(w)).inverse() * pose2);
       }
       default:
         PRINT_AND_THROW("not implemented");
@@ -462,45 +446,54 @@ namespace Needle {
     opt.initialize(initVec);
   }
 
+  Matrix4d NeedleProblemHelper::transformPose(const Matrix4d& pose, double phi, double Delta, double radius) {
+    double theta = Delta / radius;
+    switch (formulation) {
+      case NeedleProblemHelper::Form1:
+      case NeedleProblemHelper::Form2: {
+        VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
+        VectorXd v(6); v << 0, 0, Delta, Delta / radius, 0, 0;
+        return pose * expUp(w) * expUp(v);
+      }
+      case NeedleProblemHelper::Form3: {
+        VectorXd w(6); w << 0, 0, Delta, Delta / radius, 0, phi;
+        return pose * expUp(w);
+      }
+      default:
+        PRINT_AND_THROW("not implemented");
+    }
+  }
+
+  double NeedleProblemHelper::getPhi(DblVec& x, int i) {
+    return x[phivars.row(i)[0].var_rep->index];
+  }
+
+  double NeedleProblemHelper::getDelta(DblVec& x, int i) {
+    return x[Deltavar.var_rep->index];
+  }
+
+  double NeedleProblemHelper::getRadius(DblVec& x, int i) {
+    switch (curvature_constraint) {
+      case ConstantRadius:
+        return r_min;
+      case BoundedRadius:
+        return x[radiusvars.row(i)[0].var_rep->index];
+      default:
+        PRINT_AND_THROW("not implemented");
+    }
+  }
+
+
   
   #ifdef NEEDLE_TEST
   void NeedleProblemHelper::checkAlignment(DblVec& x) {
     double diff = 0.;
     for (int i = 0; i < T; ++i) {
-      double phi = x[phivars.row(i)[0].var_rep->index];
-      double Delta = x[Deltavar.var_rep->index];
-      double radius;
-      switch (curvature_constraint) {
-        case ConstantRadius:
-          radius = r_min;
-          break;
-        case BoundedRadius:
-          radius = x[radiusvars.row(i)[0].var_rep->index];
-          break;
-        default:
-          PRINT_AND_THROW("not implemented");
-      }
-      double theta = Delta / radius;
-      switch (formulation) {
-        case NeedleProblemHelper::Form1:
-        case NeedleProblemHelper::Form2: {
-          VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
-          //VectorXd v(6); v << 0, radius * (1 - cos(theta)), radius*sin(theta), theta, 0, 0;
-          VectorXd v(6); v << 0, 0, Delta, Delta / radius, 0, 0;
-          diff += (local_configs[i+1]->pose_ - local_configs[i]->pose_ * expUp(w) * expUp(v)).norm();
-          //diff += (local_configs[i+1]->pose_ - expUp(v) * expUp(w) * local_configs[i]->pose_).norm();
-          break;
-        }
-        case NeedleProblemHelper::Form3: {
-          VectorXd w(6); w << 0, 0, Delta, Delta / radius, 0, phi;
-          diff += (local_configs[i+1]->pose_ - local_configs[i]->pose_ * expUp(w)).norm();
-          break;
-        }
-        default:
-          PRINT_AND_THROW("not implemented");
-      }
+      double phi = getPhi(x, i);
+      double Delta = getDelta(x, i);
+      double radius = getRadius(x, i);
+      diff += (local_configs[i+1]->pose_ - transfromPose(local_configs[i]->pose_, phi, Delta, radius)).norm();
     }
-    //cout << "alignment cost: " << diff << endl;
   }
   #endif
 
@@ -523,38 +516,10 @@ namespace Needle {
         // execute the control input to set local configuration poses
         local_configs[0]->pose_ = expUp(start);
         for (int i = 0; i < T; ++i) {
-          double phi = x[phivars.row(i)[0].var_rep->index];
-          double Delta = x[Deltavar.var_rep->index];
-          double radius;
-          switch (curvature_constraint) {
-            case ConstantRadius:
-              radius = r_min;
-              break;
-            case BoundedRadius:
-              radius = x[radiusvars.row(i)[0].var_rep->index];
-              break;
-            default:
-              PRINT_AND_THROW("not implemented");
-          }
-          double theta = Delta / radius;
-          switch (formulation) {
-            case NeedleProblemHelper::Form1:
-            case NeedleProblemHelper::Form2: {
-              VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
-              //VectorXd v(6); v << 0, radius * (1 - cos(theta)), radius*sin(theta), theta, 0, 0;
-              VectorXd v(6); v << 0, 0, Delta, Delta / radius, 0, 0;
-              local_configs[i+1]->pose_ = local_configs[i]->pose_ * expUp(w) * expUp(v);
-              //local_configs[i+1]->pose_ = expUp(v) * expUp(w) * local_configs[i]->pose_;
-              break;
-            }
-            case NeedleProblemHelper::Form3: {
-              VectorXd w(6); w << 0, 0, Delta, Delta / radius, 0, phi;
-              local_configs[i+1]->pose_ = local_configs[i]->pose_ * expUp(w);
-              break;
-            }
-            default:
-              PRINT_AND_THROW("not implemented");
-          }
+          double phi = getPhi(x, i);
+          double Delta = getDelta(x, i);
+          double radius = getRadius(x, i);
+          local_configs[i+1]->pose_ = transformPose(local_configs[i]->pose_, phi, Delta, radius);
         }
         setVec(x, twistvars.m_data, DblVec(twistvars.size(), 0));
         break;
@@ -666,6 +631,27 @@ namespace Needle {
     return helper->robot;
   }
 
+  void TrajPlotter::PlotRealTrajectory(OptProbPtr prob, const BasicTrustRegionSQP& opt, const NeedleProblemHelper& helper) {
+    DblVec x = prob->getModel()->getVarValues(prob->getModel()->getVars());
+    vector<GraphHandlePtr> handles;
+    vector<KinBodyPtr> bodies = local_configs[0]->GetBodies();
+    Matrix4d current_pose = expUp(helper.start);
+    for (int i = 0; i < helper.T; ++i) {
+      double phi = helper.getPhi(x, i);
+      double Delta = helper.getDelta(x, i);
+      double radius = helper.getRadius(x, i);
+      current_pose = helper.transformPose(current_pose, phi, Delta, radius);
+    }
+
+  }
+
+}
+
+void printVector(VectorXd x) {
+  for (int i = 0; i < x.size(); ++i) {
+    cout << x(i);
+    if (i < x.size() - 1) cout << ", ";
+  }
 }
 
 int main(int argc, char** argv)
@@ -781,6 +767,19 @@ int main(int argc, char** argv)
   }
 
   opt.optimize();
+  
+  vector<Matrix4d> poses;
+  for (int i = 0; i < helper.local_configs.size(); ++i) {
+    poses.push_back(helper.local_configs[i]->pose_);
+  }
+     
+  for (int i = 0; i < poses.size() - 1; ++i) {
+    cout << "twist at time " << i << ": ";
+    printVector(Needle::logDown(poses[i].inverse() * poses[i+1]));
+    cout << endl;
+  }
+  
+  plotter->PlotRealTrajectory(prob, opt, helper);
 
   RaveDestroy();
 
