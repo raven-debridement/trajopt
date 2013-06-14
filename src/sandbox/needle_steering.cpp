@@ -129,38 +129,48 @@ namespace Needle {
   }
 
   Matrix3d expRot(const Vector3d& x) {
-    double theta = x.norm();
-    if (fabs(theta) < 1e-8) {
+    double rr = x.squaredNorm();
+    if (fabs(rr) < 1e-10) {
       return Matrix3d::Identity();
     } else {
-      Vector3d w = x / theta; 
-      Matrix3d w_hat = rotMat(w);
-      return Matrix3d::Identity() + w_hat * sin(theta) + w_hat*w_hat * (1 - cos(theta));
+      double r = sqrt(rr);
+      return rotMat(x * (sin(r) / r)) + Matrix3d::Identity() * cos(r) + (x*x.transpose()) * ((1 - cos(r)) / rr);
     }
   }
 
+  //Matrix3d expRot(const Vector3d& x) {
+  //  double theta = x.norm();
+  //  if (fabs(theta) < 1e-8) {
+  //    return Matrix3d::Identity();
+  //  } else {
+  //    Vector3d w = x / theta; 
+  //    Matrix3d w_hat = rotMat(w);
+  //    return Matrix3d::Identity() + w_hat * sin(theta) + w_hat*w_hat * (1 - cos(theta));
+  //  }
+  //}
+
   Vector3d logRot(const Matrix3d& X) {
-    if (fabs(X.trace() - 3) < 1e-8) {
-      return Vector3d::Zero();
-    } else {
-      double theta = acos(0.5 * (X.trace() - 1));
-      Matrix3d w_hat = (X - X.transpose()) / (2 * sin(theta));
-      return theta * rotVec(w_hat);
-    }
-
-    //// Using the old implementation since it seems more robust in practice
-    //Vector3d x;
-    //x << X(2, 1) - X(1, 2),
-    //     X(0, 2) - X(2, 0),
-    //     X(1, 0) - X(0, 1);
-    //double r = x.norm();
-    //double t = X(0, 0) + X(1, 1) + X(2, 2) - 1;
-
-    //if (fabs(r) < 1e-8) {
+    //if (fabs(X.trace() - 3) < 1e-8) {
     //  return Vector3d::Zero();
     //} else {
-    //  return x * (atan2(r, t) / r);
+    //  double theta = acos(0.5 * (X.trace() - 1));
+    //  Matrix3d w_hat = (X - X.transpose()) / (2 * sin(theta));
+    //  return theta * rotVec(w_hat);
     //}
+
+    //// Using the old implementation since it seems more robust in practice
+    Vector3d x;
+    x << X(2, 1) - X(1, 2),
+         X(0, 2) - X(2, 0),
+         X(1, 0) - X(0, 1);
+    double r = x.norm();
+    double t = X(0, 0) + X(1, 1) + X(2, 2) - 1;
+
+    if (fabs(r) < 1e-8) {
+      return Vector3d::Zero();
+    } else {
+      return x * (atan2(r, t) / r);
+    }
   }
 
   
@@ -177,7 +187,7 @@ namespace Needle {
   VectorXd logDownNew(const Matrix4d& X) {
     VectorXd x(6);
     x.tail<3>() = logRot(X.block<3, 3>(0, 0));
-    x.head<3>() = logInvA(x.tail<3>()) * X.block<3, 1>(0, 3);
+    x.head<3>() = (expA(x.tail<3>())).inverse() * X.block<3, 1>(0, 3);
     return x;
   }
 
@@ -197,11 +207,11 @@ namespace Needle {
   }
 
   Matrix4d expUp(const VectorXd& x) {
-    return expUpOld(x);
+    return expUpNew(x);
   }
 
   VectorXd logDown(const Matrix4d& X) {
-    return logDownOld(X);
+    return logDownNew(X);
   }
 
   OpenRAVE::Transform matrixToTransform(const Matrix4d& X) {
@@ -267,7 +277,8 @@ namespace Needle {
     }
     //cout << "before transform: " << x << endl;
     //cout << "after transform: " << logDown(expUp(x)) << endl;
-    OpenRAVE::Transform T = vecToTransform(logDown(pose_ * expUp(x)));//matrixToTransform(pose_ * expUp(x));
+    OpenRAVE::Transform T = matrixToTransform(pose_ * expUp(x));//matrixToTransform(pose_ * expUp(x));
+    //OpenRAVE::Transform T = vecToTransform(logDown(expUp(x) * pose_));//matrixToTransform(pose_ * expUp(x));
     body_->SetTransform(T);
   }
 
@@ -343,14 +354,17 @@ namespace Needle {
 
   VectorXd PositionError::operator()(const VectorXd& a) const {
     return logDown(cfg->pose_ * expUp(a)) - target_pos;
+    //return logDown(expUp(a) * cfg->pose_) - target_pos;
   }
 
   ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]), formulation(formulation), curvature_constraint(curvature_constraint) {}
   VectorXd ControlError::operator()(const VectorXd& a) const {
-    cout << "before transform: " << endl << a.topRows(6) << endl << "after transform: " << endl << logDown(expUp(a.topRows(6))) << endl;
-    cout << "before transform: " << endl << a.middleRows(6, 6) << endl << "after transform: " << endl << logDown(expUp(a.middleRows(6, 6))) << endl;
+    //cout << "before transform: " << endl << a.topRows(6) << endl << "after transform: " << endl << logDown(expUp(a.topRows(6))) << endl;
+    //cout << "before transform: " << endl << a.middleRows(6, 6) << endl << "after transform: " << endl << logDown(expUp(a.middleRows(6, 6))) << endl;
     Matrix4d pose1 = cfg0->pose_ * expUp(a.topRows(6));
+    //Matrix4d pose1 = expUp(a.topRows(6)) * cfg0->pose_;
     Matrix4d pose2 = cfg1->pose_ * expUp(a.middleRows(6,6));
+    //Matrix4d pose2 = expUp(a.middleRows(6,6)) * cfg1->pose_;
     double phi = a(12), Delta = a(13);
     double radius;
     switch (curvature_constraint) {
@@ -363,11 +377,14 @@ namespace Needle {
       default:
         PRINT_AND_THROW("not implemented");
     }
+    double theta = Delta / radius;
     switch (formulation) {
       case NeedleProblemHelper::Form1: {
         VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
         VectorXd v(6); v << 0, 0, Delta, Delta / radius, 0, 0;
+        //VectorXd v(6); v << 0, radius * (1 - cos(theta)), radius*sin(theta), theta, 0, 0;
         return logDown((pose1 * expUp(w) * expUp(v)).inverse() * pose2);
+        //return logDown((expUp(v) * expUp(w) * pose1).inverse() * pose2);
       }
       case NeedleProblemHelper::Form2: {
         VectorXd trans1 = pose1.block<3, 1>(0, 3);
@@ -456,12 +473,15 @@ namespace Needle {
         default:
           PRINT_AND_THROW("not implemented");
       }
+      double theta = Delta / radius;
       switch (formulation) {
         case NeedleProblemHelper::Form1:
         case NeedleProblemHelper::Form2: {
           VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
+          //VectorXd v(6); v << 0, radius * (1 - cos(theta)), radius*sin(theta), theta, 0, 0;
           VectorXd v(6); v << 0, 0, Delta, Delta / radius, 0, 0;
           diff += (local_configs[i+1]->pose_ - local_configs[i]->pose_ * expUp(w) * expUp(v)).norm();
+          //diff += (local_configs[i+1]->pose_ - expUp(v) * expUp(w) * local_configs[i]->pose_).norm();
           break;
         }
         case NeedleProblemHelper::Form3: {
@@ -484,6 +504,7 @@ namespace Needle {
         MatrixXd twistvals = getTraj(x, twistvars);
         for (int i = 0; i < local_configs.size(); ++i) {
           local_configs[i]->pose_ = local_configs[i]->pose_ * expUp(twistvals.row(i));
+          //local_configs[i]->pose_ = expUp(twistvals.row(i)) * local_configs[i]->pose_;
         }
         #ifdef NEEDLE_TEST
         checkAlignment(x);
@@ -508,12 +529,15 @@ namespace Needle {
             default:
               PRINT_AND_THROW("not implemented");
           }
+          double theta = Delta / radius;
           switch (formulation) {
             case NeedleProblemHelper::Form1:
             case NeedleProblemHelper::Form2: {
               VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
+              //VectorXd v(6); v << 0, radius * (1 - cos(theta)), radius*sin(theta), theta, 0, 0;
               VectorXd v(6); v << 0, 0, Delta, Delta / radius, 0, 0;
               local_configs[i+1]->pose_ = local_configs[i]->pose_ * expUp(w) * expUp(v);
+              //local_configs[i+1]->pose_ = expUp(v) * expUp(w) * local_configs[i]->pose_;
               break;
             }
             case NeedleProblemHelper::Form3: {
@@ -577,7 +601,7 @@ namespace Needle {
   void NeedleProblemHelper::AddGoalConstraint(OptProb& prob) {
     VarVector vars = twistvars.row(T);
     VectorOfVectorPtr f(new Needle::PositionError(local_configs[T], goal));
-    VectorXd coeffs(n_dof); coeffs << 1., 1., 1., 0., 0., 0.;// = VectorXd::Ones(6);
+    VectorXd coeffs(n_dof); coeffs << 1., 1., 1., 0., 0., 0.;//1., 1., 1.;//0., 0., 0.;// = VectorXd::Ones(6);
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "goal")));
   }
 
@@ -626,6 +650,23 @@ namespace Needle {
 
 int main(int argc, char** argv)
 {
+
+  //Matrix4d X; X << 1, 0, 0, 0,
+  //                 0, 1, 0, 0,
+  //                 0, 0, 1, 0,
+  //                 0, 0, 0, 1;
+  //double radius = 5;
+  //double theta = PI/2;
+  //double Delta = radius * theta;
+  //VectorXd w(6); w << 0, 0, 0, 0, 0, PI/2;
+  //VectorXd v(6); v << 0, 0, PI*5/2, PI/2, 0, 0;
+  ////VectorXd v(6); v << 0, radius * (cos(theta) - 1), -radius*sin(theta), theta, 0, 0;
+  //cout << X * Needle::expUp(w) * Needle::expUp(v) << endl;
+  //cout << X * Needle::expUp(v) * Needle::expUp(w) << endl;
+  //cout << Needle::logDown(Needle::expUp(a)) << endl;
+  //cout << Needle::logDown(Needle::expUp(b)) << endl;
+  //cout << Needle::logDown(Needle::expUp(c)) << endl;
+  //return 0;
   bool plotting=true, verbose=false;
   double env_transparency = 0.5;
 
