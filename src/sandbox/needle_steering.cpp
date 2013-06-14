@@ -353,8 +353,8 @@ namespace Needle {
   PositionError::PositionError(LocalConfigurationPtr cfg, const VectorXd& target_pos) : cfg(cfg), target_pos(target_pos), body(cfg->GetBodies()[0]) {}
 
   VectorXd PositionError::operator()(const VectorXd& a) const {
-    return logDown(cfg->pose_ * expUp(a)) - target_pos;
-    //return logDown(expUp(a) * cfg->pose_) - target_pos;
+    return logDown((cfg->pose_ * expUp(a)).inverse() * expUp(target_pos));
+    //return logDown(cfg->pose_ * expUp(a)) - target_pos;
   }
 
   ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]), formulation(formulation), curvature_constraint(curvature_constraint) {}
