@@ -138,27 +138,8 @@ namespace Needle {
     }
   }
 
-  //Matrix3d expRot(const Vector3d& x) {
-  //  double theta = x.norm();
-  //  if (fabs(theta) < 1e-8) {
-  //    return Matrix3d::Identity();
-  //  } else {
-  //    Vector3d w = x / theta; 
-  //    Matrix3d w_hat = rotMat(w);
-  //    return Matrix3d::Identity() + w_hat * sin(theta) + w_hat*w_hat * (1 - cos(theta));
-  //  }
-  //}
-
   Vector3d logRot(const Matrix3d& X) {
-    //if (fabs(X.trace() - 3) < 1e-8) {
-    //  return Vector3d::Zero();
-    //} else {
-    //  double theta = acos(0.5 * (X.trace() - 1));
-    //  Matrix3d w_hat = (X - X.transpose()) / (2 * sin(theta));
-    //  return theta * rotVec(w_hat);
-    //}
-
-    //// Using the old implementation since it seems more robust in practice
+    // Using the old implementation since it seems more robust in practice
     Vector3d x;
     x << X(2, 1) - X(1, 2),
          X(0, 2) - X(2, 0),
@@ -173,9 +154,7 @@ namespace Needle {
     }
   }
 
-  
-
-  Matrix4d expUpNew(const VectorXd& x) {
+  Matrix4d expUp(const VectorXd& x) {
     assert(x.size() == 6);
     Matrix4d X = Matrix4d::Identity();
     X.block<3, 3>(0, 0) = expRot(x.tail<3>());
@@ -184,34 +163,11 @@ namespace Needle {
     return X;
   }
 
-  VectorXd logDownNew(const Matrix4d& X) {
+  VectorXd logDown(const Matrix4d& X) {
     VectorXd x(6);
     x.tail<3>() = logRot(X.block<3, 3>(0, 0));
     x.head<3>() = (expA(x.tail<3>())).inverse() * X.block<3, 1>(0, 3);
     return x;
-  }
-
-  Matrix4d expUpOld(const VectorXd& x) {
-    assert(x.size() == 6);
-    Matrix4d X = Matrix4d::Identity();
-    X.block<3, 3>(0, 0) = expRot(x.tail<3>());
-    X.block<3, 1>(0, 3) = x.head<3>();
-    return X;
-  }
-
-  VectorXd logDownOld(const Matrix4d& X) {
-    VectorXd x(6);
-    x.head<3>() = X.block<3, 1>(0, 3);
-    x.tail<3>() = logRot(X.block<3, 3>(0, 0));
-    return x;
-  }
-
-  Matrix4d expUp(const VectorXd& x) {
-    return expUpNew(x);
-  }
-
-  VectorXd logDown(const Matrix4d& X) {
-    return logDownNew(X);
   }
 
   OpenRAVE::Transform matrixToTransform(const Matrix4d& X) {
@@ -275,10 +231,7 @@ namespace Needle {
     for (int i = 0; i < dofs.size(); ++i) {
       x[i] = dofs[i];
     }
-    //cout << "before transform: " << x << endl;
-    //cout << "after transform: " << logDown(expUp(x)) << endl;
-    OpenRAVE::Transform T = matrixToTransform(pose_ * expUp(x));//matrixToTransform(pose_ * expUp(x));
-    //OpenRAVE::Transform T = vecToTransform(logDown(expUp(x) * pose_));//matrixToTransform(pose_ * expUp(x));
+    OpenRAVE::Transform T = matrixToTransform(pose_ * expUp(x));
     body_->SetTransform(T);
   }
 
@@ -360,9 +313,8 @@ namespace Needle {
     return logDown((cfg->pose_ * expUp(a)).inverse() * expUp(target_pos));
   }
 
-  ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint, NeedleProblemHelper& helper) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]), formulation(formulation), curvature_constraint(curvature_constraint) {
-    this->helper.reset(&helper);
-  }
+  ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint, NeedleProblemHelperPtr helper) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]), formulation(formulation), curvature_constraint(curvature_constraint), helper(helper) {}
+
   VectorXd ControlError::operator()(const VectorXd& a) const {
     Matrix4d pose1 = cfg0->pose_ * expUp(a.topRows(6));
     Matrix4d pose2 = cfg1->pose_ * expUp(a.middleRows(6,6));
@@ -485,8 +437,6 @@ namespace Needle {
     }
   }
 
-
-  
   #ifdef NEEDLE_TEST
   void NeedleProblemHelper::checkAlignment(DblVec& x) {
     double diff = 0.;
@@ -506,7 +456,6 @@ namespace Needle {
         MatrixXd twistvals = getTraj(x, twistvars);
         for (int i = 0; i < local_configs.size(); ++i) {
           local_configs[i]->pose_ = local_configs[i]->pose_ * expUp(twistvals.row(i));
-          //local_configs[i]->pose_ = expUp(twistvals.row(i)) * local_configs[i]->pose_;
         }
         #ifdef NEEDLE_TEST
         checkAlignment(x);
@@ -575,7 +524,7 @@ namespace Needle {
   void NeedleProblemHelper::AddGoalConstraint(OptProb& prob) {
     VarVector vars = twistvars.row(T);
     VectorOfVectorPtr f(new Needle::PositionError(local_configs[T], goal));
-    VectorXd coeffs(n_dof); coeffs << 1., 1., 1., 0., 0., 0.;//1., 1., 1.;//0., 0., 0.;// = VectorXd::Ones(6);
+    VectorXd coeffs(n_dof); coeffs << 1., 1., 1., 0., 0., 0.;
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "goal")));
   }
 
@@ -586,7 +535,7 @@ namespace Needle {
       if (curvature_constraint == BoundedRadius) {
         vars = concat(vars, radiusvars.row(i));
       }
-      VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], r_min, formulation, curvature_constraint, *this));
+      VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], r_min, formulation, curvature_constraint, NeedleProblemHelperPtr(this)));
       VectorXd coeffs = VectorXd::Ones(boost::static_pointer_cast<Needle::ControlError>(f)->outputSize());
       prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("control%i")%i).str())));
     }
@@ -606,7 +555,7 @@ namespace Needle {
     viewer = OSGViewer::GetOrCreate(local_configs[0]->GetEnv());
   }
 
-  void TrajPlotter::OptimizerCallback(OptProb*, DblVec& x) {
+  void TrajPlotter::OptimizerCallback(OptProb*, DblVec& x, NeedleProblemHelperPtr helper) {
     vector<GraphHandlePtr> handles;
     vector<KinBodyPtr> bodies = local_configs[0]->GetBodies();
     MatrixXd vals = getTraj(x, vars);
@@ -617,12 +566,12 @@ namespace Needle {
         SetTransparency(handles.back(), .35);
       }
     }
-    handles.push_back(viewer->PlotKinBody(GetGoalKinBody())); 
+    handles.push_back(viewer->PlotKinBody(GetGoalKinBody(helper))); 
     SetTransparency(handles.back(), 1);
     viewer->Idle();
   }
 
-  KinBodyPtr TrajPlotter::GetGoalKinBody() {
+  KinBodyPtr TrajPlotter::GetGoalKinBody(NeedleProblemHelperPtr helper) {
     OpenRAVE::Transform T;
     T.trans.x = helper->goal[0];
     T.trans.y = helper->goal[1];
@@ -633,20 +582,20 @@ namespace Needle {
     return helper->robot;
   }
 
-  void TrajPlotter::PlotBothTrajectories(OptProbPtr prob, const BasicTrustRegionSQP& opt, const NeedleProblemHelper& helper) {
+  void TrajPlotter::PlotBothTrajectories(OptProbPtr prob, const BasicTrustRegionSQP& opt, NeedleProblemHelperPtr helper) {
     DblVec x = prob->getModel()->getVarValues(prob->getModel()->getVars());
     vector<GraphHandlePtr> handles;
-    KinBodyPtr robot = helper.robot;
+    KinBodyPtr robot = helper->robot;
     // plot real trajectory
-    Matrix4d current_pose = expUp(helper.start);
+    Matrix4d current_pose = expUp(helper->start);
     robot->SetTransform(Needle::matrixToTransform(current_pose));
     handles.push_back(viewer->PlotKinBody(robot));
     SetTransparency(handles.back(), .5);
-    for (int i = 0; i < helper.T; ++i) {
-      double phi = helper.GetPhi(x, i);
-      double Delta = helper.GetDelta(x, i);
-      double radius = helper.GetRadius(x, i);
-      current_pose = helper.TransformPose(current_pose, phi, Delta, radius);
+    for (int i = 0; i < helper->T; ++i) {
+      double phi = helper->GetPhi(x, i);
+      double Delta = helper->GetDelta(x, i);
+      double radius = helper->GetRadius(x, i);
+      current_pose = helper->TransformPose(current_pose, phi, Delta, radius);
       robot->SetTransform(Needle::matrixToTransform(current_pose));
       handles.push_back(viewer->PlotKinBody(robot));
       SetTransparency(handles.back(), .5);
@@ -735,22 +684,22 @@ int main(int argc, char** argv)
 
   OptProbPtr prob(new OptProb());
 
-  Needle::NeedleProblemHelper helper;
-  helper.start = start;
-  helper.goal = goal;
-  helper.coeff_rotation = coeff_rotation;
-  helper.coeff_speed = coeff_speed;
-  helper.T = T;
-  helper.r_min = r_min;
-  helper.n_dof = n_dof;
-  helper.ignored_kinbody_names = ignored_kinbody_names;
-  helper.collision_dist_pen = 0.025;
-  helper.collision_coeff = 20;
-  helper.formulation = formulation;
-  helper.curvature_constraint = curvature_constraint;
-  helper.method = method;
-  helper.robot = robot;
-  helper.ConfigureProblem(*prob);
+  Needle::NeedleProblemHelperPtr helper(new Needle::NeedleProblemHelper());
+  helper->start = start;
+  helper->goal = goal;
+  helper->coeff_rotation = coeff_rotation;
+  helper->coeff_speed = coeff_speed;
+  helper->T = T;
+  helper->r_min = r_min;
+  helper->n_dof = n_dof;
+  helper->ignored_kinbody_names = ignored_kinbody_names;
+  helper->collision_dist_pen = 0.025;
+  helper->collision_coeff = 20;
+  helper->formulation = formulation;
+  helper->curvature_constraint = curvature_constraint;
+  helper->method = method;
+  helper->robot = robot;
+  helper->ConfigureProblem(*prob);
 
   BasicTrustRegionSQP opt(prob);
   opt.max_iter_ = 500;    
@@ -758,27 +707,15 @@ int main(int argc, char** argv)
   opt.trust_shrink_ratio_ = trust_shrink_ratio;
   opt.trust_expand_ratio_ = trust_expand_ratio;
 
-  helper.ConfigureOptimizer(opt);
+  helper->ConfigureOptimizer(opt);
 
   boost::shared_ptr<Needle::TrajPlotter> plotter;
-  plotter.reset(new Needle::TrajPlotter(helper.local_configs, helper.twistvars));
-  plotter->helper.reset(&helper);
+  plotter.reset(new Needle::TrajPlotter(helper->local_configs, helper->twistvars));
   if (plotting) {
-    opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2));
+    opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2, helper));
   }
 
   opt.optimize();
-  
-  vector<Matrix4d> poses;
-  for (int i = 0; i < helper.local_configs.size(); ++i) {
-    poses.push_back(helper.local_configs[i]->pose_);
-  }
-     
-  for (int i = 0; i < poses.size() - 1; ++i) {
-    cout << "twist at time " << i << ": ";
-    printVector(Needle::logDown(poses[i].inverse() * poses[i+1]));
-    cout << endl;
-  }
   
   if (plot_final_result) plotter->PlotBothTrajectories(prob, opt, helper);
 

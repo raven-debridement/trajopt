@@ -7,7 +7,7 @@
 #include <openrave/openrave.h>
 #include "osgviewer/osgviewer.hpp"
 
-#define NEEDLE_TEST
+//#define NEEDLE_TEST
 
 using namespace trajopt;
 using namespace std;
@@ -79,7 +79,7 @@ namespace Needle {
     int formulation;
     int curvature_constraint;
     NeedleProblemHelperPtr helper;
-    ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint, NeedleProblemHelper& helper);
+    ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint, NeedleProblemHelperPtr helper);
     VectorXd operator()(const VectorXd& a) const;
     int outputSize() const;
   };
@@ -137,10 +137,9 @@ namespace Needle {
     vector<LocalConfigurationPtr> local_configs;
     VarArray vars;
     OSGViewerPtr viewer;
-    NeedleProblemHelperPtr helper;
     TrajPlotter(const vector<LocalConfigurationPtr>& local_configs, const VarArray& vars);
-    void OptimizerCallback(OptProb*, DblVec& x);
-    KinBodyPtr GetGoalKinBody();
-    void PlotBothTrajectories(OptProbPtr prob, const BasicTrustRegionSQP& opt, const NeedleProblemHelper& helper);
+    void OptimizerCallback(OptProb*, DblVec& x, NeedleProblemHelperPtr helper);
+    KinBodyPtr GetGoalKinBody(NeedleProblemHelperPtr helper);
+    void PlotBothTrajectories(OptProbPtr prob, const BasicTrustRegionSQP& opt, NeedleProblemHelperPtr helper);
   };
 }
