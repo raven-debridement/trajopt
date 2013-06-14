@@ -100,6 +100,25 @@ namespace Needle {
     return out;
   }
 
+  Matrix3d expA(const Vector3d& w) {
+    double theta = w.norm();
+    if (fabs(theta) < 1e-10) {
+      return Matrix3d::Identity();
+    } else {
+      Matrix3d w_hat = rotMat(w);
+      return Matrix3d::Identity() + w_hat / (theta*theta) * (1 - cos(theta)) + w_hat*w_hat / (theta*theta*theta) * (theta - sin(theta));
+    }
+  }
+
+  Matrix3d logInvA(const Vector3d& w) {
+    double theta = w.norm();
+    Matrix3d w_hat = rotMat(w);
+    if (fabs(theta) < 1e-8) {
+      return Matrix3d::Identity();
+    }
+    return Matrix3d::Identity() - 0.5*w_hat + (2*sin(theta) - theta*(1 + cos(theta))) / (2 * theta*theta * sin(theta)) * w_hat*w_hat;
+  }
+
   Matrix3d expRot(const Vector3d& x) {
     double rr = x.squaredNorm();
     if (fabs(rr) < 1e-10) {
@@ -118,7 +137,7 @@ namespace Needle {
     double r = x.norm();
     double t = X(0, 0) + X(1, 1) + X(2, 2) - 1;
 
-    if (r == 0) {
+    if (fabs(r) < 1e-8) {
       return Vector3d::Zero();
     } else {
       return x * (atan2(r, t) / r);
@@ -129,14 +148,15 @@ namespace Needle {
     assert(x.size() == 6);
     Matrix4d X = Matrix4d::Identity();
     X.block<3, 3>(0, 0) = expRot(x.tail<3>());
-    X.block<3, 1>(0, 3) = x.head<3>();
+    X.block<3, 1>(0, 3) = expA(x.tail<3>()) * x.head<3>();
+    X(3, 3) = 1;
     return X;
   }
 
   VectorXd logDown(const Matrix4d& X) {
     VectorXd x(6);
-    x.head<3>() = X.block<3, 1>(0, 3);
     x.tail<3>() = logRot(X.block<3, 3>(0, 0));
+    x.head<3>() = (expA(x.tail<3>())).inverse() * X.block<3, 1>(0, 3);
     return x;
   }
 
@@ -290,7 +310,7 @@ namespace Needle {
     VectorXd target_pos;
     PositionError(LocalConfigurationPtr cfg, const VectorXd& target_pos) : cfg(cfg), target_pos(target_pos), body(cfg->GetBodies()[0]) {}
     VectorXd operator()(const VectorXd& a) const {
-      return logDown(cfg->pose_ * expUp(a)) - target_pos;
+      return logDown((cfg->pose_ * expUp(a)).inverse() * expUp(target_pos));
     }
   };
 
@@ -325,6 +345,7 @@ namespace Needle {
     double collision_dist_pen;
     double collision_coeff;
     double Delta_lb;
+    KinBodyPtr robot;
     // Variables
     VarArray twistvars;
     VarArray phivars;
@@ -333,6 +354,7 @@ namespace Needle {
     vector<LocalConfigurationPtr> local_configs;
 
     void ConfigureProblem(const KinBodyPtr robot, OptProb& prob) {
+      this->robot = robot;
       CreateVariables(prob);
       InitLocalConfigurations(robot, prob);
       InitTrajectory(prob);
@@ -435,6 +457,7 @@ namespace Needle {
     vector<LocalConfigurationPtr> local_configs;
     VarArray vars;
     OSGViewerPtr viewer;
+    boost::shared_ptr<NeedleProblemHelper> helper; 
     TrajPlotter(const vector<LocalConfigurationPtr>& local_configs, const VarArray& vars) : local_configs(local_configs), vars(vars) {
       viewer = OSGViewer::GetOrCreate(local_configs[0]->GetEnv());
     }
@@ -449,7 +472,18 @@ namespace Needle {
           SetTransparency(handles.back(), .35);
         }
       }
+      handles.push_back(viewer->PlotKinBody(plotGoal()));
       viewer->Idle();
+    }
+    KinBodyPtr plotGoal() {
+      OpenRAVE::Transform T;
+      T.trans.x = helper->goal[0];
+      T.trans.y = helper->goal[1];
+      T.trans.z = helper->goal[2];
+      OpenRAVE::Vector rot(helper->goal[3], helper->goal[4], helper->goal[5]);
+      T.rot = OpenRAVE::geometry::quatFromAxisAngle(rot);
+      helper->robot->SetTransform(T);
+      return helper->robot;
     }
   };
 }
@@ -536,6 +570,7 @@ int main(int argc, char** argv)
   boost::shared_ptr<Needle::TrajPlotter> plotter;
   if (plotting) {
     plotter.reset(new Needle::TrajPlotter(helper.local_configs, helper.twistvars));
+    plotter->helper.reset(&helper);
     opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2));
   }
 
