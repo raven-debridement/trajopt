@@ -246,12 +246,12 @@ OptStatus BasicTrustRegionSQP::optimize() {
       LOG_INFO("iteration %i", iter);
 
       // speedup: if you just evaluated the cost when doing the line search, use that
-      if (results_.cost_vals.empty() && results_.cnt_viols.empty()) { //only happens on the first iteration
+      //if (results_.cost_vals.empty() && results_.cnt_viols.empty()) { //only happens on the first iteration
         results_.cnt_viols = evaluateConstraintViols(constraints, x_);
         results_.cost_vals = evaluateCosts(prob_->getCosts(), x_);
         assert(results_.n_func_evals == 0);
         ++results_.n_func_evals;
-      }
+      //}
 
       // DblVec new_cnt_viols = evaluateConstraintViols(constraints, x_);
       // DblVec new_cost_vals = evaluateCosts(prob_->getCosts(), x_);

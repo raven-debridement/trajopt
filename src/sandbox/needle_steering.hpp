@@ -8,6 +8,7 @@
 #include "osgviewer/osgviewer.hpp"
 
 //#define NEEDLE_TEST
+//#define USE_CURVATURE
 
 using namespace trajopt;
 using namespace std;
@@ -108,7 +109,11 @@ namespace Needle {
     // Variables
     VarArray twistvars;
     VarArray phivars;
+    #ifdef USE_CURVATURE
+    VarArray curvaturevars;
+    #else
     VarArray radiusvars;
+    #endif
     Var Deltavar;
     // Local configurations
     vector<LocalConfigurationPtr> local_configs;
@@ -127,7 +132,11 @@ namespace Needle {
     Matrix4d TransformPose(const Matrix4d& pose, double phi, double Delta, double radius) const;
     double GetPhi(const DblVec& x, int i) const;
     double GetDelta(const DblVec& x, int i) const;
-    double GetRadius(const DblVec& x, int i) const;
+    #ifdef USE_CURVATURE
+      double GetCurvature(const DblVec& x, int i) const;
+    #else
+      double GetRadius(const DblVec& x, int i) const;
+    #endif
     #ifdef NEEDLE_TEST
     void checkAlignment(DblVec& x);
     #endif

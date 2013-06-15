@@ -319,21 +319,40 @@ namespace Needle {
     Matrix4d pose1 = cfg0->pose_ * expUp(a.topRows(6));
     Matrix4d pose2 = cfg1->pose_ * expUp(a.middleRows(6,6));
     double phi = a(12), Delta = a(13);
-    double radius;
-    switch (curvature_constraint) {
-      case NeedleProblemHelper::ConstantRadius:
-        radius = r_min;
-        break;
-      case NeedleProblemHelper::BoundedRadius:
-        radius = a(14);
-        break;
-      default:
-        PRINT_AND_THROW("not implemented");
-    }
+    #ifdef USE_CURVATURE
+      double curvature;
+      switch (curvature_constraint) {
+        case NeedleProblemHelper::ConstantRadius:
+          curvature = 1.0 / r_min;
+          break;
+        case NeedleProblemHelper::BoundedRadius:
+          curvature = a(14);
+          break;
+        default:
+          PRINT_AND_THROW("not implemented");
+      }
+      cout << "curvature: " << curvature << endl;
+    #else
+      double radius;
+      switch (curvature_constraint) {
+        case NeedleProblemHelper::ConstantRadius:
+          radius = r_min;
+          break;
+        case NeedleProblemHelper::BoundedRadius:
+          radius = a(14);
+          break;
+        default:
+          PRINT_AND_THROW("not implemented");
+      }
+    #endif
     switch (formulation) {
       case NeedleProblemHelper::Form1:
       case NeedleProblemHelper::Form3: {
-        return logDown(helper->TransformPose(pose1, phi, Delta, radius).inverse() * pose2);
+        #ifdef USE_CURVATURE
+          return logDown(helper->TransformPose(pose1, phi, Delta, curvature).inverse() * pose2);
+        #else
+          return logDown(helper->TransformPose(pose1, phi, Delta, radius).inverse() * pose2);
+        #endif
       }
       case NeedleProblemHelper::Form2: {
         VectorXd trans1 = pose1.block<3, 1>(0, 3);
@@ -341,10 +360,10 @@ namespace Needle {
         Matrix3d R1 = pose1.block<3, 3>(0, 0);
         Vector3d xyz = R1.transpose() * (trans2 - trans1);
         double x = xyz[0], y = xyz[1], z = xyz[2];
-        Vector3d err; err <<
-          phi - atan2(x, -y),
-          bound_inf(radius - (x*x + y*y + z*z) / (2 * sqrt(x*x + y*y)), 100), // sketchy lol
-          Delta - radius * atan2(z, radius - sqrt(x*x + y*y));
+        Vector3d err;// err <<
+        //  phi - atan2(x, -y),
+        //  bound_inf(radius - (x*x + y*y + z*z) / (2 * sqrt(x*x + y*y)), 100), // sketchy lol
+        //  Delta - radius * atan2(z, radius - sqrt(x*x + y*y));
         return err;
       }
       default:
@@ -394,23 +413,35 @@ namespace Needle {
     // Initialize time frame radii
     if (curvature_constraint == BoundedRadius) {
       for (int i = 0; i < T; ++i) {
+        #ifdef USE_CURVATURE
+        initVec.push_back(1.0 / r_min);
+        #else
         initVec.push_back(r_min);
+        #endif
       }
     }
     opt.initialize(initVec);
   }
 
+  #ifdef USE_CURVATURE
+  Matrix4d NeedleProblemHelper::TransformPose(const Matrix4d& pose, double phi, double Delta, double curvature) const {
+  #else
   Matrix4d NeedleProblemHelper::TransformPose(const Matrix4d& pose, double phi, double Delta, double radius) const {
-    double theta = Delta / radius;
+  #endif
+    #ifdef USE_CURVATURE
+      double theta = Delta * curvature;
+    #else
+      double theta = Delta / radius;
+    #endif
     switch (formulation) {
       case NeedleProblemHelper::Form1:
       case NeedleProblemHelper::Form2: {
         VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
-        VectorXd v(6); v << 0, 0, Delta, Delta / radius, 0, 0;
+        VectorXd v(6); v << 0, 0, Delta, theta, 0, 0;
         return pose * expUp(w) * expUp(v);
       }
       case NeedleProblemHelper::Form3: {
-        VectorXd w(6); w << 0, 0, Delta, Delta / radius, 0, phi;
+        VectorXd w(6); w << 0, 0, Delta, theta, 0, phi;
         return pose * expUp(w);
       }
       default:
@@ -425,7 +456,19 @@ namespace Needle {
   double NeedleProblemHelper::GetDelta(const DblVec& x, int i) const {
     return x[Deltavar.var_rep->index];
   }
-
+  
+  #ifdef USE_CURVATURE
+    double NeedleProblemHelper::GetCurvature(const DblVec& x, int i) const {
+      switch (curvature_constraint) {
+        case ConstantRadius:
+          return 1.0 / r_min;
+        case BoundedRadius:
+          return x[curvaturevars.row(i)[0].var_rep->index];
+        default:
+          PRINT_AND_THROW("not implemented");
+      }
+    }
+  #else
   double NeedleProblemHelper::GetRadius(const DblVec& x, int i) const {
     switch (curvature_constraint) {
       case ConstantRadius:
@@ -436,6 +479,7 @@ namespace Needle {
         PRINT_AND_THROW("not implemented");
     }
   }
+  #endif
 
   #ifdef NEEDLE_TEST
   void NeedleProblemHelper::checkAlignment(DblVec& x) {
@@ -443,8 +487,13 @@ namespace Needle {
     for (int i = 0; i < T; ++i) {
       double phi = GetPhi(x, i);
       double Delta = GetDelta(x, i);
-      double radius = GetRadius(x, i);
-      diff += (local_configs[i+1]->pose_ - TransformPose(local_configs[i]->pose_, phi, Delta, radius)).norm();
+      #ifdef USE_CURVATURE
+        double curvature = GetCurvature(x, i);
+        diff += (local_configs[i+1]->pose_ - TransformPose(local_configs[i]->pose_, phi, Delta, curvature)).norm();
+      #else
+        double radius = GetRadius(x, i);
+        diff += (local_configs[i+1]->pose_ - TransformPose(local_configs[i]->pose_, phi, Delta, radius)).norm();
+      #endif
     }
   }
   #endif
@@ -469,8 +518,13 @@ namespace Needle {
         for (int i = 0; i < T; ++i) {
           double phi = GetPhi(x, i);
           double Delta = GetDelta(x, i);
-          double radius = GetRadius(x, i);
-          local_configs[i+1]->pose_ = TransformPose(local_configs[i]->pose_, phi, Delta, radius);
+          #ifdef USE_CURVATURE
+            double curvature = GetCurvature(x, i);
+            local_configs[i+1]->pose_ = TransformPose(local_configs[i]->pose_, phi, Delta, curvature);
+          #else
+            double radius = GetRadius(x, i);
+            local_configs[i+1]->pose_ = TransformPose(local_configs[i]->pose_, phi, Delta, radius);
+          #endif
         }
         setVec(x, twistvars.m_data, DblVec(twistvars.size(), 0));
         break;
@@ -494,7 +548,12 @@ namespace Needle {
     // Only the twist variables are incremental (i.e. their trust regions should be around zero)
     prob.setIncremental(twistvars.flatten());
     if (curvature_constraint == BoundedRadius) {
-      AddVarArray(prob, T, 1, r_min, INFINITY, "radius", radiusvars);
+      //AddVarArray(prob, T, 1, r_min, INFINITY, "radius", radiusvars);
+      #ifdef USE_CURVATURE
+      AddVarArray(prob, T, 1, 0.01, 1. / r_min, "curvature", curvaturevars);
+      #else
+      AddVarArray(prob, T, 1, r_min, 100.0, "radius", radiusvars);
+      #endif
     }
   }
 
@@ -533,7 +592,11 @@ namespace Needle {
       VarVector vars = concat(concat(twistvars.row(i), twistvars.row(i+1)), phivars.row(i));
       vars.push_back(Deltavar);
       if (curvature_constraint == BoundedRadius) {
+        #ifdef USE_CURVATURE
+        vars = concat(vars, curvaturevars.row(i));
+        #else
         vars = concat(vars, radiusvars.row(i));
+        #endif
       }
       VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], r_min, formulation, curvature_constraint, NeedleProblemHelperPtr(this)));
       VectorXd coeffs = VectorXd::Ones(boost::static_pointer_cast<Needle::ControlError>(f)->outputSize());
@@ -594,8 +657,13 @@ namespace Needle {
     for (int i = 0; i < helper->T; ++i) {
       double phi = helper->GetPhi(x, i);
       double Delta = helper->GetDelta(x, i);
-      double radius = helper->GetRadius(x, i);
-      current_pose = helper->TransformPose(current_pose, phi, Delta, radius);
+      #ifdef USE_CURVATURE
+        double curvature = helper->GetCurvature(x, i);
+        current_pose = helper->TransformPose(current_pose, phi, Delta, curvature);
+      #else
+        double radius = helper->GetRadius(x, i);
+        current_pose = helper->TransformPose(current_pose, phi, Delta, radius);
+      #endif
       robot->SetTransform(Needle::matrixToTransform(current_pose));
       handles.push_back(viewer->PlotKinBody(robot));
       SetTransparency(handles.back(), .5);
