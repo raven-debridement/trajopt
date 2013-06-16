@@ -313,46 +313,49 @@ namespace Needle {
     return logDown((cfg->pose_ * expUp(a)).inverse() * expUp(target_pos));
   }
 
-  ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint, NeedleProblemHelperPtr helper) : cfg0(cfg0), cfg1(cfg1), r_min(r_min), body(cfg0->GetBodies()[0]), formulation(formulation), curvature_constraint(curvature_constraint), helper(helper) {}
+  ControlError::ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, NeedleProblemHelperPtr helper) : cfg0(cfg0), cfg1(cfg1), body(cfg0->GetBodies()[0]), helper(helper) {}
 
   VectorXd ControlError::operator()(const VectorXd& a) const {
     Matrix4d pose1 = cfg0->pose_ * expUp(a.topRows(6));
     Matrix4d pose2 = cfg1->pose_ * expUp(a.middleRows(6,6));
     double phi = a(12), Delta = a(13);
-    #ifdef USE_CURVATURE
-      double curvature;
-      switch (curvature_constraint) {
-        case NeedleProblemHelper::ConstantRadius:
-          curvature = 1.0 / r_min;
-          break;
-        case NeedleProblemHelper::BoundedRadius:
-          curvature = a(14);
-          break;
-        default:
-          PRINT_AND_THROW("not implemented");
-      }
-      cout << "curvature: " << curvature << endl;
-    #else
-      double radius;
-      switch (curvature_constraint) {
-        case NeedleProblemHelper::ConstantRadius:
-          radius = r_min;
-          break;
-        case NeedleProblemHelper::BoundedRadius:
-          radius = a(14);
-          break;
-        default:
-          PRINT_AND_THROW("not implemented");
-      }
-    #endif
-    switch (formulation) {
+    double curvature;
+    double radius;
+    switch (helper->curvature_formulation) {
+      case NeedleProblemHelper::UseCurvature:
+        switch (helper->curvature_constraint) {
+          case NeedleProblemHelper::ConstantRadius:
+            curvature = 1.0 / helper->r_min;
+            break;
+          case NeedleProblemHelper::BoundedRadius:
+            curvature = a(14);
+            break;
+          SWITCH_DEFAULT;
+        }
+        break;
+      case NeedleProblemHelper::UseRadius:
+        switch (helper->curvature_constraint) {
+          case NeedleProblemHelper::ConstantRadius:
+            radius = helper->r_min;
+            break;
+          case NeedleProblemHelper::BoundedRadius:
+            radius = a(14);
+            break;
+          SWITCH_DEFAULT;
+        }
+        break;
+      SWITCH_DEFAULT;
+    }
+    switch (helper->formulation) {
       case NeedleProblemHelper::Form1:
       case NeedleProblemHelper::Form3: {
-        #ifdef USE_CURVATURE
-          return logDown(helper->TransformPose(pose1, phi, Delta, curvature).inverse() * pose2);
-        #else
-          return logDown(helper->TransformPose(pose1, phi, Delta, radius).inverse() * pose2);
-        #endif
+        switch (helper->curvature_constraint) {
+          case NeedleProblemHelper::UseCurvature:
+            return logDown(helper->TransformPose(pose1, phi, Delta, curvature).inverse() * pose2);
+          case NeedleProblemHelper::UseRadius:
+            return logDown(helper->TransformPose(pose1, phi, Delta, radius).inverse() * pose2);
+          SWITCH_DEFAULT;
+        }
       }
       case NeedleProblemHelper::Form2: {
         VectorXd trans1 = pose1.block<3, 1>(0, 3);
@@ -366,21 +369,19 @@ namespace Needle {
         //  Delta - radius * atan2(z, radius - sqrt(x*x + y*y));
         return err;
       }
-      default:
-        PRINT_AND_THROW("not implemented");
+      SWITCH_DEFAULT;
     }
   }
 
   int ControlError::outputSize() const {
-    switch (formulation) {
+    switch (helper->formulation) {
       case NeedleProblemHelper::Form1:
         return 6;
       case NeedleProblemHelper::Form2:
         return 3;
       case NeedleProblemHelper::Form3:
         return 6;
-      default:
-        PRINT_AND_THROW("not implemented");
+      SWITCH_DEFAULT;
     }
   }
 
@@ -413,26 +414,31 @@ namespace Needle {
     // Initialize time frame radii
     if (curvature_constraint == BoundedRadius) {
       for (int i = 0; i < T; ++i) {
-        #ifdef USE_CURVATURE
-        initVec.push_back(1.0 / r_min);
-        #else
-        initVec.push_back(r_min);
-        #endif
+        switch (curvature_formulation) {
+          case UseCurvature:
+            initVec.push_back(1.0 / r_min);
+            break;
+          case UseRadius:
+            initVec.push_back(r_min);
+            break;
+          SWITCH_DEFAULT;
+        }
       }
     }
     opt.initialize(initVec);
   }
 
-  #ifdef USE_CURVATURE
-  Matrix4d NeedleProblemHelper::TransformPose(const Matrix4d& pose, double phi, double Delta, double curvature) const {
-  #else
-  Matrix4d NeedleProblemHelper::TransformPose(const Matrix4d& pose, double phi, double Delta, double radius) const {
-  #endif
-    #ifdef USE_CURVATURE
-      double theta = Delta * curvature;
-    #else
-      double theta = Delta / radius;
-    #endif
+  Matrix4d NeedleProblemHelper::TransformPose(const Matrix4d& pose, double phi, double Delta, double curvature_or_radius) const {
+    double theta;
+    switch (curvature_formulation) {
+      case NeedleProblemHelper::UseCurvature:
+        theta = Delta * curvature_or_radius;
+        break;
+      case NeedleProblemHelper::UseRadius:
+        theta = Delta / curvature_or_radius;
+        break;
+      SWITCH_DEFAULT;
+    }
     switch (formulation) {
       case NeedleProblemHelper::Form1:
       case NeedleProblemHelper::Form2: {
@@ -444,8 +450,7 @@ namespace Needle {
         VectorXd w(6); w << 0, 0, Delta, theta, 0, phi;
         return pose * expUp(w);
       }
-      default:
-        PRINT_AND_THROW("not implemented");
+      SWITCH_DEFAULT;
     }
   }
 
@@ -457,29 +462,27 @@ namespace Needle {
     return x[Deltavar.var_rep->index];
   }
   
-  #ifdef USE_CURVATURE
-    double NeedleProblemHelper::GetCurvature(const DblVec& x, int i) const {
-      switch (curvature_constraint) {
-        case ConstantRadius:
-          return 1.0 / r_min;
-        case BoundedRadius:
-          return x[curvaturevars.row(i)[0].var_rep->index];
-        default:
-          PRINT_AND_THROW("not implemented");
-      }
+  double NeedleProblemHelper::GetCurvature(const DblVec& x, int i) const {
+    assert (curvature_formulation == UseCurvature);
+    switch (curvature_constraint) {
+      case ConstantRadius:
+        return 1.0 / r_min;
+      case BoundedRadius:
+        return x[curvaturevars.row(i)[0].var_rep->index];
+      SWITCH_DEFAULT;
     }
-  #else
+  }
+
   double NeedleProblemHelper::GetRadius(const DblVec& x, int i) const {
+    assert (curvature_formulation == UseRadius);
     switch (curvature_constraint) {
       case ConstantRadius:
         return r_min;
       case BoundedRadius:
         return x[radiusvars.row(i)[0].var_rep->index];
-      default:
-        PRINT_AND_THROW("not implemented");
+      SWITCH_DEFAULT;
     }
   }
-  #endif
 
   #ifdef NEEDLE_TEST
   void NeedleProblemHelper::checkAlignment(DblVec& x) {
@@ -487,13 +490,17 @@ namespace Needle {
     for (int i = 0; i < T; ++i) {
       double phi = GetPhi(x, i);
       double Delta = GetDelta(x, i);
-      #ifdef USE_CURVATURE
-        double curvature = GetCurvature(x, i);
-        diff += (local_configs[i+1]->pose_ - TransformPose(local_configs[i]->pose_, phi, Delta, curvature)).norm();
-      #else
-        double radius = GetRadius(x, i);
-        diff += (local_configs[i+1]->pose_ - TransformPose(local_configs[i]->pose_, phi, Delta, radius)).norm();
-      #endif
+      switch (curvature_formulation) {
+        case UseCurvature:
+          double curvature = GetCurvature(x, i);
+          diff += (local_configs[i+1]->pose_ - TransformPose(local_configs[i]->pose_, phi, Delta, curvature)).norm();
+          break;
+        case UseRadius:
+          double radius = GetRadius(x, i);
+          diff += (local_configs[i+1]->pose_ - TransformPose(local_configs[i]->pose_, phi, Delta, radius)).norm();
+          break;
+        SWITCH_DEFAULT;
+      }
     }
   }
   #endif
@@ -518,19 +525,24 @@ namespace Needle {
         for (int i = 0; i < T; ++i) {
           double phi = GetPhi(x, i);
           double Delta = GetDelta(x, i);
-          #ifdef USE_CURVATURE
-            double curvature = GetCurvature(x, i);
-            local_configs[i+1]->pose_ = TransformPose(local_configs[i]->pose_, phi, Delta, curvature);
-          #else
-            double radius = GetRadius(x, i);
-            local_configs[i+1]->pose_ = TransformPose(local_configs[i]->pose_, phi, Delta, radius);
-          #endif
+          switch (curvature_formulation) {
+            case UseCurvature: {
+              double curvature = GetCurvature(x, i);
+              local_configs[i+1]->pose_ = TransformPose(local_configs[i]->pose_, phi, Delta, curvature);
+              break;
+            }
+            case UseRadius: {
+              double radius = GetRadius(x, i);
+              local_configs[i+1]->pose_ = TransformPose(local_configs[i]->pose_, phi, Delta, radius);
+              break;
+            }
+            SWITCH_DEFAULT;
+          }
         }
         setVec(x, twistvars.m_data, DblVec(twistvars.size(), 0));
         break;
       }
-      default:
-        PRINT_AND_THROW("not implemented");
+      SWITCH_DEFAULT;
     }
   }
 
@@ -549,11 +561,15 @@ namespace Needle {
     prob.setIncremental(twistvars.flatten());
     if (curvature_constraint == BoundedRadius) {
       //AddVarArray(prob, T, 1, r_min, INFINITY, "radius", radiusvars);
-      #ifdef USE_CURVATURE
-      AddVarArray(prob, T, 1, 0.01, 1. / r_min, "curvature", curvaturevars);
-      #else
-      AddVarArray(prob, T, 1, r_min, 100.0, "radius", radiusvars);
-      #endif
+      switch (curvature_formulation) {
+        case UseCurvature:
+          AddVarArray(prob, T, 1, 0.01, 1. / r_min, "curvature", curvaturevars);
+          break;
+        case UseRadius:
+          AddVarArray(prob, T, 1, r_min, 100.0, "radius", radiusvars);
+          break;
+        SWITCH_DEFAULT;
+      }
     }
   }
 
@@ -592,13 +608,17 @@ namespace Needle {
       VarVector vars = concat(concat(twistvars.row(i), twistvars.row(i+1)), phivars.row(i));
       vars.push_back(Deltavar);
       if (curvature_constraint == BoundedRadius) {
-        #ifdef USE_CURVATURE
-        vars = concat(vars, curvaturevars.row(i));
-        #else
-        vars = concat(vars, radiusvars.row(i));
-        #endif
+        switch (curvature_formulation) {
+          case UseCurvature:
+            vars = concat(vars, curvaturevars.row(i));
+            break;
+          case UseRadius:
+            vars = concat(vars, radiusvars.row(i));
+            break;
+          SWITCH_DEFAULT;
+        }
       }
-      VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], r_min, formulation, curvature_constraint, NeedleProblemHelperPtr(this)));
+      VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], NeedleProblemHelperPtr(this)));
       VectorXd coeffs = VectorXd::Ones(boost::static_pointer_cast<Needle::ControlError>(f)->outputSize());
       prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("control%i")%i).str())));
     }
@@ -657,13 +677,19 @@ namespace Needle {
     for (int i = 0; i < helper->T; ++i) {
       double phi = helper->GetPhi(x, i);
       double Delta = helper->GetDelta(x, i);
-      #ifdef USE_CURVATURE
-        double curvature = helper->GetCurvature(x, i);
-        current_pose = helper->TransformPose(current_pose, phi, Delta, curvature);
-      #else
-        double radius = helper->GetRadius(x, i);
-        current_pose = helper->TransformPose(current_pose, phi, Delta, radius);
-      #endif
+      switch (helper->curvature_formulation) {
+        case NeedleProblemHelper::UseCurvature: {
+          double curvature = helper->GetCurvature(x, i);
+          current_pose = helper->TransformPose(current_pose, phi, Delta, curvature);
+          break;
+        }
+        case NeedleProblemHelper::UseRadius: {
+          double radius = helper->GetRadius(x, i);
+          current_pose = helper->TransformPose(current_pose, phi, Delta, radius);
+          break;
+        }
+        SWITCH_DEFAULT;
+      }
       robot->SetTransform(Needle::matrixToTransform(current_pose));
       handles.push_back(viewer->PlotKinBody(robot));
       SetTransparency(handles.back(), .5);
@@ -700,6 +726,7 @@ int main(int argc, char** argv)
   int formulation = Needle::NeedleProblemHelper::Form1;
   int curvature_constraint = Needle::NeedleProblemHelper::ConstantRadius;
   int method = Needle::NeedleProblemHelper::Shooting;
+  int curvature_formulation = Needle::NeedleProblemHelper::UseRadius;
 
   double improve_ratio_threshold = 0.1;//0.25;
   double trust_shrink_ratio = 0.9;//0.7;
@@ -721,6 +748,7 @@ int main(int argc, char** argv)
     config.add(new Parameter<int>("formulation", &formulation, "formulation"));
     config.add(new Parameter<int>("curvature_constraint", &curvature_constraint, "curvature_constraint"));
     config.add(new Parameter<int>("method", &method, "method"));
+    config.add(new Parameter<int>("curvature_formulation", &curvature_formulation, "curvature_formulation"));
     config.add(new Parameter<double>("r_min", &r_min, "r_min"));
     config.add(new Parameter<double>("improve_ratio_threshold", &improve_ratio_threshold, "improve_ratio_threshold"));
     config.add(new Parameter<double>("trust_shrink_ratio", &trust_shrink_ratio, "trust_shrink_ratio"));
@@ -766,6 +794,7 @@ int main(int argc, char** argv)
   helper->formulation = formulation;
   helper->curvature_constraint = curvature_constraint;
   helper->method = method;
+  helper->curvature_formulation = curvature_formulation;
   helper->robot = robot;
   helper->ConfigureProblem(*prob);
 

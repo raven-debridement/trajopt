@@ -10,6 +10,9 @@
 //#define NEEDLE_TEST
 //#define USE_CURVATURE
 
+#define SWITCH_DEFAULT default: \
+                         PRINT_AND_THROW("not implemented");
+
 using namespace trajopt;
 using namespace std;
 using namespace OpenRAVE;
@@ -75,12 +78,9 @@ namespace Needle {
 
   struct ControlError : public VectorOfVector {
     LocalConfigurationPtr cfg0, cfg1;
-    double r_min;
     KinBodyPtr body;
-    int formulation;
-    int curvature_constraint;
     NeedleProblemHelperPtr helper;
-    ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, double r_min, int formulation, int curvature_constraint, NeedleProblemHelperPtr helper);
+    ControlError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, NeedleProblemHelperPtr helper);
     VectorXd operator()(const VectorXd& a) const;
     int outputSize() const;
   };
@@ -90,6 +90,7 @@ namespace Needle {
     enum Formulation { Form1 = 1, Form2 = 2, Form3 = 3 };
     enum CurvatureConstraint { ConstantRadius = 1, BoundedRadius = 2 };
     enum Method { Colocation = 1, Shooting = 2 };
+    enum CurvatureFormulation { UseRadius = 1, UseCurvature = 2 };
     // Config parameters
     VectorXd start;
     VectorXd goal;
@@ -100,6 +101,7 @@ namespace Needle {
     int formulation;
     int curvature_constraint;
     int method;
+    int curvature_formulation;
     double r_min;
     vector<string> ignored_kinbody_names;
     double collision_dist_pen;
@@ -109,11 +111,8 @@ namespace Needle {
     // Variables
     VarArray twistvars;
     VarArray phivars;
-    #ifdef USE_CURVATURE
     VarArray curvaturevars;
-    #else
     VarArray radiusvars;
-    #endif
     Var Deltavar;
     // Local configurations
     vector<LocalConfigurationPtr> local_configs;
@@ -132,11 +131,8 @@ namespace Needle {
     Matrix4d TransformPose(const Matrix4d& pose, double phi, double Delta, double radius) const;
     double GetPhi(const DblVec& x, int i) const;
     double GetDelta(const DblVec& x, int i) const;
-    #ifdef USE_CURVATURE
-      double GetCurvature(const DblVec& x, int i) const;
-    #else
-      double GetRadius(const DblVec& x, int i) const;
-    #endif
+    double GetCurvature(const DblVec& x, int i) const;
+    double GetRadius(const DblVec& x, int i) const;
     #ifdef NEEDLE_TEST
     void checkAlignment(DblVec& x);
     #endif

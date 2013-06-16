@@ -243,15 +243,15 @@ OptStatus BasicTrustRegionSQP::optimize() {
       for (int i=0; i < incmask.size(); ++i) if (incmask[i]) x_[i] = 0;
 
       LOG_DEBUG("current iterate: %s", CSTR(x_));
-      LOG_INFO("iteration %i", iter);
+      LOG_INFO("merit increases iteration: %i; sqp iteration %i", merit_increases, iter);
 
       // speedup: if you just evaluated the cost when doing the line search, use that
-      //if (results_.cost_vals.empty() && results_.cnt_viols.empty()) { //only happens on the first iteration
+      if (results_.cost_vals.empty() && results_.cnt_viols.empty()) { //only happens on the first iteration
         results_.cnt_viols = evaluateConstraintViols(constraints, x_);
         results_.cost_vals = evaluateCosts(prob_->getCosts(), x_);
         assert(results_.n_func_evals == 0);
         ++results_.n_func_evals;
-      //}
+      }
 
       // DblVec new_cnt_viols = evaluateConstraintViols(constraints, x_);
       // DblVec new_cost_vals = evaluateCosts(prob_->getCosts(), x_);
@@ -381,7 +381,7 @@ OptStatus BasicTrustRegionSQP::optimize() {
     else {
       LOG_INFO("not all constraints are satisfied. increasing penalties");
       merit_error_coeff_ *= merit_coeff_increase_ratio_;
-      trust_box_size_ = fmax(trust_box_size_, min_trust_box_size_ * trust_shrink_ratio_ * 1.5);
+      trust_box_size_ = 1;//fmax(trust_box_size_, min_trust_box_size_ * trust_shrink_ratio_ * 1.5);
     }
 
 
