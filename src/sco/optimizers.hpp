@@ -38,6 +38,7 @@ struct OptResults {
   vector<double> cost_vals;
   DblVec cnt_viols;
   int n_func_evals, n_qp_solves;
+  int n_merit_increases;
   void clear() {
     x.clear();
     status = INVALID;
@@ -45,6 +46,7 @@ struct OptResults {
     cnt_viols.clear();
     n_func_evals = 0;
     n_qp_solves = 0;
+    n_merit_increases = 0;
   }
   OptResults() {clear();}
 };
@@ -96,6 +98,9 @@ public:
   double merit_error_coeff_, // initial penalty coefficient
          trust_box_size_ // current size of trust region (component-wise)
          ;
+  bool record_trust_region_history_;
+  vector< vector<double> > trust_region_size_history;
+  vector< vector<double> > log_trust_region_size_history;
 
   BasicTrustRegionSQP();
   BasicTrustRegionSQP(OptProbPtr prob);

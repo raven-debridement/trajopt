@@ -13,6 +13,12 @@
 using namespace std;
 using namespace util;
 
+#define INC_LOG_TRUST_REGION trust_region_size_history.push_back(vector<double>()); \
+                             log_trust_region_size_history.push_back(vector<double>());
+
+#define LOG_TRUST_REGION trust_region_size_history.back().push_back(trust_box_size_); \
+                         log_trust_region_size_history.back().push_back(log(trust_box_size_));
+
 namespace sco {
 
 typedef vector<double> DblVec;
@@ -23,7 +29,8 @@ std::ostream& operator<<(std::ostream& o, const OptResults& r) {
     << "cost values: " << Str(r.cost_vals) << endl
     << "constraint violations: " << Str(r.cnt_viols) << endl
     << "n func evals: " << r.n_func_evals << endl
-    << "n qp solves: " << r.n_qp_solves << endl;
+    << "n qp solves: " << r.n_qp_solves << endl
+    << "n merit increases: " << r.n_merit_increases << endl;
   return o;
 }
 
@@ -172,6 +179,7 @@ void BasicTrustRegionSQP::initParameters() {
   merit_error_coeff_ = 10;
   trust_box_size_ = 1e-1;
 
+  record_trust_region_history_ = false;
 
 }
 
@@ -236,7 +244,13 @@ OptStatus BasicTrustRegionSQP::optimize() {
 
   OptStatus retval = INVALID;
 
+  if (record_trust_region_history_) {
+    INC_LOG_TRUST_REGION;
+    LOG_TRUST_REGION;
+  }
+
   for (int merit_increases=0; merit_increases < max_merit_coeff_increases_; ++merit_increases) { /* merit adjustment loop */
+    ++results_.n_merit_increases;
     for (int iter=1; ; ++iter) { /* sqp loop */
       callCallbacks(x_);
       vector<bool> incmask = prob_->getIncrementMask();
@@ -352,12 +366,18 @@ OptStatus BasicTrustRegionSQP::optimize() {
           adjustTrustRegion(trust_shrink_ratio_);
           LOG_INFO("shrunk trust region. new box size: %.4f",
               trust_box_size_);
+          if (record_trust_region_history_) {
+            LOG_TRUST_REGION;
+          }
         } else {
           x_ = new_x;
           results_.cost_vals = new_cost_vals;
           results_.cnt_viols = new_cnt_viols;
           adjustTrustRegion(trust_expand_ratio_);
           LOG_INFO("expanded trust region. new box size: %.4f",trust_box_size_);
+          if (record_trust_region_history_) {
+            LOG_TRUST_REGION;
+          }
           break;
         }
       }
@@ -381,7 +401,11 @@ OptStatus BasicTrustRegionSQP::optimize() {
     else {
       LOG_INFO("not all constraints are satisfied. increasing penalties");
       merit_error_coeff_ *= merit_coeff_increase_ratio_;
-      trust_box_size_ = 1;//fmax(trust_box_size_, min_trust_box_size_ * trust_shrink_ratio_ * 1.5);
+      trust_box_size_ = 1e-1;//fmax(trust_box_size_, min_trust_box_size_ * trust_shrink_ratio_ * 1.5);
+      if (record_trust_region_history_) {
+        INC_LOG_TRUST_REGION;
+        LOG_TRUST_REGION;
+      }
     }
 
 

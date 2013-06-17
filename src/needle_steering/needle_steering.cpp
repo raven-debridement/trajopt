@@ -36,6 +36,7 @@ int main(int argc, char** argv)
   double improve_ratio_threshold = 0.1;//0.25;
   double trust_shrink_ratio = 0.9;//0.7;
   double trust_expand_ratio = 1.3;//1.2;
+  bool record_trust_region_history = false;
   
   double start_vec_array[] = {0, 0, 0, 0, 0, 0};
   double goal_vec_array[] = {0, 0.896343312427, 7.49334469032, 0, 0, 0};
@@ -61,6 +62,7 @@ int main(int argc, char** argv)
     config.add(new Parameter<double>("trust_expand_ratio", &trust_expand_ratio, "trust_expand_ratio"));
     config.add(new Parameter<bool>("use_speed_deviation_constraint", &use_speed_deviation_constraint, "use_speed_deviation_constraint"));
     config.add(new Parameter<bool>("use_speed_deviation_cost", &use_speed_deviation_cost, "use_speed_deviation_cost"));
+    config.add(new Parameter<bool>("record_trust_region_history", &record_trust_region_history, "record_trust_region_history"));
     config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
     config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
     CommandParser parser(config);
@@ -114,6 +116,7 @@ int main(int argc, char** argv)
   opt.improve_ratio_threshold_ = improve_ratio_threshold;
   opt.trust_shrink_ratio_ = trust_shrink_ratio;
   opt.trust_expand_ratio_ = trust_expand_ratio;
+  opt.record_trust_region_history_ = record_trust_region_history;
 
   helper->ConfigureOptimizer(opt);
 
@@ -126,6 +129,23 @@ int main(int argc, char** argv)
   opt.optimize();
   
   if (plot_final_result) plotter->PlotBothTrajectories(prob, opt, helper);
+
+  if (opt.record_trust_region_history_) {
+    for (int i = 0; i < opt.trust_region_size_history.size(); ++i) {
+      cout << "Trust region size history for iteration #" << i << " ";
+      for (int j = 0; j < opt.trust_region_size_history[i].size(); ++j) {
+        cout << opt.trust_region_size_history[i][j] << " ";
+      }
+      cout << endl;
+    }
+    for (int i = 0; i < opt.log_trust_region_size_history.size(); ++i) {
+      cout << "Trust region logarithm size history for iteration #" << i << " ";
+      for (int j = 0; j < opt.log_trust_region_size_history[i].size(); ++j) {
+        cout << opt.log_trust_region_size_history[i][j] << " ";
+      }
+      cout << endl;
+    }
+  }
 
   RaveDestroy();
 
