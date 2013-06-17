@@ -21,22 +21,24 @@ int main(int argc, char** argv)
   bool plot_final_result=false;
   double env_transparency = 0.5;
 
-  int T = 10;
-  double r_min = 3.5;//2;
+  int T = 25;
+  double r_min = 2.98119536;
   int n_dof = 6;
 
-  int formulation = NeedleProblemHelper::Form1;
-  int curvature_constraint = NeedleProblemHelper::ConstantRadius;
-  int speed_formulation = NeedleProblemHelper::VariableSpeed;
+  int formulation = NeedleProblemHelper::Form2;
+  int curvature_constraint = NeedleProblemHelper::BoundedRadius;
+  int speed_formulation = NeedleProblemHelper::ConstantSpeed;
   int method = NeedleProblemHelper::Shooting;
   int curvature_formulation = NeedleProblemHelper::UseRadius;
+  bool use_speed_deviation_constraint = false;
+  bool use_speed_deviation_cost = false;
 
   double improve_ratio_threshold = 0.1;//0.25;
   double trust_shrink_ratio = 0.9;//0.7;
   double trust_expand_ratio = 1.3;//1.2;
   
-  double start_vec_array[] = {-12.82092, 6.80976, 0.06844, 0, 0, 0};
-  double goal_vec_array[] = {-3.21932, 6.87362, -1.21877, 0, 0, 0};
+  double start_vec_array[] = {0, 0, 0, 0, 0, 0};
+  double goal_vec_array[] = {0, 0.896343312427, 7.49334469032, 0, 0, 0};
 
   vector<double> start_vec(start_vec_array, start_vec_array + n_dof);
   vector<double> goal_vec(goal_vec_array, goal_vec_array + n_dof);
@@ -57,6 +59,8 @@ int main(int argc, char** argv)
     config.add(new Parameter<double>("improve_ratio_threshold", &improve_ratio_threshold, "improve_ratio_threshold"));
     config.add(new Parameter<double>("trust_shrink_ratio", &trust_shrink_ratio, "trust_shrink_ratio"));
     config.add(new Parameter<double>("trust_expand_ratio", &trust_expand_ratio, "trust_expand_ratio"));
+    config.add(new Parameter<bool>("use_speed_deviation_constraint", &use_speed_deviation_constraint, "use_speed_deviation_constraint"));
+    config.add(new Parameter<bool>("use_speed_deviation_cost", &use_speed_deviation_cost, "use_speed_deviation_cost"));
     config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
     config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
     CommandParser parser(config);
@@ -76,8 +80,8 @@ int main(int argc, char** argv)
   viewer->SetAllTransparency(env_transparency);
   RobotBasePtr robot = GetRobot(*env);
 
-  VectorXd start(n_dof); for (int i = 0; i < n_dof; ++i) start[i] = start_vec[i];
-  VectorXd goal(n_dof); for (int i = 0; i < n_dof; ++i) goal[i] = goal_vec[i];
+  Vector6d start; for (int i = 0; i < n_dof; ++i) start[i] = start_vec[i];
+  Vector6d goal; for (int i = 0; i < n_dof; ++i) goal[i] = goal_vec[i];
 
   const char *ignored_kinbody_c_strs[] = { "KinBodyProstate", "KinBodyDermis", "KinBodyEpidermis", "KinBodyHypodermis" };
   vector<string> ignored_kinbody_names(ignored_kinbody_c_strs, end(ignored_kinbody_c_strs));
@@ -100,6 +104,8 @@ int main(int argc, char** argv)
   helper->speed_formulation = speed_formulation;
   helper->method = method;
   helper->curvature_formulation = curvature_formulation;
+  helper->use_speed_deviation_constraint = use_speed_deviation_constraint;
+  helper->use_speed_deviation_cost = use_speed_deviation_cost;
   helper->robot = robot;
   helper->ConfigureProblem(*prob);
 

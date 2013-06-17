@@ -121,7 +121,7 @@ namespace Needle {
     }
   }
 
-  Matrix4d expUp(const VectorXd& x) {
+  Matrix4d expUp(const Vector6d& x) {
     assert(x.size() == 6);
     Matrix4d X = Matrix4d::Identity();
     X.block<3, 3>(0, 0) = expRot(x.tail<3>());
@@ -130,7 +130,7 @@ namespace Needle {
     return X;
   }
 
-  VectorXd logDown(const Matrix4d& X) {
+  Vector6d logDown(const Matrix4d& X) {
     VectorXd x(6);
     x.tail<3>() = logRot(X.block<3, 3>(0, 0));
     x.head<3>() = (expA(x.tail<3>())).inverse() * X.block<3, 1>(0, 3);
@@ -150,7 +150,7 @@ namespace Needle {
     return OpenRAVE::Transform(M);
   }
 
-  OpenRAVE::Transform vecToTransform(const VectorXd& x) {
+  OpenRAVE::Transform vecToTransform(const Vector6d& x) {
     OpenRAVE::Transform T;
     OpenRAVE::Vector trans(x[0], x[1], x[2]);
     OpenRAVE::Vector rot(x[3], x[4], x[5]);

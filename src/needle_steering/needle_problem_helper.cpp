@@ -12,7 +12,10 @@ namespace Needle {
         prob.addCost(CostPtr(new ConstantSpeedCost(Deltavar, coeff_speed, shared_from_this())));
         break;
       case VariableSpeed:
-        prob.addCost(CostPtr(new VariableSpeedCost(Deltavars.col(0), Delta_lb, coeff_speed, shared_from_this())));
+        prob.addCost(CostPtr(new VariableSpeedCost(Deltavars.col(0), coeff_speed, shared_from_this())));
+        if (use_speed_deviation_cost) {
+          prob.addCost(CostPtr(new SpeedDeviationCost(Deltavars.col(0), Delta_lb, coeff_speed, shared_from_this())));
+        }
         break;
       SWITCH_DEFAULT;
     }
@@ -26,6 +29,7 @@ namespace Needle {
     AddSpeedCost(prob);
     AddStartConstraint(prob);
     AddGoalConstraint(prob);
+    AddSpeedConstraint(prob);
     AddControlConstraint(prob);
     AddCollisionConstraint(prob);
   }
@@ -84,12 +88,12 @@ namespace Needle {
     }
     switch (formulation) {
       case NeedleProblemHelper::Form1: {
-        VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
-        VectorXd v(6); v << 0, 0, Delta, theta, 0, 0;
+        Vector6d w; w << 0, 0, 0, 0, 0, phi;
+        Vector6d v; v << 0, 0, Delta, theta, 0, 0;
         return pose * expUp(w) * expUp(v);
       }
       case NeedleProblemHelper::Form2: {
-        VectorXd w(6); w << 0, 0, Delta, theta, 0, phi;
+        Vector6d w; w << 0, 0, Delta, theta, 0, phi;
         return pose * expUp(w);
       }
       SWITCH_DEFAULT;
@@ -199,14 +203,13 @@ namespace Needle {
         Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
         break;
       case VariableSpeed:
-        AddVarArray(prob, T, 1, "speed", Deltavars);
+        AddVarArray(prob, T, 1, 0, INFINITY, "speed", Deltavars); // TODO should we have a resonable upper bound for this?
         break;
       SWITCH_DEFAULT;
     }
     // Only the twist variables are incremental (i.e. their trust regions should be around zero)
     prob.setIncremental(twistvars.flatten());
     if (curvature_constraint == BoundedRadius) {
-      //AddVarArray(prob, T, 1, r_min, INFINITY, "radius", radiusvars);
       switch (curvature_formulation) {
         case UseCurvature:
           AddVarArray(prob, T, 1, 0.01, 1. / r_min, "curvature", curvature_or_radius_vars);
@@ -238,15 +241,23 @@ namespace Needle {
   void NeedleProblemHelper::AddStartConstraint(OptProb& prob) {
     VarVector vars = twistvars.row(0);
     VectorOfVectorPtr f(new Needle::PositionError(local_configs[0], start, shared_from_this()));
-    VectorXd coeffs = VectorXd::Ones(6);
+    VectorXd coeffs = Vector6d::Ones();
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "entry")));
   }
 
   void NeedleProblemHelper::AddGoalConstraint(OptProb& prob) {
     VarVector vars = twistvars.row(T);
     VectorOfVectorPtr f(new Needle::PositionError(local_configs[T], goal, shared_from_this()));
-    VectorXd coeffs(n_dof); coeffs << 1., 1., 1., 0., 0., 0.;
+    Vector6d coeffs; coeffs << 1., 1., 1., 0., 0., 0.;
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "goal")));
+  }
+
+  void NeedleProblemHelper::AddSpeedConstraint(OptProb& prob) {
+    if (speed_formulation == VariableSpeed && use_speed_deviation_constraint) {
+      VectorOfVectorPtr f(new Needle::SpeedDeviationError(Delta_lb, shared_from_this()));
+      Vector1d coeffs = Vector1d::Ones();
+      prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, Deltavars.col(0), coeffs, INEQ, "speed deviation")));
+    }
   }
 
   void NeedleProblemHelper::AddControlConstraint(OptProb& prob) {

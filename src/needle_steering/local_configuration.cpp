@@ -9,7 +9,8 @@ namespace Needle {
     body(body) {}
 
   void LocalConfiguration::SetDOFValues(const DblVec& dofs) {
-    VectorXd x(dofs.size());
+    assert(dofs.size() == 6);
+    Vector6d x;
     for (int i = 0; i < dofs.size(); ++i) {
       x[i] = dofs[i];
     }
@@ -79,7 +80,7 @@ namespace Needle {
   }
 
   DblVec LocalConfiguration::RandomDOFValues() {
-    return toDblVec(VectorXd::Random(6));
+    return toDblVec(Vector6d::Random());
   }
 
   vector<OpenRAVE::KinBodyPtr> LocalConfiguration::GetBodies() {

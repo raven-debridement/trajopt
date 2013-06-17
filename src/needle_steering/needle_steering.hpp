@@ -37,6 +37,10 @@ using namespace Eigen;
 
 namespace Needle {
 
+  typedef Matrix<double, 1, 1> Vector1d;
+
+  typedef Matrix<double, 6, 1> Vector6d;
+
   inline double bound_inf(double result, double bound);
 
   void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<double>& lbs, const vector<double>& ubs, const vector<string>& name_prefix, const vector<VarArray*>& newvars);
@@ -59,16 +63,19 @@ namespace Needle {
     
   Vector3d logRot(const Matrix3d& X);
     
-  Matrix4d expUp(const VectorXd& x);
+  Matrix4d expUp(const Vector6d& x);
 
-  VectorXd logDown(const Matrix4d& X);
+  Vector6d logDown(const Matrix4d& X);
 
   OpenRAVE::Transform matrixToTransform(const Matrix4d& X);
 
-  OpenRAVE::Transform vecToTransform(const VectorXd& x);
+  OpenRAVE::Transform vecToTransform(const Vector6d& x);
 
   struct NeedleProblemHelper;
   typedef boost::shared_ptr<NeedleProblemHelper> NeedleProblemHelperPtr;
+
+  
+
 
   class ConstantSpeedCost : public Cost {
   public:
@@ -84,7 +91,19 @@ namespace Needle {
 
   class VariableSpeedCost : public Cost {
   public:
-    VariableSpeedCost(const VarVector& vars, double deviation, double coeff, NeedleProblemHelperPtr helper);
+    VariableSpeedCost(const VarVector& vars, double coeff, NeedleProblemHelperPtr helper);
+    virtual double value(const vector<double>& xvec);
+    virtual ConvexObjectivePtr convex(const vector<double>& xvec, Model* model);
+  private:
+    VarVector vars;
+    double coeff;
+    AffExpr expr;
+    NeedleProblemHelperPtr helper;
+  };
+
+  class SpeedDeviationCost: public Cost {
+  public:
+    SpeedDeviationCost(const VarVector& vars, double deviation, double coeff, NeedleProblemHelperPtr helper);
     virtual double value(const vector<double>& xvec);
     virtual ConvexObjectivePtr convex(const vector<double>& xvec, Model* model);
   private:
@@ -132,9 +151,16 @@ namespace Needle {
   struct PositionError : public VectorOfVector {
     LocalConfigurationPtr cfg;
     KinBodyPtr body;
-    VectorXd target_pos;
+    Vector6d target_pos;
     NeedleProblemHelperPtr helper;
-    PositionError(LocalConfigurationPtr cfg, const VectorXd& target_pos, NeedleProblemHelperPtr helper);
+    PositionError(LocalConfigurationPtr cfg, const Vector6d& target_pos, NeedleProblemHelperPtr helper);
+    VectorXd operator()(const VectorXd& a) const;
+  };
+
+  struct SpeedDeviationError : public VectorOfVector {
+    NeedleProblemHelperPtr helper;
+    double deviation;
+    SpeedDeviationError(double deviation, NeedleProblemHelperPtr helper);
     VectorXd operator()(const VectorXd& a) const;
   };
 
@@ -155,8 +181,8 @@ namespace Needle {
     enum CurvatureFormulation { UseRadius = 1, UseCurvature = 2 };
     enum SpeedFormulation { ConstantSpeed = 1, VariableSpeed = 2 };
     // Config parameters
-    VectorXd start;
-    VectorXd goal;
+    Vector6d start;
+    Vector6d goal;
     double coeff_rotation;
     double coeff_speed;
     int T;
@@ -166,6 +192,8 @@ namespace Needle {
     int speed_formulation;
     int method;
     int curvature_formulation;
+    bool use_speed_deviation_constraint;
+    bool use_speed_deviation_cost;
     double r_min;
     vector<string> ignored_kinbody_names;
     double collision_dist_pen;
@@ -190,6 +218,7 @@ namespace Needle {
     void InitTrajectory(OptProb& prob);
     void AddRotationCost(OptProb& prob);
     void AddSpeedCost(OptProb& prob);
+    void AddSpeedConstraint(OptProb& prob);
     void AddStartConstraint(OptProb& prob);
     void AddGoalConstraint(OptProb& prob);
     void AddControlConstraint(OptProb& prob);
