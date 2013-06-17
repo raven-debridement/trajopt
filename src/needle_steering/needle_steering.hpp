@@ -133,7 +133,8 @@ namespace Needle {
     LocalConfigurationPtr cfg;
     KinBodyPtr body;
     VectorXd target_pos;
-    PositionError(LocalConfigurationPtr cfg, const VectorXd& target_pos);
+    NeedleProblemHelperPtr helper;
+    PositionError(LocalConfigurationPtr cfg, const VectorXd& target_pos, NeedleProblemHelperPtr helper);
     VectorXd operator()(const VectorXd& a) const;
   };
 
@@ -146,7 +147,7 @@ namespace Needle {
     int outputSize() const;
   };
 
-  struct NeedleProblemHelper {
+  struct NeedleProblemHelper : public boost::enable_shared_from_this<NeedleProblemHelper> {
     // Formulation flag
     enum Formulation { Form1 = 1, Form2 = 2, Form3 = 3 };
     enum CurvatureConstraint { ConstantRadius = 1, BoundedRadius = 2 };

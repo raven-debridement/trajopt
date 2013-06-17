@@ -2,7 +2,7 @@
 
 namespace Needle {
 
-  PositionError::PositionError(LocalConfigurationPtr cfg, const VectorXd& target_pos) : cfg(cfg), target_pos(target_pos), body(cfg->GetBodies()[0]) {}
+  PositionError::PositionError(LocalConfigurationPtr cfg, const VectorXd& target_pos, NeedleProblemHelperPtr helper) : cfg(cfg), target_pos(target_pos), body(cfg->GetBodies()[0]), helper(helper) {}
 
   VectorXd PositionError::operator()(const VectorXd& a) const {
     Matrix4d X = cfg->pose * expUp(a);

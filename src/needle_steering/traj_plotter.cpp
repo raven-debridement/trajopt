@@ -39,7 +39,7 @@ namespace Needle {
     KinBodyPtr robot = helper->robot;
     // plot real trajectory
     Matrix4d current_pose = expUp(helper->start);
-    robot->SetTransform(Needle::matrixToTransform(current_pose));
+    robot->SetTransform(matrixToTransform(current_pose));
     handles.push_back(viewer->PlotKinBody(robot));
     SetTransparency(handles.back(), .5);
     for (int i = 0; i < helper->T; ++i) {
@@ -47,7 +47,7 @@ namespace Needle {
       double Delta = helper->GetDelta(x, i);
       double curvature_or_radius = helper->GetCurvatureOrRadius(x, i);
       current_pose = helper->TransformPose(current_pose, phi, Delta, curvature_or_radius);
-      robot->SetTransform(Needle::matrixToTransform(current_pose));
+      robot->SetTransform(matrixToTransform(current_pose));
       handles.push_back(viewer->PlotKinBody(robot));
       SetTransparency(handles.back(), .5);
     }

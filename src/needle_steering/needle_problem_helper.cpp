@@ -3,16 +3,16 @@
 namespace Needle {
 
   void NeedleProblemHelper::AddRotationCost(OptProb& prob) {
-    prob.addCost(CostPtr(new RotationCost(phivars.col(0), coeff_rotation, NeedleProblemHelperPtr(this))));
+    prob.addCost(CostPtr(new RotationCost(phivars.col(0), coeff_rotation, shared_from_this())));
   }
 
   void NeedleProblemHelper::AddSpeedCost(OptProb& prob) {
     switch (speed_constraint) {
       case ConstantSpeed:
-        prob.addCost(CostPtr(new ConstantSpeedCost(Deltavar, coeff_speed, NeedleProblemHelperPtr(this))));
+        prob.addCost(CostPtr(new ConstantSpeedCost(Deltavar, coeff_speed, shared_from_this())));
         break;
       case VariableSpeed:
-        prob.addCost(CostPtr(new VariableSpeedCost(Deltavars.col(0), Delta_lb, coeff_speed, NeedleProblemHelperPtr(this))));
+        prob.addCost(CostPtr(new VariableSpeedCost(Deltavars.col(0), Delta_lb, coeff_speed, shared_from_this())));
         break;
       SWITCH_DEFAULT;
     }
@@ -232,14 +232,14 @@ namespace Needle {
 
   void NeedleProblemHelper::AddStartConstraint(OptProb& prob) {
     VarVector vars = twistvars.row(0);
-    VectorOfVectorPtr f(new Needle::PositionError(local_configs[0], start));
+    VectorOfVectorPtr f(new Needle::PositionError(local_configs[0], start, shared_from_this()));
     VectorXd coeffs = VectorXd::Ones(6);
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "entry")));
   }
 
   void NeedleProblemHelper::AddGoalConstraint(OptProb& prob) {
     VarVector vars = twistvars.row(T);
-    VectorOfVectorPtr f(new Needle::PositionError(local_configs[T], goal));
+    VectorOfVectorPtr f(new Needle::PositionError(local_configs[T], goal, shared_from_this()));
     VectorXd coeffs(n_dof); coeffs << 1., 1., 1., 0., 0., 0.;
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "goal")));
   }
@@ -259,7 +259,7 @@ namespace Needle {
       if (curvature_constraint == BoundedRadius) {
         vars = concat(vars, curvature_or_radius_vars.row(i));
       }
-      VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], NeedleProblemHelperPtr(this)));
+      VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], shared_from_this()));
       VectorXd coeffs = VectorXd::Ones(boost::static_pointer_cast<Needle::ControlError>(f)->outputSize());
       prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("control%i")%i).str())));
     }
