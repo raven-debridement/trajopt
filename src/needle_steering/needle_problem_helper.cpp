@@ -7,7 +7,7 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::AddSpeedCost(OptProb& prob) {
-    switch (speed_constraint) {
+    switch (speed_formulation) {
       case ConstantSpeed:
         prob.addCost(CostPtr(new ConstantSpeedCost(Deltavar, coeff_speed, shared_from_this())));
         break;
@@ -42,7 +42,7 @@ namespace Needle {
     for (int i = 0; i < T; ++i) {
       initVec.push_back(0.);
     }
-    switch (speed_constraint) {
+    switch (speed_formulation) {
       case ConstantSpeed:
         // Initialize Delta
         initVec.push_back(Delta_lb);
@@ -83,13 +83,12 @@ namespace Needle {
       SWITCH_DEFAULT;
     }
     switch (formulation) {
-      case NeedleProblemHelper::Form1:
-      case NeedleProblemHelper::Form2: {
+      case NeedleProblemHelper::Form1: {
         VectorXd w(6); w << 0, 0, 0, 0, 0, phi;
         VectorXd v(6); v << 0, 0, Delta, theta, 0, 0;
         return pose * expUp(w) * expUp(v);
       }
-      case NeedleProblemHelper::Form3: {
+      case NeedleProblemHelper::Form2: {
         VectorXd w(6); w << 0, 0, Delta, theta, 0, phi;
         return pose * expUp(w);
       }
@@ -102,7 +101,13 @@ namespace Needle {
   }
 
   double NeedleProblemHelper::GetDelta(const DblVec& x, int i) const {
-    return x[Deltavar.var_rep->index];
+    switch (speed_formulation) {
+      case ConstantSpeed:
+        return x[Deltavar.var_rep->index];
+      case VariableSpeed:
+        return x[Deltavars.row(i)[0].var_rep->index];
+      SWITCH_DEFAULT;
+    }
   }
 
   double NeedleProblemHelper::GetCurvatureOrRadius(const DblVec& x, int i) const {
@@ -189,7 +194,7 @@ namespace Needle {
     AddVarArray(prob, T+1, n_dof, "twist", twistvars);
     AddVarArray(prob, T, 1, -PI, PI, "phi", phivars);
     Delta_lb = (goal.topRows(3) - start.topRows(3)).norm() / T / r_min;
-    switch (speed_constraint) {
+    switch (speed_formulation) {
       case ConstantSpeed:
         Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
         break;
@@ -247,7 +252,7 @@ namespace Needle {
   void NeedleProblemHelper::AddControlConstraint(OptProb& prob) {
     for (int i = 0; i < T; ++i) {
       VarVector vars = concat(concat(twistvars.row(i), twistvars.row(i+1)), phivars.row(i));
-      switch (speed_constraint) {
+      switch (speed_formulation) {
         case ConstantSpeed:
           vars.push_back(Deltavar);
           break;

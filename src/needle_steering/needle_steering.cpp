@@ -27,7 +27,7 @@ int main(int argc, char** argv)
 
   int formulation = NeedleProblemHelper::Form1;
   int curvature_constraint = NeedleProblemHelper::ConstantRadius;
-  int speed_constraint = NeedleProblemHelper::ConstantSpeed;
+  int speed_formulation = NeedleProblemHelper::VariableSpeed;
   int method = NeedleProblemHelper::Shooting;
   int curvature_formulation = NeedleProblemHelper::UseRadius;
 
@@ -52,6 +52,7 @@ int main(int argc, char** argv)
     config.add(new Parameter<int>("curvature_constraint", &curvature_constraint, "curvature_constraint"));
     config.add(new Parameter<int>("method", &method, "method"));
     config.add(new Parameter<int>("curvature_formulation", &curvature_formulation, "curvature_formulation"));
+    config.add(new Parameter<int>("speed_formulation", &speed_formulation, "speed_formulation"));
     config.add(new Parameter<double>("r_min", &r_min, "r_min"));
     config.add(new Parameter<double>("improve_ratio_threshold", &improve_ratio_threshold, "improve_ratio_threshold"));
     config.add(new Parameter<double>("trust_shrink_ratio", &trust_shrink_ratio, "trust_shrink_ratio"));
@@ -96,7 +97,7 @@ int main(int argc, char** argv)
   helper->collision_coeff = 20;
   helper->formulation = formulation;
   helper->curvature_constraint = curvature_constraint;
-  helper->speed_constraint = speed_constraint;
+  helper->speed_formulation = speed_formulation;
   helper->method = method;
   helper->curvature_formulation = curvature_formulation;
   helper->robot = robot;

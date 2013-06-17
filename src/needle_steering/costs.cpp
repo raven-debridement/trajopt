@@ -3,7 +3,7 @@
 namespace Needle {
 
   ConstantSpeedCost::ConstantSpeedCost(const Var& var, double coeff, NeedleProblemHelperPtr helper) : Cost("Speed"), var(var), coeff(coeff), helper(helper) {
-    assert (helper->speed_constraint == NeedleProblemHelper::ConstantSpeed);
+    assert (helper->speed_formulation == NeedleProblemHelper::ConstantSpeed);
     exprInc(expr, exprMult(var, coeff));
   }
 
@@ -19,7 +19,7 @@ namespace Needle {
   }
 
   VariableSpeedCost::VariableSpeedCost(const VarVector& vars, double deviation, double coeff, NeedleProblemHelperPtr helper) : Cost("Speed"), vars(vars), deviation(deviation), coeff(coeff), helper(helper) {
-    assert (helper->speed_constraint == NeedleProblemHelper::VariableSpeed);
+    assert (helper->speed_formulation == NeedleProblemHelper::VariableSpeed);
     for (int i = 0; i < vars.size(); ++i) {
       exprInc(expr, exprMult(exprSquare(exprAdd(AffExpr(vars[i]), -deviation)), coeff));
     }

@@ -149,11 +149,11 @@ namespace Needle {
 
   struct NeedleProblemHelper : public boost::enable_shared_from_this<NeedleProblemHelper> {
     // Formulation flag
-    enum Formulation { Form1 = 1, Form2 = 2, Form3 = 3 };
+    enum Formulation { Form1 = 1, Form2 = 2 };
     enum CurvatureConstraint { ConstantRadius = 1, BoundedRadius = 2 };
     enum Method { Colocation = 1, Shooting = 2 };
     enum CurvatureFormulation { UseRadius = 1, UseCurvature = 2 };
-    enum SpeedConstraint { ConstantSpeed = 1, VariableSpeed = 2 };
+    enum SpeedFormulation { ConstantSpeed = 1, VariableSpeed = 2 };
     // Config parameters
     VectorXd start;
     VectorXd goal;
@@ -163,7 +163,7 @@ namespace Needle {
     int n_dof;
     int formulation;
     int curvature_constraint;
-    int speed_constraint;
+    int speed_formulation;
     int method;
     int curvature_formulation;
     double r_min;

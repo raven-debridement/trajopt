@@ -46,20 +46,8 @@ namespace Needle {
     }
     switch (helper->formulation) {
       case NeedleProblemHelper::Form1:
-      case NeedleProblemHelper::Form3: {
-        return logDown(helper->TransformPose(pose1, phi, Delta, curvature_or_radius).inverse() * pose2);
-      }
       case NeedleProblemHelper::Form2: {
-        VectorXd trans1 = pose1.block<3, 1>(0, 3);
-        VectorXd trans2 = pose2.block<3, 1>(0, 3);
-        Matrix3d R1 = pose1.block<3, 3>(0, 0);
-        Vector3d xyz = R1.transpose() * (trans2 - trans1);
-        double x = xyz[0], y = xyz[1], z = xyz[2];
-        Vector3d err;// err <<
-        //  phi - atan2(x, -y),
-        //  bound_inf(radius - (x*x + y*y + z*z) / (2 * sqrt(x*x + y*y)), 100), // sketchy lol
-        //  Delta - radius * atan2(z, radius - sqrt(x*x + y*y));
-        return err;
+        return logDown(helper->TransformPose(pose1, phi, Delta, curvature_or_radius).inverse() * pose2);
       }
       SWITCH_DEFAULT;
     }
@@ -68,10 +56,7 @@ namespace Needle {
   int ControlError::outputSize() const {
     switch (helper->formulation) {
       case NeedleProblemHelper::Form1:
-        return 6;
       case NeedleProblemHelper::Form2:
-        return 3;
-      case NeedleProblemHelper::Form3:
         return 6;
       SWITCH_DEFAULT;
     }
