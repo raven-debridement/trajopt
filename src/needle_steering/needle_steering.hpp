@@ -1,11 +1,26 @@
 #pragma once
 
-#include "trajopt/common.hpp"
+#include "needle_steering.hpp"
+#include "sco/expr_ops.hpp"
 #include "sco/modeling_utils.hpp"
 #include "sco/modeling.hpp"
+#include "osgviewer/osgviewer.hpp"
+#include "trajopt/collision_checker.hpp"
+#include "trajopt/collision_terms.hpp"
+#include "trajopt/common.hpp"
+#include "trajopt/plot_callback.hpp"
+#include "trajopt/problem_description.hpp"
+#include "trajopt/rave_utils.hpp"
+#include "trajopt/trajectory_costs.hpp"
+#include "utils/clock.hpp"
+#include "utils/config.hpp"
+#include "utils/eigen_conversions.hpp"
+#include "utils/stl_to_string.hpp"
+#include <boost/assign.hpp>
+#include <boost/foreach.hpp>
+#include <ctime>
 #include <openrave-core.h>
 #include <openrave/openrave.h>
-#include "osgviewer/osgviewer.hpp"
 
 //#define NEEDLE_TEST
 //#define USE_CURVATURE
@@ -17,35 +32,84 @@ using namespace trajopt;
 using namespace std;
 using namespace OpenRAVE;
 using namespace util;
+using namespace boost::assign;
 using namespace Eigen;
 
 namespace Needle {
 
-  class SpeedCost : public Cost {
+  inline double bound_inf(double result, double bound);
+
+  void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<double>& lbs, const vector<double>& ubs, const vector<string>& name_prefix, const vector<VarArray*>& newvars);
+
+  void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<string>& name_prefix, const vector<VarArray*>& newvars);
+    
+  void AddVarArray(OptProb& prob, int rows, int cols, double lb, double ub, const string& name_prefix, VarArray& newvars);
+    
+  void AddVarArray(OptProb& prob, int rows, int cols, const string& name_prefix, VarArray& newvars);
+
+  Matrix3d rotMat(const Vector3d& x);
+
+  Vector3d rotVec(const Matrix3d& X);
+
+  Matrix3d expA(const Vector3d& w);
+    
+  Matrix3d logInvA(const Vector3d& w);
+    
+  Matrix3d expRot(const Vector3d& x);
+    
+  Vector3d logRot(const Matrix3d& X);
+    
+  Matrix4d expUp(const VectorXd& x);
+
+  VectorXd logDown(const Matrix4d& X);
+
+  OpenRAVE::Transform matrixToTransform(const Matrix4d& X);
+
+  OpenRAVE::Transform vecToTransform(const VectorXd& x);
+
+  struct NeedleProblemHelper;
+  typedef boost::shared_ptr<NeedleProblemHelper> NeedleProblemHelperPtr;
+
+  class ConstantSpeedCost : public Cost {
   public:
-    SpeedCost(const Var& var, double coeff);
+    ConstantSpeedCost(const Var& var, double coeff, NeedleProblemHelperPtr helper);
     virtual double value(const vector<double>& xvec);
     virtual ConvexObjectivePtr convex(const vector<double>& xvec, Model* model);
   private:
-    Var var_;
-    double coeff_;
-    AffExpr expr_;
+    Var var;
+    double coeff;
+    AffExpr expr;
+    NeedleProblemHelperPtr helper;
+  };
+
+  class VariableSpeedCost : public Cost {
+  public:
+    VariableSpeedCost(const VarVector& vars, double deviation, double coeff, NeedleProblemHelperPtr helper);
+    virtual double value(const vector<double>& xvec);
+    virtual ConvexObjectivePtr convex(const vector<double>& xvec, Model* model);
+  private:
+    VarVector vars;
+    double coeff;
+    double deviation;
+    QuadExpr expr;
+    NeedleProblemHelperPtr helper;
   };
 
   class RotationCost : public Cost {
   public:
-    RotationCost(const VarVector& vars, double coeff);
+    RotationCost(const VarVector& vars, double coeff, NeedleProblemHelperPtr helper);
     virtual double value(const vector<double>& xvec);
     virtual ConvexObjectivePtr convex(const vector<double>& xvec, Model* model);
   private:
-    VarVector vars_;
-    double coeff_;
-    QuadExpr expr_;
+    VarVector vars;
+    double coeff;
+    QuadExpr expr;
+    NeedleProblemHelperPtr helper;
   };
 
   struct LocalConfiguration : public Configuration {
-    KinBodyPtr body_;
-    Matrix4d pose_;
+    KinBodyPtr body;
+    Matrix4d pose;
     LocalConfiguration(KinBodyPtr body, const Matrix4d& pose);
     LocalConfiguration(KinBodyPtr body);
     virtual void SetDOFValues(const DblVec& dofs);
@@ -63,10 +127,7 @@ namespace Needle {
     virtual vector<OpenRAVE::KinBodyPtr> GetBodies();
   };
 
-  struct NeedleProblemHelper;
-
   typedef boost::shared_ptr<LocalConfiguration> LocalConfigurationPtr;
-  typedef boost::shared_ptr<NeedleProblemHelper> NeedleProblemHelperPtr;
 
   struct PositionError : public VectorOfVector {
     LocalConfigurationPtr cfg;
@@ -91,6 +152,7 @@ namespace Needle {
     enum CurvatureConstraint { ConstantRadius = 1, BoundedRadius = 2 };
     enum Method { Colocation = 1, Shooting = 2 };
     enum CurvatureFormulation { UseRadius = 1, UseCurvature = 2 };
+    enum SpeedConstraint { ConstantSpeed = 1, VariableSpeed = 2 };
     // Config parameters
     VectorXd start;
     VectorXd goal;
@@ -100,6 +162,7 @@ namespace Needle {
     int n_dof;
     int formulation;
     int curvature_constraint;
+    int speed_constraint;
     int method;
     int curvature_formulation;
     double r_min;
@@ -111,8 +174,8 @@ namespace Needle {
     // Variables
     VarArray twistvars;
     VarArray phivars;
-    VarArray curvaturevars;
-    VarArray radiusvars;
+    VarArray curvature_or_radius_vars;
+    VarArray Deltavars;
     Var Deltavar;
     // Local configurations
     vector<LocalConfigurationPtr> local_configs;
@@ -124,6 +187,8 @@ namespace Needle {
     void CreateVariables(OptProb& prob);
     void InitLocalConfigurations(const KinBodyPtr robot, OptProb& prob);
     void InitTrajectory(OptProb& prob);
+    void AddRotationCost(OptProb& prob);
+    void AddSpeedCost(OptProb& prob);
     void AddStartConstraint(OptProb& prob);
     void AddGoalConstraint(OptProb& prob);
     void AddControlConstraint(OptProb& prob);
@@ -131,6 +196,7 @@ namespace Needle {
     Matrix4d TransformPose(const Matrix4d& pose, double phi, double Delta, double radius) const;
     double GetPhi(const DblVec& x, int i) const;
     double GetDelta(const DblVec& x, int i) const;
+    double GetCurvatureOrRadius(const DblVec& x, int i) const;
     double GetCurvature(const DblVec& x, int i) const;
     double GetRadius(const DblVec& x, int i) const;
     #ifdef NEEDLE_TEST

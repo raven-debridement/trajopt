@@ -37,7 +37,8 @@ set(HACD_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/ext/HACD_Lib/inc ${CMAKE_SOURCE_DIR}/e
 enable_testing()
 
 option(BUILD_CLOUDPROC "build point cloud processing stuff" ON)
-option(BUILD_SANDBOX "build sandbox programs" ON)
+option(BUILD_SANDBOX "build sandbox programs" OFF)
+option(BUILD_NEEDLE_STEERING "build needle steering" ON)
 option(BUILD_HUMANOIDS "build humanoids stuff" OFF)
 option(BUILD_SENSORSIM "build sensor simulation" OFF)
 
