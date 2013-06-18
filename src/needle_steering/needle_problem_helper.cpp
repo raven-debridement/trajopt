@@ -198,11 +198,14 @@ namespace Needle {
     AddVarArray(prob, T+1, n_dof, "twist", twistvars);
     AddVarArray(prob, T, 1, -PI, PI, "phi", phivars);
     Delta_lb = (goal.topRows(3) - start.topRows(3)).norm() / T / r_min;
+    cout << Delta_lb << endl;
     switch (speed_formulation) {
       case ConstantSpeed:
-        Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
+        //Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
+        Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(0),singleton<double>(INFINITY))[0];
         break;
       case VariableSpeed:
+        //AddVarArray(prob, T, 1, Delta_lb * 0.5, INFINITY, "speed", Deltavars); // TODO should we have a resonable upper bound for this?
         AddVarArray(prob, T, 1, 0, INFINITY, "speed", Deltavars); // TODO should we have a resonable upper bound for this?
         break;
       SWITCH_DEFAULT;
