@@ -202,11 +202,12 @@ namespace Needle {
     switch (speed_formulation) {
       case ConstantSpeed:
         //Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
-        Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(0),singleton<double>(INFINITY))[0];
+        Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
         break;
       case VariableSpeed:
         //AddVarArray(prob, T, 1, Delta_lb * 0.5, INFINITY, "speed", Deltavars); // TODO should we have a resonable upper bound for this?
-        AddVarArray(prob, T, 1, 0, INFINITY, "speed", Deltavars); // TODO should we have a resonable upper bound for this?
+        AddVarArray(prob, T, 1, Delta_lb*0.5, INFINITY, "speed", Deltavars); // TODO should we have a resonable upper bound for this?
+        //AddVarArray(prob, T, 1, Delta_lb*2, INFINITY, "speed", Deltavars); // TODO should we have a resonable upper bound for this?
         break;
       SWITCH_DEFAULT;
     }
