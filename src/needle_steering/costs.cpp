@@ -54,21 +54,35 @@ namespace Needle {
     return out;
   }
 
-  RotationCost::RotationCost(const VarVector& vars, double coeff, NeedleProblemHelperPtr helper) : Cost("Rotation"), vars(vars), coeff(coeff), helper(helper) {
+  RotationQuadraticCost::RotationQuadraticCost(const VarVector& vars, double coeff, NeedleProblemHelperPtr helper) : Cost("Rotation"), vars(vars), coeff(coeff), helper(helper) {
     for (int i = 0; i < vars.size(); ++i) {
       exprInc(expr, exprMult(exprSquare(vars[i]), coeff));
     }
   }
 
-  double RotationCost::value(const vector<double>& xvec) {
+  double RotationQuadraticCost::value(const vector<double>& xvec) {
     VectorXd vals = getVec(xvec, vars);
     return vals.array().square().sum() * coeff;
   }
 
-  ConvexObjectivePtr RotationCost::convex(const vector<double>& xvec, Model* model) {
+  ConvexObjectivePtr RotationQuadraticCost::convex(const vector<double>& xvec, Model* model) {
     ConvexObjectivePtr out(new ConvexObjective(model));
     out->addQuadExpr(expr);
     return out;
   }
 
+  RotationL1Cost::RotationL1Cost(const VarVector& vars, double coeff, NeedleProblemHelperPtr helper) : Cost("Rotation"), vars(vars), coeff(coeff), helper(helper) {}
+
+  double RotationL1Cost::value(const vector<double>& xvec) {
+    VectorXd vals = getVec(xvec, vars);
+    return vals.array().abs().sum() * coeff;
+  }
+
+  ConvexObjectivePtr RotationL1Cost::convex(const vector<double>& xvec, Model* model) {
+    ConvexObjectivePtr out(new ConvexObjective(model));
+    for (int i = 0; i < vars.size(); ++i) {
+      out->addAbs(AffExpr(vars[i]), coeff);
+    }
+    return out;
+  }
 }

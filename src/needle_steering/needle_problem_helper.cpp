@@ -3,7 +3,17 @@
 namespace Needle {
 
   void NeedleProblemHelper::AddRotationCost(OptProb& prob) {
-    prob.addCost(CostPtr(new RotationCost(phivars.col(0), coeff_rotation, shared_from_this())));
+    switch (rotation_cost) {
+      case UseRotationQuadraticCost: {
+        prob.addCost(CostPtr(new RotationQuadraticCost(phivars.col(0), coeff_rotation, shared_from_this())));
+        break;
+      }
+      case UseRotationL1Cost: {
+        prob.addCost(CostPtr(new RotationL1Cost(phivars.col(0), coeff_rotation_regularization, shared_from_this())));
+        break;
+      }
+      SWITCH_DEFAULT;
+    }
   }
 
   void NeedleProblemHelper::AddSpeedCost(OptProb& prob) {

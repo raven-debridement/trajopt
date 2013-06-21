@@ -114,15 +114,27 @@ namespace Needle {
     NeedleProblemHelperPtr helper;
   };
 
-  class RotationCost : public Cost {
+  class RotationQuadraticCost : public Cost {
   public:
-    RotationCost(const VarVector& vars, double coeff, NeedleProblemHelperPtr helper);
+    RotationQuadraticCost(const VarVector& vars, double coeff, NeedleProblemHelperPtr helper);
     virtual double value(const vector<double>& xvec);
     virtual ConvexObjectivePtr convex(const vector<double>& xvec, Model* model);
   private:
     VarVector vars;
     double coeff;
     QuadExpr expr;
+    NeedleProblemHelperPtr helper;
+  };
+
+  class RotationL1Cost : public Cost {
+  public:
+    RotationL1Cost(const VarVector& vars, double coeff, NeedleProblemHelperPtr helper);
+    virtual double value(const vector<double>& xvec);
+    virtual ConvexObjectivePtr convex(const vector<double>& xvec, Model* model);
+  private:
+    VarVector vars;
+    double coeff;
+    AffExpr expr;
     NeedleProblemHelperPtr helper;
   };
 
@@ -180,10 +192,12 @@ namespace Needle {
     enum Method { Colocation = 1, Shooting = 2 };
     enum CurvatureFormulation { UseRadius = 1, UseCurvature = 2 };
     enum SpeedFormulation { ConstantSpeed = 1, VariableSpeed = 2 };
+    enum RotationCost { UseRotationQuadraticCost = 1, UseRotationL1Cost = 2 };
     // Config parameters
     Vector6d start;
     Vector6d goal;
     double coeff_rotation;
+    double coeff_rotation_regularization;
     double coeff_speed;
     int T;
     int n_dof;
@@ -192,6 +206,7 @@ namespace Needle {
     int speed_formulation;
     int method;
     int curvature_formulation;
+    int rotation_cost;
     bool use_speed_deviation_constraint;
     bool use_speed_deviation_cost;
     double r_min;

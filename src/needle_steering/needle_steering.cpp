@@ -25,11 +25,12 @@ int main(int argc, char** argv)
   double r_min = 2.98119536;
   int n_dof = 6;
 
-  int formulation = NeedleProblemHelper::Form2;
-  int curvature_constraint = NeedleProblemHelper::BoundedRadius;
+  int formulation = NeedleProblemHelper::Form1;
+  int curvature_constraint = NeedleProblemHelper::ConstantRadius;
   int speed_formulation = NeedleProblemHelper::ConstantSpeed;
-  int method = NeedleProblemHelper::Shooting;
+  int method = NeedleProblemHelper::Colocation;
   int curvature_formulation = NeedleProblemHelper::UseRadius;
+  int rotation_cost = NeedleProblemHelper::UseRotationQuadraticCost;
   bool use_speed_deviation_constraint = false;
   bool use_speed_deviation_cost = false;
 
@@ -40,6 +41,10 @@ int main(int argc, char** argv)
   
   double start_vec_array[] = {0, 0, 0, 0, 0, 0};
   double goal_vec_array[] = {0, 0.896343312427, 7.49334469032, 0, 0, 0};
+
+  double coeff_rotation = 1.;
+  double coeff_speed = 1.;
+  double coeff_rotation_regularization = 0.1;
 
   vector<double> start_vec(start_vec_array, start_vec_array + n_dof);
   vector<double> goal_vec(goal_vec_array, goal_vec_array + n_dof);
@@ -56,6 +61,10 @@ int main(int argc, char** argv)
     config.add(new Parameter<int>("method", &method, "method"));
     config.add(new Parameter<int>("curvature_formulation", &curvature_formulation, "curvature_formulation"));
     config.add(new Parameter<int>("speed_formulation", &speed_formulation, "speed_formulation"));
+    config.add(new Parameter<int>("rotation_cost", &rotation_cost, "rotation_cost"));
+    config.add(new Parameter<double>("coeff_rotation_regularization", &coeff_rotation_regularization, "coeff_rotation_regularization"));
+    config.add(new Parameter<double>("coeff_rotation", &coeff_rotation, "coeff_rotation"));
+    config.add(new Parameter<double>("coeff_speed", &coeff_speed, "coeff_speed"));
     config.add(new Parameter<double>("r_min", &r_min, "r_min"));
     config.add(new Parameter<double>("improve_ratio_threshold", &improve_ratio_threshold, "improve_ratio_threshold"));
     config.add(new Parameter<double>("trust_shrink_ratio", &trust_shrink_ratio, "trust_shrink_ratio"));
@@ -69,8 +78,7 @@ int main(int argc, char** argv)
     parser.read(argc, argv);
   }
 
-  double coeff_rotation = 1.;
-  double coeff_speed = 1.;
+  
 
   RaveInitialize(false, verbose ? Level_Debug : Level_Info);
   EnvironmentBasePtr env = RaveCreateEnvironment();
@@ -94,6 +102,7 @@ int main(int argc, char** argv)
   helper->start = start;
   helper->goal = goal;
   helper->coeff_rotation = coeff_rotation;
+  helper->coeff_rotation_regularization = coeff_rotation_regularization;
   helper->coeff_speed = coeff_speed;
   helper->T = T;
   helper->r_min = r_min;
@@ -106,6 +115,7 @@ int main(int argc, char** argv)
   helper->speed_formulation = speed_formulation;
   helper->method = method;
   helper->curvature_formulation = curvature_formulation;
+  helper->rotation_cost = rotation_cost;
   helper->use_speed_deviation_constraint = use_speed_deviation_constraint;
   helper->use_speed_deviation_cost = use_speed_deviation_cost;
   helper->robot = robot;
