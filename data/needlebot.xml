@@ -12,11 +12,11 @@
       <height>.5</height>
       <!--<translation>-.25</translation>-->
       <rotationaxis>1 0 0 90</rotationaxis>
-   	</Geom>
+    </Geom>
     <Geom type="sphere">
       <translation>0 0 0.25</translation>
       <radius>.1</radius>
-   	</Geom>
+    </Geom>
  </Body>
 </KinBody>
 </Robot>
