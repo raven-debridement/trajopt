@@ -7,104 +7,121 @@ T* end(T (&ra)[N]) {
   return ra + N;
 }
 
-class ToyStateFunc : public StateFunc {
+class ToyBSPProblemHelper : public BSPProblemHelper {
 public:
-  ToyStateFunc(BSPProblemHelperPtr helper);
-  virtual int output_size() const;
-  virtual VectorXd operator()(const VectorXd& x, const VectorXd& u, const VectorXd& m) const ;
+  int input_dt;
 };
 
-class ToyObserveFunc : public ObserveFunc {
+typedef boost::shared_ptr<ToyBSPProblemHelper> ToyBSPProblemHelperPtr;
+
+typedef Matrix<double, 5, 1> Vector5d;
+
+class ToyStateFunc : public StateFunc<Vector2d, Vector2d, Vector2d> {
 public:
-  ToyObserveFunc(BSPProblemHelperPtr helper);
+  ToyStateFunc(ToyBSPProblemHelperPtr helper);
   virtual int output_size() const;
-  virtual VectorXd operator()(const VectorXd& x, const VectorXd& n) const;
+  virtual Vector2d operator()(const Vector2d& x, const Vector2d& u, const Vector2d& m) const ;
+protected:
+  ToyBSPProblemHelperPtr helper;
 };
 
-class ToyBeliefFunc : public BeliefFunc {
+class ToyObserveFunc : public ObserveFunc<Vector2d, Vector2d, Vector2d> {
 public:
-  ToyBeliefFunc(BSPProblemHelperPtr helper);
-  ToyBeliefFunc(BSPProblemHelperPtr helper, double alpha);
+  ToyObserveFunc(ToyBSPProblemHelperPtr helper);
   virtual int output_size() const;
-  virtual VectorXd operator()(const VectorXd& b, const VectorXd& u, const StateFunc& f) const;
+  virtual Vector2d operator()(const Vector2d& x, const Vector2d& n) const;
+protected:
+  ToyBSPProblemHelperPtr helper;
+};
+
+class ToyBeliefFunc : public BeliefFunc<ToyStateFunc, ToyObserveFunc> {
+public:
+  ToyBeliefFunc(ToyBSPProblemHelperPtr helper);
+  ToyBeliefFunc(ToyBSPProblemHelperPtr helper, double alpha);
+  virtual int output_size() const;
+  virtual Vector5d operator()(const Vector5d& b, const Vector2d& u) const;
   void set_alpha(double alpha);
   void set_tol(double tol);
 protected:
   double alpha;
   double tol;
-  MatrixXd get_gamma(const VectorXd& x) const;
+  ToyBSPProblemHelperPtr helper;
+  Matrix2d get_gamma(const Vector2d& x) const;
+  bool sgndist(const Vector2d& x, Vector2d* dists) const;
+  //void extract_state(const VectorXd& belief, VectorXd* output_state) const;
+  //void extract_sqrt_sigma(const VectorXd& belief, MatrixXd* output_sqrt_sigma) const;
+  //void extract_sigma(const VectorXd& belief, MatrixXd* output_sigma) const;
+  //void compose_belief(const VectorXd& state, const MatrixXd& sqrt_sigma, VectorXd* output_belief) const;
 };
 
-VectorXd ToyStateFunc::operator()(const VectorXd& x // state
-                                , const VectorXd& u // control
-                                , const VectorXd& m // state noise
+Vector2d ToyStateFunc::operator()(const Vector2d& x // state
+                                , const Vector2d& u // control
+                                , const Vector2d& m // state noise
                                  ) const {
-  assert(x.size() == helper->state_dim);
-  assert(u.size() == helper->control_dim);
-  assert(m.size() == helper->state_noise_dim);
-  VectorXd new_x(helper->state_dim);
+  Vector2d new_x;
   for (int i = 0; i < helper->state_dim; ++i) {
-    new_x(i) = x(i) + u(i)*helper->input_dt + sqrt(0.01*u(i)*u(i)*input_dt + 0.001) * m(i);
+    new_x(i) = x(i) + u(i)*helper->input_dt + sqrt(0.01*u(i)*u(i)*helper->input_dt + 0.001) * m(i);
   }
   return new_x;
 }
 
-VectorXd ToyObserveFunc::operator()(const VectorXd& x // state
-                                  , const VectorXd& n // observe noise
+Vector2d ToyObserveFunc::operator()(const Vector2d& x // state
+                                  , const Vector2d& n // observe noise
                                    ) const {
-  assert(x.size() == helper->state_dim);
-  assert(n.size() == helper->observe_noise_dim);
   return x + 0.1 * n;
 }
 
-VectorXd ToyBeliefFunc::operator()(const VectorXd& b    // current belief
-                                 , const VectorXd& u    // control
-                                 , const StateFunc& f   // state propagation function xt -> xt+1
-                                 , const ObserveFunc& h // observation function xt -> yt
+
+
+Vector5d ToyBeliefFunc::operator()(const Vector5d& b    // current belief
+                                 , const Vector2d& u    // control
                                   ) const {
 
-  assert (b.size() == helper->belief_dim);
-  assert (u.size() == helper->control_dim);
-
-  VectorXd x, new_x, new_b;
-  MatrixXd sigma, A, M, gamma, H, N, K;
+  Vector2d x, new_x;
+  Vector5d new_b;
+  Matrix2d sigma, A, M, gamma, H, N, K;
 
   extract_state(b, &x);
   extract_sigma(b, &sigma);
 
   // linearize the state propagation function around current point
-  f.linearize(x, u, VectorXd::Zero(helper->state_noise_dim), &A, NULL, &M);
+
+  Vector2d zero = Vector2d::Zero();
+
+  f->linearize(x, u, zero, &A, (ToyStateFunc::ControlGradT*) NULL, &M);
 
   sigma = A*sigma*A.transpose() + M*M.transpose();
 
-  new_x = f.call(x, u, VectorXd::Zero(helper->state_noise_dim));
+  new_x = f->call(x, u, zero);
 
   gamma = get_gamma(new_x); // TODO make this more generalizable
 
   // linearize the observation function around current point
-  h.linearize(new_x, VectorXd::Zero(helper->observe_noise_dim), &H, &N); 
+  h->linearize(new_x, zero, &H, &N); 
 
   H = gamma * H;
 
-  PartialPivLU<MatrixXd> solver();
-  K = matrix_div(sigma*H.transpose(), H*sigma* H.transpose() + N*N.transpose());//           solver.solve( ().transpose ).transpose();
+  PartialPivLU<Matrix2d> solver();
+  K = matrix_div((Matrix2d) (sigma*H.transpose()), (Matrix2d) (H*sigma* H.transpose() + N*N.transpose()));//           solver.solve( ().transpose ).transpose();
 
   sigma = sigma - gamma*K*(H*sigma);
 
-  return compose_belief(new_x, matrix_sqrt(sigma));
+  compose_belief(new_x, matrix_sqrt(sigma), &new_b);
+
+  return new_b;
 }
 
 bool ToyBeliefFunc::sgndist(const Vector2d& x, Vector2d* dists) const {
   Vector2d p1; p1 << 0, 2;
   Vector2d p2; p2 << 0, 0;
-  *dists(0) = (x - p1).norm() - 0.5;
-  *dists(1) = (x - p2).norm() - 0.5;
-  return (*dists(0) < 0) || (*dists(1) < 0);
+  (*dists)(0) = (x - p1).norm() - 0.5;
+  (*dists)(1) = (x - p2).norm() - 0.5;
+  return (*dists)(0) < 0 || (*dists)(1) < 0;
 }
 
-MatrixXd ToyBeliefFunc::get_gamma(const VectorXd& x) const {
+Matrix2d ToyBeliefFunc::get_gamma(const Vector2d& x) const {
   Vector2d dists;
-  sgndist(x, dists);
+  sgndist(x, &dists);
   double gamma1 = 1. - (1./(1.+exp(-alpha*(dists(0)+tol))));
   double gamma2 = 1. - (1./(1.+exp(-alpha*(dists(1)+tol))));
   Matrix2d gamma;

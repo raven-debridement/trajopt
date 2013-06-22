@@ -10,5 +10,5 @@ include_directories(
   ${RBDL_INCLUDE_DIRS}
 )
 
-add_executable(toy toy.cpp bsp.cpp utils.cpp)
+add_executable(toy toy.cpp)
 target_link_libraries(toy trajopt)
