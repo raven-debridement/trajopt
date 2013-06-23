@@ -11,6 +11,8 @@ namespace BSP {
     int observe_dim;
     int state_noise_dim;
     int observe_noise_dim;
+    int belief_dim;
+    int sigma_dof;
   };
 
   typedef boost::shared_ptr<BSPProblemHelper> BSPProblemHelperPtr;
