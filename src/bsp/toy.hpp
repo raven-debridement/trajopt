@@ -5,49 +5,52 @@
 using namespace BSP;
 
 namespace ToyBSP {
-  typedef Matrix<double, 5, 1> Vector5d;
-  typedef Vector2d StateT;
-  typedef Vector2d StateNoiseT;
-  typedef Vector2d ControlT;
-  typedef Vector2d ObserveT;
-  typedef Vector2d ObserveNoiseT;
-  typedef Vector5d BeliefT;
-  typedef Matrix2d GammaT;
+
+  // This will generate a bunch of types like StateT, ControlT, etc.
+  BSP_TYPEDEFS(
+    2, // state_dim
+    2, // state_noise_dim
+    2, // control_dim
+    2, // observe_dim
+    2, // observe_noise_dim
+    3, // sigma_dof
+    5 // belief_dim
+  );
 
   class ToyBSPProblemHelper;
   typedef boost::shared_ptr<ToyBSPProblemHelper> ToyBSPProblemHelperPtr;
 
   class ToyStateFunc : public StateFunc<StateT, ControlT, StateNoiseT> {
   public:
+    typedef boost::shared_ptr<ToyStateFunc> Ptr;
     ToyStateFunc();
     ToyStateFunc(ToyBSPProblemHelperPtr helper);
+    ToyBSPProblemHelperPtr toy_helper;
     virtual StateT operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const ;
-  protected:
-    ToyBSPProblemHelperPtr helper;
   };
 
   class ToyObserveFunc : public ObserveFunc<StateT, ObserveT, ObserveNoiseT> {
   public:
+    typedef boost::shared_ptr<ToyObserveFunc> Ptr;
     ToyObserveFunc();
     ToyObserveFunc(ToyBSPProblemHelperPtr helper);
+    ToyBSPProblemHelperPtr toy_helper;
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
-  protected:
-    ToyBSPProblemHelperPtr helper;
   };
 
   class ToyBeliefFunc : public BeliefFunc<ToyStateFunc, ToyObserveFunc> {
   public:
+    typedef boost::shared_ptr<ToyBeliefFunc> Ptr;
     ToyBeliefFunc();
     ToyBeliefFunc(ToyBSPProblemHelperPtr helper, StateFuncPtr f, ObserveFuncPtr h);
     virtual BeliefT operator()(const BeliefT& b, const ControlT& u) const;
     void set_alpha(double alpha);
+    void scale_alpha(double scale);
     void set_tol(double tol);
+    ToyBSPProblemHelperPtr toy_helper;
   protected:
     double alpha;
     double tol;
-    ToyBSPProblemHelperPtr helper;
-    StateFuncPtr f;
-    ObserveFuncPtr h;
     GammaT get_gamma(const StateT& x) const;
     bool sgndist(const StateT& x, StateT* dists) const;
   };
@@ -83,7 +86,9 @@ namespace ToyBSP {
     void add_start_constraint(OptProb& prob);
     void add_goal_constraint(OptProb& prob);
     void add_belief_constraint(OptProb& prob);
-    void configure_optimizer(OptProb& prob, BasicTrustRegionSQP& opt);
-    void init_optimize_variables(OptProb& prob, BasicTrustRegionSQP& opt);
+    void configure_optimizer(OptProb& prob, BSPTrustRegionSQP& opt);
+    void init_optimize_variables(OptProb& prob, BSPTrustRegionSQP& opt);
+    void merit_done_callback(OptProb*, DblVec& x);
+    void add_optimizer_callback(OptProb& prob, BSPTrustRegionSQP& opt);
   };
 }

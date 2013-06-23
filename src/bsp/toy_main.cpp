@@ -1,5 +1,9 @@
 #include "bsp.hpp"
 #include "toy.hpp"
+#include "utils/logging.hpp"
+
+#define CUSTOM_PREFIX "\x1b[32m[DEBUG] "
+#define LOG_CUSTOM(msg, ...) {printf(CUSTOM_PREFIX); printf(msg, ##__VA_ARGS__); printf(LOG_SUFFIX);}
 
 using namespace BSP;
 using namespace ToyBSP;
@@ -33,14 +37,18 @@ int main(int argc, char** argv) {
   helper->T = T;
   helper->configure_problem(*prob);
 
-  BasicTrustRegionSQP opt(prob);
-  opt.max_iter_ = 500;    
+  BSPTrustRegionSQP opt(prob);
+  opt.max_iter_ = 50;
+  opt.merit_error_coeff_ = 50;
+  opt.trust_shrink_ratio_ = 0.5;
+  opt.trust_expand_ratio_ = 1.25;
+  opt.min_trust_box_size_ = 1e-3;
+  opt.trust_box_size_ = 1;
 
   helper->configure_optimizer(*prob, opt);
 
-  //opt.optimize();
+  opt.optimize();
 
-  cout << start.transpose() << endl;
-  cout << goal.transpose() << endl;
+  LOG_CUSTOM("\n==================\n%s==================", CSTR(opt.results()));
   return 0;  
 }

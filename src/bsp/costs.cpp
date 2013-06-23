@@ -4,7 +4,7 @@
 
 namespace BSP {
 
-  VarianceCost::VarianceCost(const VarVector& sqrt_sigma_vars, const MatrixXd& Q) : sqrt_sigma_vars(sqrt_sigma_vars), Q(Q), state_dim(Q.cols()) {
+  VarianceCost::VarianceCost(const VarVector& sqrt_sigma_vars, const MatrixXd& Q) : Cost("variance"), sqrt_sigma_vars(sqrt_sigma_vars), Q(Q), state_dim(Q.cols()) {
     // vars ONLY contains the sqrt sigma entries in a belief vector
     // tr(Q*Sigma*Q') = sum_square(Q*SqrtSigma) 
     sigma_dof = state_dim * (state_dim + 1) / 2;
@@ -30,7 +30,7 @@ namespace BSP {
   double VarianceCost::value(const vector<double>& xvec) {
     VectorXd sqrt_sigma_vec = getVec(xvec, sqrt_sigma_vars);
     MatrixXd sigma;
-    sqrt_sigma_vec_to_sigma(sqrt_sigma_vec, &sigma);
+    sqrt_sigma_vec_to_sigma(sqrt_sigma_vec, &sigma, state_dim);
     return (Q * sigma * Q.transpose()).trace();
   }
 
@@ -40,7 +40,7 @@ namespace BSP {
     return out;
   }
 
-  ControlCost::ControlCost(const VarVector& control_vars, const MatrixXd& R): control_vars(control_vars), R(R), control_dim(R.cols()) {
+  ControlCost::ControlCost(const VarVector& control_vars, const MatrixXd& R): Cost("control"), control_vars(control_vars), R(R), control_dim(R.cols()) {
     // lazy XD
     MatrixXd sqrt_R = matrix_sqrt(R);
     AffExpr aff;

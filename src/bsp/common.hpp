@@ -31,6 +31,7 @@ using namespace std;
 using namespace OpenRAVE;
 using namespace util;
 using namespace boost::assign;
+using namespace sco;
 using namespace Eigen;
 
 #define DEBUG

@@ -33,28 +33,28 @@ std::ostream& operator<<(std::ostream& o, const OptResults& r) {
 
 
 
-static DblVec evaluateCosts(vector<CostPtr>& costs, const DblVec& x) {
+DblVec evaluateCosts(vector<CostPtr>& costs, const DblVec& x) {
   DblVec out(costs.size());
   for (size_t i=0; i < costs.size(); ++i) {
     out[i] = costs[i]->value(x);
   }
   return out;
 }
-static DblVec evaluateConstraintViols(vector<ConstraintPtr>& constraints, const DblVec& x) {
+DblVec evaluateConstraintViols(vector<ConstraintPtr>& constraints, const DblVec& x) {
   DblVec out(constraints.size());
   for (size_t i=0; i < constraints.size(); ++i) {
     out[i] = constraints[i]->violation(x);
   }
   return out;
 }
-static vector<ConvexObjectivePtr> convexifyCosts(vector<CostPtr>& costs, const DblVec& x, Model* model) {
+vector<ConvexObjectivePtr> convexifyCosts(vector<CostPtr>& costs, const DblVec& x, Model* model) {
   vector<ConvexObjectivePtr> out(costs.size());
   for (size_t i=0; i < costs.size(); ++i) {
     out[i] = costs[i]->convex(x,  model);
   }
   return out;
 }
-static vector<ConvexConstraintsPtr> convexifyConstraints(vector<ConstraintPtr>& cnts, const DblVec& x, Model* model) {
+vector<ConvexConstraintsPtr> convexifyConstraints(vector<ConstraintPtr>& cnts, const DblVec& x, Model* model) {
   vector<ConvexConstraintsPtr> out(cnts.size());
   for (size_t i=0; i < cnts.size(); ++i) {
     out[i] = cnts[i]->convex(x, model);
@@ -77,12 +77,12 @@ DblVec evaluateModelCntViols(vector<ConvexConstraintsPtr>& cnts, const DblVec& x
   return out;
 }
 
-static vector<string> getCostNames(const vector<CostPtr>& costs) {
+vector<string> getCostNames(const vector<CostPtr>& costs) {
   vector<string> out(costs.size());
   for (size_t i=0; i < costs.size(); ++i) out[i] = costs[i]->name();
   return out;
 }
-static vector<string> getCntNames(const vector<ConstraintPtr>& cnts) {
+vector<string> getCntNames(const vector<ConstraintPtr>& cnts) {
   vector<string> out(cnts.size());
   for (size_t i=0; i < cnts.size(); ++i) out[i] = cnts[i]->name();
   return out;
@@ -133,6 +133,7 @@ vector<ConvexObjectivePtr> cntsToCosts(const vector<ConvexConstraintsPtr>& cnts,
 void Optimizer::addCallback(const Callback& cb) {
   callbacks_.push_back(cb);
 }
+
 void Optimizer::callCallbacks(DblVec& x) {
   for (int i=0; i < callbacks_.size(); ++i) {
     callbacks_[i](prob_.get(), x);

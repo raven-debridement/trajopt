@@ -108,5 +108,16 @@ protected:
   ModelPtr model_;
 };
 
-
+DblVec evaluateCosts(vector<CostPtr>& costs, const DblVec& x);
+DblVec evaluateConstraintViols(vector<ConstraintPtr>& constraints, const DblVec& x);
+vector<ConvexObjectivePtr> convexifyCosts(vector<CostPtr>& costs, const DblVec& x, Model* model);
+vector<ConvexConstraintsPtr> convexifyConstraints(vector<ConstraintPtr>& cnts, const DblVec& x, Model* model);
+DblVec evaluateModelCosts(vector<ConvexObjectivePtr>& costs, const DblVec& x);
+DblVec evaluateModelCntViols(vector<ConvexConstraintsPtr>& cnts, const DblVec& x);
+vector<string> getCostNames(const vector<CostPtr>& costs);
+vector<string> getCntNames(const vector<ConstraintPtr>& cnts);
+void printCostInfo(const vector<double>& old_cost_vals, const vector<double>& model_cost_vals, const vector<double>& new_cost_vals,
+                  const vector<double>& old_cnt_vals, const vector<double>& model_cnt_vals, const vector<double>& new_cnt_vals,
+    const vector<string>& cost_names, const vector<string>& cnt_names, double merit_coeff);
+vector<ConvexObjectivePtr> cntsToCosts(const vector<ConvexConstraintsPtr>& cnts, double err_coeff, Model* model);
 }

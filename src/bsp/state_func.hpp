@@ -34,14 +34,14 @@ namespace BSP {
 
     // types for the gradient matrices
     typedef Matrix<scalar_type, _state_dim, _state_dim> StateGradT;
-    typedef Matrix<scalar_type, _control_dim, _state_dim> ControlGradT;
-    typedef Matrix<scalar_type, _state_noise_dim, _state_dim> StateNoiseGradT;
+    typedef Matrix<scalar_type, _state_dim, _control_dim> ControlGradT;
+    typedef Matrix<scalar_type, _state_dim, _state_noise_dim> StateNoiseGradT;
     /** end typedefs */
 
     double epsilon;
 
-    StateFunc() {}
-    StateFunc(BSPProblemHelperPtr helper) : helper(helper) {}
+    StateFunc() : epsilon(BSP_DEFAULT_EPSILON) {}
+    StateFunc(BSPProblemHelperPtr helper) : helper(helper), epsilon(BSP_DEFAULT_EPSILON) {}
 
     virtual StateT operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const = 0;
 
@@ -60,7 +60,6 @@ namespace BSP {
     StateT call(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
       return operator()(x, u, m);
     }
-  protected:
     BSPProblemHelperPtr helper;
   };
 }

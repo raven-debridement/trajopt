@@ -12,7 +12,7 @@ namespace BSP {
     typedef typename BeliefFuncT::BeliefT BeliefT;
     typedef typename BeliefFuncT::ControlT ControlT;
     typedef typename BeliefFuncT::BeliefGradT BeliefGradT;
-    typedef typename BeliefFuncT::ControlGradT ControlGradT;
+    typedef typename BeliefFuncT::BeliefControlGradT ControlGradT;
 
     typedef boost::shared_ptr< BeliefConstraint<BeliefFuncT> > Ptr;
 

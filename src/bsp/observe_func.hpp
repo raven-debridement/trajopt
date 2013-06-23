@@ -32,20 +32,20 @@ namespace BSP {
     const static int _observe_dim = MatrixTraits<ObserveT>::rows;
     const static int _observe_noise_dim = MatrixTraits<ObserveNoiseT>::rows;
 
-    typedef Matrix<scalar_type, _state_dim, _state_dim> StateGradT;
-    typedef Matrix<scalar_type, _observe_noise_dim, _state_dim> ObserveNoiseGradT;
+    typedef Matrix<scalar_type, _observe_dim, _state_dim> ObserveStateGradT;
+    typedef Matrix<scalar_type, _observe_dim, _observe_noise_dim> ObserveNoiseGradT;
     /** end typedefs */
 
     double epsilon;
 
-    ObserveFunc() {}
-    ObserveFunc(BSPProblemHelperPtr helper) : helper(helper) {}
+    ObserveFunc() : epsilon(BSP_DEFAULT_EPSILON) {}
+    ObserveFunc(BSPProblemHelperPtr helper) : helper(helper), epsilon(BSP_DEFAULT_EPSILON) {}
 
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const = 0;
 
     virtual void linearize(const StateT& x
                          , const ObserveNoiseT& n
-                         , StateGradT* output_H
+                         , ObserveStateGradT* output_H
                          , ObserveNoiseGradT* output_N
                           ) const {
       if (output_H) num_diff((boost::function<ObserveT (const StateT& )>) boost::bind(&ObserveFunc::operator(), this, _1, n), x, helper->observe_dim, this->epsilon, output_H);
@@ -55,7 +55,6 @@ namespace BSP {
     ObserveT call(const StateT& x, const ObserveNoiseT& n) const {
       return operator()(x, n);
     }
-  protected:
     BSPProblemHelperPtr helper;
   };
 }
