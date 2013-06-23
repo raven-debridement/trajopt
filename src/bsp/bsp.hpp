@@ -6,3 +6,5 @@
 #include "observe_func.hpp"
 #include "belief_func.hpp"
 #include "utils.hpp"
+#include "costs.hpp"
+#include "constraints.hpp"

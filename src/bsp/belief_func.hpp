@@ -41,16 +41,17 @@ namespace BSP {
 
     double epsilon;
 
-    BeliefFunc(BSPProblemHelperPtr helper, StateFuncPtr f, ObserveFuncPtr h);
+    BeliefFunc() {}
+    BeliefFunc(BSPProblemHelperPtr helper, StateFuncPtr f, ObserveFuncPtr h) : helper(helper), f(f), h(h) {}
     virtual BeliefT operator()(const BeliefT& b, const ControlT& u) const = 0;
     void linearize(const BeliefT& b
                  , const ControlT& u
                  , BeliefGradT* output_A
                  , ControlGradT* output_B
-                 , BeliefT output_c
+                 , BeliefT* output_c
                   ) const {
-      if (output_A) num_diff((boost::function<StateT (const BeliefT& )>) boost::bind(&BeliefFunc::operator(), this, _1, u), b, helper->belief_dim, this->epsilon, output_A);
-      if (output_B) num_diff((boost::function<StateT (const ControlT& )>) boost::bind(&BeliefFunc::operator(), this, b, _1), u, helper->belief_dim, this->epsilon, output_B);
+      if (output_A) num_diff((boost::function<BeliefT (const BeliefT& )>) boost::bind(&BeliefFunc::operator(), this, _1, u), b, helper->belief_dim, this->epsilon, output_A);
+      if (output_B) num_diff((boost::function<BeliefT (const ControlT& )>) boost::bind(&BeliefFunc::operator(), this, b, _1), u, helper->belief_dim, this->epsilon, output_B);
       if (output_c) *output_c = this->call(b, u);
     }
 
@@ -64,16 +65,19 @@ namespace BSP {
 
     void extract_state(const BeliefT& belief, StateT* output_state) const {
       assert (belief.size() == helper->belief_dim);
+      assert (output_state != NULL);
       *output_state = belief.head(helper->state_dim);
     }
 
     void extract_sqrt_sigma(const BeliefT& belief, VarianceT* output_sqrt_sigma) const {
       assert (belief.size() == helper->belief_dim);
+      assert (output_sqrt_sigma != NULL);
       sqrt_sigma_vec_to_sqrt_sigma(belief.tail(helper->sigma_dof), output_sqrt_sigma);
     }
 
     void compose_belief(const StateT& state, const VarianceT& sqrt_sigma, BeliefT* output_belief) const {
       assert (state.size() == helper->state_dim);
+      assert (output_belief != NULL);
       assert (output_belief->resize(helper->belief_dim));
       output_belief->head(helper->state_dim) = state;
       for (int index = helper->state_dim, i = 0; i < helper->state_dim; ++i) {
@@ -85,6 +89,7 @@ namespace BSP {
 
     void extract_sigma(const BeliefT& belief, VarianceT* output_sigma) const {
       assert (belief.size() == helper->belief_dim);
+      assert (output_sigma != NULL);
       sqrt_sigma_vec_to_sigma(belief.tail(helper->sigma_dof), output_sigma);
     }
   };

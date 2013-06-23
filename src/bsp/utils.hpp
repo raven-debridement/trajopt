@@ -33,7 +33,7 @@ namespace BSP {
       OutputType fplus = f(x);
       x(i) = cur(i) - epsilon;
       OutputType fminus = f(x);
-      out->col(i) = (fplus - fminus) / (2 * epsilon);
+      out->row(i) = (fplus - fminus) / (2 * epsilon);
       x(i) = cur(i);
     }
   }

@@ -8,6 +8,10 @@ ToyBSPProblemHelper::ToyBSPProblemHelper() {
   set_state_dim(2);
   set_observe_dim(2);
   set_control_dim(2);
+  
+
+  double x_min = -10, x_max = 10, u_min = -0.9, u_max = 0.9;
+  double goal_eps = 0.1;
 }
 
 void ToyBSPProblemHelper::set_state_dim(int new_state_dim) {
@@ -27,35 +31,98 @@ void ToyBSPProblemHelper::set_control_dim(int new_control_dim) {
 }
 
 void ToyBSPProblemHelper::configure_problem(OptProb& prob) {
-  
+  create_variables(prob);
+  add_variance_cost(prob);
+  add_control_cost(prob);
+  add_start_constraint(prob);
+  add_goal_constraint(prob);
+  add_belief_constraint(prob);
+}
+
+void ToyBSPProblemHelper::create_variables(OptProb& prob) {
+  AddVarArray(prob, T+1, state_dim, "state", state_vars);
+  AddVarArray(prob, T+1, sigma_dof, "sigma", sigma_vars);
+  AddVarArray(prob, T, control_dim, "control", control_vars);
+  belief_vars.resize(T+1, belief_dim);
+  for (int i = 0; i <= T; ++i) {
+    for (int j = 0; j < state_dim; ++j) {
+      belief_vars(i, j) = state_vars(i, j);
+    }
+  }
+  for (int i = 0; i <= T; ++i) {
+    for (int j = 0; j < sigma_dof; ++j) {
+      belief_vars(i, state_dim+j) = sigma_vars(i, j);
+    }
+  }
+}
+
+void ToyBSPProblemHelper::add_variance_cost(OptProb& prob) {
+  Matrix2d Q = Matrix2d::Identity();
+  Matrix2d QF = Matrix2d::Identity() * 10;
+  for (int i = 0; i < T; ++i) {
+    prob.addCost(CostPtr(new VarianceCost(sigma_vars.row(i), Q)));
+  }
+  prob.addCost(CostPtr(new VarianceCost(sigma_vars.row(T), QF)));
+}
+
+void ToyBSPProblemHelper::add_control_cost(OptProb& prob) {
+  Matrix2d R = Matrix2d::Identity();
+  for (int i = 0; i < T; ++i) {
+    prob.addCost(CostPtr(new ControlCost(control_vars.row(i), R)));
+  }
+}
+
+void ToyBSPProblemHelper::add_start_constraint(OptProb& prob) {
+  for (int i = 0; i < n_dof; ++i) {
+    prob.addLinearConstraint(exprSub(AffExpr(state_vars.at(0, i)), start(i)), EQ);
+  }
+}
+
+void ToyBSPProblemHelper::add_goal_constraint(OptProb& prob) {
+  for (int i = 0; i < n_dof; ++i) {
+    prob.addLinearConstraint(exprSub(AffExpr(state_vars.at(T, i)), goal(i)), EQ);
+  }
+}
+
+void ToyBSPProblemHelper::add_belief_constraint(OptProb& prob) {
+  state_func.reset(new ToyStateFunc(shared_from_this()));
+  observe_func.reset(new ToyObserveFunc(shared_from_this()));
+  belief_func.reset(new ToyBeliefFunc(shared_from_this(), state_func, observe_func));
+
+  for (int i = 0; i < T; ++i) {
+    belief_constraints.push_back(BeliefConstraintPtr(new BeliefConstraint<ToyBeliefFunc>(belief_vars.row(i), control_vars.row(i), belief_vars.row(i+1), belief_func)));
+    prob.addConstraint(ConstraintPtr(belief_constraints.back()));
+  }
 }
 
 void ToyBSPProblemHelper::configure_optimizer(OptProb& prob, BasicTrustRegionSQP& opt) {
-
+  
 }
 
-Vector2d ToyStateFunc::operator()(const Vector2d& x // state
-                                , const Vector2d& u // control
-                                , const Vector2d& m // state noise
-                                 ) const {
-  Vector2d new_x;
+ToyStateFunc::ToyStateFunc() {}
+
+ToyStateFunc::ToyStateFunc(ToyBSPProblemHelperPtr helper) : helper(helper) {}
+
+StateT ToyStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
+  StateT new_x;
   new_x(0) = x(0) + u(0)*helper->input_dt + sqrt(0.01*u(0)*u(0)*helper->input_dt + 0.001) * m(0);
   new_x(1) = x(1) + u(1)*helper->input_dt + sqrt(0.01*u(1)*u(1)*helper->input_dt + 0.001) * m(1);
   return new_x;
 }
 
-Vector2d ToyObserveFunc::operator()(const Vector2d& x // state
-                                  , const Vector2d& n // observe noise
-                                   ) const {
+ToyObserveFunc::ToyObserveFunc() {}
+
+ToyObserveFunc::ToyObserveFunc(ToyBSPProblemHelperPtr helper) : helper(helper) {}
+
+ObserveT ToyObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
   return x + 0.1 * n;
 }
 
+ToyBeliefFunc::ToyBeliefFunc() {}
 
+ToyBeliefFunc::ToyBeliefFunc(ToyBSPProblemHelperPtr helper, StateFuncPtr f, ObserveFuncPtr h) : helper(helper), f(f), h(h) {}
 
-Vector5d ToyBeliefFunc::operator()(const Vector5d& b    // current belief
-                                 , const Vector2d& u    // control
-                                  ) const {
-
+BeliefT ToyBeliefFunc::operator()(const BeliefT& b, const ControlT& u) const {
   Vector2d x, new_x;
   Vector5d new_b;
   Matrix2d sigma, A, M, gamma, H, N, K;

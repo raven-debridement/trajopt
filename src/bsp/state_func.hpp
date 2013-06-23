@@ -40,7 +40,9 @@ namespace BSP {
 
     double epsilon;
 
-    StateFunc(BSPProblemHelperPtr helper);
+    StateFunc() {}
+    StateFunc(BSPProblemHelperPtr helper) : helper(helper) {}
+
     virtual StateT operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const = 0;
 
     virtual void linearize(const StateT& x // state
