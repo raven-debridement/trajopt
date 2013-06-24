@@ -10,5 +10,5 @@ include_directories(
   ${RBDL_INCLUDE_DIRS}
 )
 
-add_executable(toy toy_main.cpp toy.cpp costs.cpp optimizers.cpp)
+add_executable(toy toy_main.cpp toy.cpp costs.cpp optimizers.cpp utils.cpp gnuplot_i.cc)
 target_link_libraries(toy trajopt)

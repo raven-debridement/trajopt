@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bsp.hpp"
+#include "gnuplot_i.hpp"
 
 using namespace BSP;
 
@@ -44,15 +45,11 @@ namespace ToyBSP {
     ToyBeliefFunc();
     ToyBeliefFunc(ToyBSPProblemHelperPtr helper, StateFuncPtr f, ObserveFuncPtr h);
     virtual BeliefT operator()(const BeliefT& b, const ControlT& u) const;
-    void set_alpha(double alpha);
-    void scale_alpha(double scale);
-    void set_tol(double tol);
     ToyBSPProblemHelperPtr toy_helper;
-  protected:
+    bool sgndist(const StateT& x, StateT* dists) const;
+    GammaT get_gamma(const StateT& x) const;
     double alpha;
     double tol;
-    GammaT get_gamma(const StateT& x) const;
-    bool sgndist(const StateT& x, StateT* dists) const;
   };
 
   class ToyBSPProblemHelper : public BSPProblemHelper, public boost::enable_shared_from_this<ToyBSPProblemHelper> {
@@ -63,10 +60,11 @@ namespace ToyBSP {
     int T;
     StateT start;
     StateT goal;
+    VarianceT start_sigma;
     const static int n_dof = 2;
 
     VarArray state_vars;
-    VarArray sigma_vars;
+    VarArray sqrt_sigma_vars;
     VarArray control_vars;
     VarArray belief_vars;
 
@@ -91,4 +89,28 @@ namespace ToyBSP {
     void merit_done_callback(OptProb*, DblVec& x);
     void add_optimizer_callback(OptProb& prob, BSPTrustRegionSQP& opt);
   };
+
+  class BSPPlot : public Gnuplot {
+  public:
+    BSPPlot();
+    void unset_key();
+    void pause();
+    void plot_ellipse(double center_x, double center_y, double x_axis_length, double y_axis_length, double theta);
+    void plot_matrix_with_image(const MatrixXd& mat, double x_min, double x_max, double y_min, double y_max);
+  };
+
+  typedef boost::shared_ptr<BSPPlot> BSPPlotPtr;
+
+  class ToyPlotter {
+  public:
+    VarArray vars;
+    BSPPlotPtr viewer;
+    ToyPlotter(const VarArray& state_vars, const VarArray& sqrt_sigma_vars, const VarArray& control_vars);
+    void plot_callback(OptProb*, DblVec& x, ToyBSPProblemHelperPtr helper);
+  protected:
+    VarArray state_vars;
+    VarArray sqrt_sigma_vars;
+    VarArray control_vars;
+  };
+  
 }

@@ -43,13 +43,14 @@ namespace BSP {
   ControlCost::ControlCost(const VarVector& control_vars, const MatrixXd& R): Cost("control"), control_vars(control_vars), R(R), control_dim(R.cols()) {
     // lazy XD
     MatrixXd sqrt_R = matrix_sqrt(R);
-    AffExpr aff;
     for (int i = 0; i < control_dim; ++i) {
+      AffExpr aff;
       for (int j = 0; j < control_dim; ++j) {
         exprInc(aff, exprMult(control_vars[j], sqrt_R(i, j)));
       }
+      exprInc(expr, exprSquare(aff));
     }
-    expr = exprSquare(aff);
+    //expr = exprSquare(aff);
   }
 
   double ControlCost::value(const vector<double>& xvec) {

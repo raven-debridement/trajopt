@@ -78,4 +78,12 @@ namespace BSP {
     return ra + N;
   }
 
+  void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<double>& lbs, const vector<double>& ubs, const vector<string>& name_prefix, const vector<VarArray*>& newvars);
+
+  void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<string>& name_prefix, const vector<VarArray*>& newvars);
+
+  void AddVarArray(OptProb& prob, int rows, int cols, double lb, double ub, const string& name_prefix, VarArray& newvars);
+
+  void AddVarArray(OptProb& prob, int rows, int cols, const string& name_prefix, VarArray& newvars);
+
 }

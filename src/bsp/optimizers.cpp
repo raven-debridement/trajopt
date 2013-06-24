@@ -35,6 +35,11 @@ namespace BSP {
     OptStatus retval = INVALID;
 
     for (int merit_increases=0; merit_increases < max_merit_coeff_increases_; ++merit_increases) { /* merit adjustment loop */
+      results_.cnt_viols = evaluateConstraintViols(constraints, x_);
+      results_.cost_vals = evaluateCosts(prob_->getCosts(), x_);
+      //assert(results_.n_func_evals == 0);
+      ++results_.n_func_evals;
+
       for (int iter=1; ; ++iter) { /* sqp loop */
         callCallbacks(x_);
         vector<bool> incmask = prob_->getIncrementMask();
@@ -131,7 +136,7 @@ namespace BSP {
             printf("%15s | %10.3e | %10.3e | %10.3e | %10.3e\n", "TOTAL", old_merit, approx_merit_improve, exact_merit_improve, merit_improve_ratio);
           }
 
-          if (approx_merit_improve < -1e-5) {
+          if (approx_merit_improve < -1e-4) {
             LOG_ERROR("approximate merit function got worse (%.3e). (convexification is probably wrong to zeroth order)", approx_merit_improve);
           }
           if (approx_merit_improve < min_approx_improve_) {
@@ -171,18 +176,19 @@ namespace BSP {
         }
       }
 
-      penaltyadjustment:
-      if (results_.cnt_viols.empty() || vecMax(results_.cnt_viols) < cnt_tolerance_) {
-        if (results_.cnt_viols.size() > 0) LOG_INFO("woo-hoo! constraints are satisfied (to tolerance %.2e)", cnt_tolerance_);
-        goto cleanup;
-      }
-      else {
+      penaltyadjustment: {
+      //if (results_.cnt_viols.empty() || vecMax(results_.cnt_viols) < cnt_tolerance_) {
+      //  if (results_.cnt_viols.size() > 0) LOG_INFO("woo-hoo! constraints are satisfied (to tolerance %.2e)", cnt_tolerance_);
+      //  goto cleanup;
+      //}
+      //else {
         LOG_INFO("not all constraints are satisfied. increasing penalties");
         callMeritDoneCallbacks(x_);
         merit_error_coeff_ *= merit_coeff_increase_ratio_;
-        trust_box_size_ = fmax(trust_box_size_, min_trust_box_size_ / trust_shrink_ratio_ * 1.5);
+        trust_box_size_ = 0.5;//fmax(trust_box_size_, min_trust_box_size_ / trust_shrink_ratio_ * 1.5);
       }
 
+      //cout << "cur inc: " << 
 
 
     }
