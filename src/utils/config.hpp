@@ -56,7 +56,7 @@ struct CommandParser {
   CommandParser(const Config& config) {
     addGroup(config);
   }
-  void read(int argc, char* argv[]);
+  void read(int argc, char* argv[], bool allow_unregistered=false);
 };
 
 }

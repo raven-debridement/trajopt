@@ -101,16 +101,4 @@ namespace ToyBSP {
 
   typedef boost::shared_ptr<BSPPlot> BSPPlotPtr;
 
-  class ToyPlotter {
-  public:
-    VarArray vars;
-    BSPPlotPtr viewer;
-    ToyPlotter(const VarArray& state_vars, const VarArray& sqrt_sigma_vars, const VarArray& control_vars);
-    void plot_callback(OptProb*, DblVec& x, ToyBSPProblemHelperPtr helper);
-  protected:
-    VarArray state_vars;
-    VarArray sqrt_sigma_vars;
-    VarArray control_vars;
-  };
-  
 }

@@ -282,61 +282,61 @@ void BSPPlot::plot_matrix_with_image(const MatrixXd& mat, double x_min, double x
   //cmd((boost::format("splot \"%i\" matrix")%name).str());
 }
 
-ToyPlotter::ToyPlotter(const VarArray& state_vars, const VarArray& sqrt_sigma_vars, const VarArray& control_vars) : state_vars(state_vars), sqrt_sigma_vars(sqrt_sigma_vars), control_vars(control_vars) {
-  viewer.reset(new BSPPlot());
-}
-
-void ToyPlotter::plot_callback(OptProb*, DblVec& xvec, ToyBSPProblemHelperPtr helper) {
-  viewer->reset_all();
-  int x_min = -7, x_max = 2, y_min = -3, y_max = 6;
-  int nx = x_max - x_min + 1, ny = y_max - y_min + 1;
-  MatrixXd dist_data(nx, ny);
-  for (int i = x_min; i <= x_max; ++i) {
-    for (int j = y_min; j <= y_max; ++j) {
-      StateT dists(helper->state_dim);
-      StateT state(helper->state_dim); state << i, j;
-      helper->belief_func->sgndist(state, &dists);
-      dist_data(i-x_min, j-y_min) = fmax(1./(1. + exp(helper->belief_func->alpha*dists(0))),
-                                         1./(1. + exp(helper->belief_func->alpha*dists(1))));
-    }
-  }
-  
-  viewer->set_xrange(x_min, x_max);
-  viewer->set_yrange(y_min, y_max);
-  viewer->unset_key();
-  vector<double> xs, ys;
-  BeliefT cur_belief;
-  
-  helper->belief_func->compose_belief(helper->start, helper->start_sigma, &cur_belief);
-
-  for (int i = 0; i <= helper->T; ++i) {
-    VarianceT cur_sigma;
-    helper->belief_func->extract_sigma(cur_belief, &cur_sigma);
-    EigenSolver<VarianceT> es(cur_sigma);
-    StateT eigenvals = es.eigenvalues().real();
-    double scale_factor = 0.5;//2.4477;
-    double sx = cur_sigma(0, 0), sy = cur_sigma(1, 1);
-    double max_val = eigenvals(0), min_val = eigenvals(1);
-    if (min_val > max_val) {
-      double tmp = max_val; max_val = min_val; min_val = tmp;
-    }
-    double theta = 0.5 * atan2(2*cur_sigma(0,1), sx - sy) * PI;
-    double mx, my;
-    if (sx >= sy) {
-      mx = 2*sqrt(max_val)*scale_factor;
-      my = 2*sqrt(min_val)*scale_factor;
-    } else {
-      mx = 2*sqrt(min_val)*scale_factor;
-      my = 2*sqrt(max_val)*scale_factor;
-    }
-    double cx = cur_belief(0), cy = cur_belief(1);
-    xs.push_back(cx);
-    ys.push_back(cy);
-    if (i < helper->T) cur_belief = helper->belief_func->call(cur_belief, (ControlT) getVec(xvec, control_vars.row(i)));
-    viewer->plot_ellipse(cx, cy, mx, my, theta);
-  }
-  //viewer->plot_matrix_with_image(dist_data, x_min, x_max, y_min, y_max);
-  viewer->set_style("linespoints");
-  viewer->plot_xy(xs, ys, "");
-  viewer->pause();
-}
+//ToyPlotter::ToyPlotter(const VarArray& state_vars, const VarArray& sqrt_sigma_vars, const VarArray& control_vars) : state_vars(state_vars), sqrt_sigma_vars(sqrt_sigma_vars), control_vars(control_vars) {
+//  viewer.reset(new BSPPlot());
+//}
+//
+//void ToyPlotter::plot_callback(OptProb*, DblVec& xvec, ToyBSPProblemHelperPtr helper) {
+//  viewer->reset_all();
+//  int x_min = -7, x_max = 2, y_min = -3, y_max = 6;
+//  int nx = x_max - x_min + 1, ny = y_max - y_min + 1;
+//  MatrixXd dist_data(nx, ny);
+//  for (int i = x_min; i <= x_max; ++i) {
+//    for (int j = y_min; j <= y_max; ++j) {
+//      StateT dists(helper->state_dim);
+//      StateT state(helper->state_dim); state << i, j;
+//      helper->belief_func->sgndist(state, &dists);
+//      dist_data(i-x_min, j-y_min) = fmax(1./(1. + exp(helper->belief_func->alpha*dists(0))),
+//                                         1./(1. + exp(helper->belief_func->alpha*dists(1))));
+//    }
+//  }
+//  
+//  viewer->set_xrange(x_min, x_max);
+//  viewer->set_yrange(y_min, y_max);
+//  viewer->unset_key();
+//  vector<double> xs, ys;
+//  BeliefT cur_belief;
+//  
+//  helper->belief_func->compose_belief(helper->start, helper->start_sigma, &cur_belief);
+//
+//  for (int i = 0; i <= helper->T; ++i) {
+//    VarianceT cur_sigma;
+//    helper->belief_func->extract_sigma(cur_belief, &cur_sigma);
+//    EigenSolver<VarianceT> es(cur_sigma);
+//    StateT eigenvals = es.eigenvalues().real();
+//    double scale_factor = 0.5;//2.4477;
+//    double sx = cur_sigma(0, 0), sy = cur_sigma(1, 1);
+//    double max_val = eigenvals(0), min_val = eigenvals(1);
+//    if (min_val > max_val) {
+//      double tmp = max_val; max_val = min_val; min_val = tmp;
+//    }
+//    double theta = 0.5 * atan2(2*cur_sigma(0,1), sx - sy) * PI;
+//    double mx, my;
+//    if (sx >= sy) {
+//      mx = 2*sqrt(max_val)*scale_factor;
+//      my = 2*sqrt(min_val)*scale_factor;
+//    } else {
+//      mx = 2*sqrt(min_val)*scale_factor;
+//      my = 2*sqrt(max_val)*scale_factor;
+//    }
+//    double cx = cur_belief(0), cy = cur_belief(1);
+//    xs.push_back(cx);
+//    ys.push_back(cy);
+//    if (i < helper->T) cur_belief = helper->belief_func->call(cur_belief, (ControlT) getVec(xvec, control_vars.row(i)));
+//    viewer->plot_ellipse(cx, cy, mx, my, theta);
+//  }
+//  //viewer->plot_matrix_with_image(dist_data, x_min, x_max, y_min, y_max);
+//  viewer->set_style("linespoints");
+//  viewer->plot_xy(xs, ys, "");
+//  viewer->pause();
+//}
