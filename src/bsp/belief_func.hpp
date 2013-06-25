@@ -6,11 +6,12 @@
 #include "state_func.hpp"
 #include "observe_func.hpp"
 #include "bsp_problem_helper_base.hpp"
+#include "problem_state.hpp"
 
 namespace BSP {
 
   template< class _StateFuncT=StateFunc<>, class _ObserveFuncT=ObserveFunc<>, class _BeliefT=VectorXd >
-  class BeliefFunc {
+  class BeliefFunc : public ProblemState {
   public:
     /** begin typedefs */
     typedef _StateFuncT StateFuncT;
@@ -61,26 +62,11 @@ namespace BSP {
     StateFuncPtr f;
     ObserveFuncPtr h;
 
-    int state_dim;
-    int control_dim;
-    int observe_dim;
-    int state_noise_dim;
-    int observe_noise_dim;
-    int belief_dim;
-    int sigma_dof;
-    int T;
+    
 
     BeliefFunc() : epsilon(BSP_DEFAULT_EPSILON) {}
-    BeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) : helper(helper), f(f), h(h), epsilon(BSP_DEFAULT_EPSILON) {
-      state_dim = helper->get_state_dim();
-      control_dim = helper->get_control_dim();
-      observe_dim = helper->get_observe_dim();
-      state_noise_dim = helper->get_state_noise_dim();
-      observe_noise_dim = helper->get_observe_noise_dim();
-      belief_dim = helper->get_belief_dim(); 
-      sigma_dof = helper->get_sigma_dof(); 
-      T = helper->get_T(); 
-    }
+    BeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
+      ProblemState(helper), helper(helper), f(f), h(h), epsilon(BSP_DEFAULT_EPSILON) {}
 
     virtual VarianceT compute_gamma(const StateT& x) const = 0;
 

@@ -4,10 +4,11 @@
 #include "traits.hpp"
 #include "utils.hpp"
 #include "bsp_problem_helper_base.hpp"
+#include "problem_state.hpp"
 
 namespace BSP {
   template<class _StateT=VectorXd, class _ObserveT=VectorXd, class _ObserveNoiseT=VectorXd>
-  class ObserveFunc {
+  class ObserveFunc : public ProblemState {
   public:
     /** begin typedefs */
     typedef _StateT StateT;
@@ -35,26 +36,8 @@ namespace BSP {
     double epsilon;
     BSPProblemHelperBasePtr helper;
 
-    int state_dim;
-    int control_dim;
-    int observe_dim;
-    int state_noise_dim;
-    int observe_noise_dim;
-    int belief_dim;
-    int sigma_dof;
-    int T;
-
     ObserveFunc() : epsilon(BSP_DEFAULT_EPSILON) {}
-    ObserveFunc(BSPProblemHelperBasePtr helper) : helper(helper), epsilon(BSP_DEFAULT_EPSILON) {
-      state_dim = helper->get_state_dim();
-      control_dim = helper->get_control_dim();
-      observe_dim = helper->get_observe_dim();
-      state_noise_dim = helper->get_state_noise_dim();
-      observe_noise_dim = helper->get_observe_noise_dim();
-      belief_dim = helper->get_belief_dim(); 
-      sigma_dof = helper->get_sigma_dof(); 
-      T = helper->get_T(); 
-    }
+    ObserveFunc(BSPProblemHelperBasePtr helper) : ProblemState(helper), helper(helper), epsilon(BSP_DEFAULT_EPSILON) {}
 
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const = 0;
 

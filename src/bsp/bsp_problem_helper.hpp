@@ -119,19 +119,12 @@ namespace BSP {
     }
 
     void configure_problem(OptProb& prob) {
-      cout << "start config\n";
       create_variables(prob);
-      cout << "variable created\n";
       add_variance_cost(prob);
-      cout << "variance cost added\n";
       add_control_cost(prob);
-      cout << "control cost added\n";
       add_start_constraint(prob);
-      cout << "start cnt added\n";
       add_goal_constraint(prob);
-      cout << "goal cnt added\n";
       add_belief_constraint(prob);
-      cout << "belief cnt added\n";
     }
 
     virtual void create_variables(OptProb& prob) {
@@ -257,9 +250,7 @@ namespace BSP {
 
     void configure_optimizer(OptProb& prob, BSPTrustRegionSQP& opt) {
       init_optimize_variables(prob, opt);  
-      cout << "opt variables inited\n";
       add_optimizer_callback(prob, opt);
-      cout << "opt callback added\n";
     }
 
     void set_variance_cost(const VarianceT& cost) {

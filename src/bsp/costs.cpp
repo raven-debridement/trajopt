@@ -50,7 +50,6 @@ namespace BSP {
       }
       exprInc(expr, exprSquare(aff));
     }
-    //expr = exprSquare(aff);
   }
 
   double ControlCost::value(const vector<double>& xvec) {
