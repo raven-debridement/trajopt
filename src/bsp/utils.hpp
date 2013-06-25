@@ -16,9 +16,21 @@
   typedef Matrix<double, control_dim, control_dim> ControlCostT; \
   typedef Matrix<double, state_dim, state_noise_dim> StateNoiseGradT; \
   typedef Matrix<double, observe_dim, state_dim> ObserveStateGradT; \
-  typedef Matrix<double, observe_dim, observe_noise_dim> ObserveNoiseGradT; \
-  typedef Matrix<double, state_dim, state_dim> KalmanT; \
-  typedef Matrix<double, state_dim, state_dim> GammaT;
+  typedef Matrix<double, observe_dim, observe_noise_dim> ObserveNoiseGradT;
+
+#define ENSURE_VECTOR(T) BOOST_STATIC_ASSERT( (MatrixTraits<T>::cols == 1) );
+
+#define BSP_CONCAT_IMPL( x, y, z ) x##y##z
+
+#define BSP_CONCAT( x, y, z ) BSP_CONCAT_IMPL( x, y, z )
+
+#define __ENSURE_SAME_SCALAR_TYPE(prefix, T1, T2) \
+  typedef typename MatrixTraits<T1>::scalar_type BSP_CONCAT(_scalar_type_, prefix, _1); \
+  typedef typename MatrixTraits<T2>::scalar_type BSP_CONCAT(_scalar_type_, prefix, _2); \
+  BOOST_STATIC_ASSERT( (boost::is_same< BSP_CONCAT(_scalar_type_, prefix, _1), BSP_CONCAT(_scalar_type_, prefix, _2) >::value) );
+
+#define ENSURE_SAME_SCALAR_TYPE(T1, T2) __ENSURE_SAME_SCALAR_TYPE(__COUNTER__, T1, T2)
+  
 
 namespace BSP {
   template<class MatType>

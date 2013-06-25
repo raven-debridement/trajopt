@@ -21,7 +21,6 @@ namespace ToyBSP {
 
   void ToyOptimizerTask::run() {
     int T = 20;
-    int n_dof = 2;
 
     double start_vec_array[] = {-5, 2};
     double goal_vec_array[] = {-5, 0};

@@ -2,10 +2,9 @@
 
 #include "common.hpp"
 #include "belief_func.hpp"
-#include "constraints.hpp"
 
 namespace BSP {
-  template< class BeliefFuncT=BeliefFunc<> >
+  template< class BeliefFuncT >
   class BeliefConstraint : public EqConstraint {
   public:
     typedef typename BeliefFuncT::Ptr BeliefFuncPtr;
