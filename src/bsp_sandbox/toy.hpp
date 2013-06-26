@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bsp.hpp"
+#include "bsp/bsp.hpp"
 #include <QtCore>
 #include <QImage>
 #include <qevent.h>

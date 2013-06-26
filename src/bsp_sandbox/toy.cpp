@@ -1,4 +1,4 @@
-#include "bsp.hpp"
+#include "bsp/bsp.hpp"
 #include "toy.hpp"
 #include <QApplication>
 #include <QtCore>

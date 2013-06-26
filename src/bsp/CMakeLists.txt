@@ -1,7 +1,4 @@
-set(RBDL_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/ext/rbdl/src" "${CMAKE_BINARY_DIR}/ext/rbdl/src")
-
 find_package(Qt4 REQUIRED)
-find_package(Qwt REQUIRED)
 
 include(${QT_USE_FILE})
 ADD_DEFINITIONS(${QT_DEFINITIONS})
@@ -12,11 +9,18 @@ include_directories(
   ${Eigen_INCLUDE_DIRS}
   ${OpenRAVE_INCLUDE_DIRS}
   ${JSON_INCLUDE_DIRS}
-  ${RBDL_INCLUDE_DIRS}
-  ${QWT_INCLUDE_DIR}
 )
 
-SET(toy_qt_HEADERS toy.hpp bsp_optimizer_task.hpp bsp_qt_plotter.hpp)
-QT4_WRAP_CPP(toy_qt_HEADERS_MOC ${toy_qt_HEADERS})
-add_executable(toy toy.cpp costs.cpp bsp_optimizer_task.cpp bsp_qt_plotter.cpp optimizers.cpp utils.cpp ${toy_qt_HEADERS_MOC})
-target_link_libraries(toy trajopt ${QT_LIBRARIES} ${QWT_LIBRARY})
+set(BSP_SOURCE_FILES
+  bsp_optimizer_task.cpp
+  bsp_qt_plotter.cpp
+  costs.cpp
+  optimizers.cpp
+  utils.cpp
+)
+
+SET(QT_HEADERS bsp_optimizer_task.hpp bsp_qt_plotter.hpp)
+QT4_WRAP_CPP(QT_HEADERS_MOC ${QT_HEADERS})
+
+add_library(bsp ${BSP_SOURCE_FILES} ${QT_HEADERS_MOC})
+target_link_libraries(bsp trajopt ${QT_LIBRARIES})
