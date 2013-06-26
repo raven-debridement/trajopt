@@ -55,6 +55,8 @@ namespace BSP {
     typedef Matrix<scalar_type, _belief_dim, _belief_dim> BeliefGradT;
     typedef Matrix<scalar_type, _belief_dim, _control_dim> BeliefControlGradT;
     typedef Matrix<scalar_type, _state_dim, _state_dim> VarianceT;
+    typedef Matrix<scalar_type, _observe_dim, _observe_dim> ObserveMatT;
+    typedef Matrix<scalar_type, _state_dim, _observe_dim> KalmanT;
     /** end typedefs */
 
     double epsilon;
@@ -67,8 +69,14 @@ namespace BSP {
     BeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
       ProblemState(helper), helper(helper), f(f), h(h), epsilon(BSP_DEFAULT_EPSILON) {}
 
-    virtual VarianceT compute_gamma(const StateT& x) const = 0;
+    virtual ObserveStateGradT sensor_constrained_observe_state_gradient(const ObserveStateGradT& H, const StateT& x) const {
+      return H; 
+    }
 
+    virtual VarianceT sensor_constrained_variance_reduction(const VarianceT& reduction, const StateT& x) const {
+      return reduction;
+    }
+    
     virtual BSPProblemHelperBasePtr get_helper() const {
       return helper;
     }
@@ -79,10 +87,9 @@ namespace BSP {
       VarianceT          sigma(state_dim, state_dim);
       StateGradT         A(state_dim, state_dim);
       StateNoiseGradT    M(state_dim, state_noise_dim);
-      VarianceT          gamma(state_dim, state_dim);
       ObserveStateGradT  H(observe_dim, state_dim);
       ObserveNoiseGradT  N(observe_dim, observe_noise_dim);
-      VarianceT          K(state_dim, state_dim);
+      KalmanT            K(state_dim, observe_dim);
 
       StateNoiseT        zero_state_noise = StateNoiseT::Zero(state_noise_dim);
       ObserveNoiseT      zero_observe_noise = ObserveNoiseT::Zero(observe_noise_dim);
@@ -97,17 +104,16 @@ namespace BSP {
 
       new_x = f->call(x, u, zero_state_noise);
 
-      gamma = compute_gamma(new_x); // TODO make this more generalizable
+      //gamma = compute_gamma(new_x); // TODO make this more generalizable
 
       // linearize the observation function around current point
       h->linearize(new_x, zero_observe_noise, &H, &N); 
 
-      H = gamma*H;
+      H = sensor_constrained_observe_state_gradient(H, new_x);//gamma*H;
 
-      PartialPivLU<VarianceT> solver;
-      K = matrix_div((VarianceT) (sigma*H.transpose()), (VarianceT) (H*sigma*H.transpose() + N*N.transpose()));
+      K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose()));
 
-      sigma = sigma - gamma*(K*(H*sigma));
+      sigma = sigma - sensor_constrained_variance_reduction(K*(H*sigma), new_x);
 
       compose_belief(new_x, matrix_sqrt(sigma), &new_b);
 
@@ -130,19 +136,19 @@ namespace BSP {
       return operator()(b, u);
     }
     
-    void extract_state(const BeliefT& belief, StateT* output_state) const {
+    virtual void extract_state(const BeliefT& belief, StateT* output_state) const {
       assert (belief.size() == belief_dim);
       assert (output_state != NULL);
       *output_state = belief.head(state_dim);
     }
 
-    void extract_sqrt_sigma(const BeliefT& belief, VarianceT* output_sqrt_sigma) const {
+    virtual void extract_sqrt_sigma(const BeliefT& belief, VarianceT* output_sqrt_sigma) const {
       assert (belief.size() == belief_dim);
       assert (output_sqrt_sigma != NULL);
       sqrt_sigma_vec_to_sqrt_sigma(belief.tail(sigma_dof), output_sqrt_sigma, state_dim);
     }
 
-    void compose_belief(const StateT& state, const VarianceT& sqrt_sigma, BeliefT* output_belief) const {
+    virtual void compose_belief(const StateT& state, const VarianceT& sqrt_sigma, BeliefT* output_belief) const {
       assert (state.size() == state_dim);
       assert (output_belief != NULL);
       output_belief->resize(belief_dim);
@@ -154,7 +160,7 @@ namespace BSP {
       }
     }
 
-    void extract_sigma(const BeliefT& belief, VarianceT* output_sigma) const {
+    virtual void extract_sigma(const BeliefT& belief, VarianceT* output_sigma) const {
       assert (belief.size() == belief_dim);
       assert (output_sigma != NULL);
       sqrt_sigma_vec_to_sigma(belief.tail(sigma_dof), output_sigma, state_dim);

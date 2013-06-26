@@ -16,7 +16,9 @@
   typedef Matrix<double, control_dim, control_dim> ControlCostT; \
   typedef Matrix<double, state_dim, state_noise_dim> StateNoiseGradT; \
   typedef Matrix<double, observe_dim, state_dim> ObserveStateGradT; \
-  typedef Matrix<double, observe_dim, observe_noise_dim> ObserveNoiseGradT;
+  typedef Matrix<double, observe_dim, observe_noise_dim> ObserveNoiseGradT; \
+  typedef Matrix<double, observe_dim, observe_dim> ObserveMatT; \
+  typedef Matrix<double, state_dim, observe_dim> KalmanT;
 
 #define ENSURE_VECTOR(T) BOOST_STATIC_ASSERT( (MatrixTraits<T>::cols == 1) );
 
@@ -33,9 +35,9 @@
   
 
 namespace BSP {
-  template<class MatType>
-  MatType matrix_div(const MatType& A, const MatType& B) {
-    PartialPivLU<MatType> solver(B);
+  template<class MatT1, class MatT2>
+  MatT1 matrix_div(const MatT1& A, const MatT2& B) {
+    PartialPivLU<MatT2> solver(B);
     return solver.solve(A.transpose()).transpose();
   }
 
