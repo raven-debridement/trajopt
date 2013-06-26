@@ -1,6 +1,9 @@
 #pragma once
 
 #include "bsp.hpp"
+#include <QtCore>
+#include <QImage>
+#include <qevent.h>
 
 using namespace BSP;
 
@@ -61,4 +64,29 @@ namespace ToyBSP {
     ToyBSPProblemHelper();
   };
 
+  class ToyPlotter : public BSPQtPlotter, public ProblemState {
+    Q_OBJECT
+  public:
+    ToyPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+  public slots:
+    virtual void update_plot_data(OptProb*, DblVec& x);
+  protected:
+    double old_alpha, cur_alpha;
+    ToyBSPProblemHelperPtr toy_helper;
+    QImage distmap;
+    vector<VectorXd> states;
+    vector<MatrixXd> sigmas;
+    virtual void paintEvent(QPaintEvent*);
+  };
+
+  class ToyOptimizerTask : public BSPOptimizerTask {
+    Q_OBJECT
+  public:
+    ToyOptimizerTask(QObject* parent=NULL);
+    ToyOptimizerTask(int argc, char **argv, QObject* parent=NULL);
+    virtual void emit_plot_message(OptProb* prob, DblVec& xvec);
+    virtual void run();
+  };
 }
+
+template ToyBSP::ToyPlotter* BSPOptimizerTask::create_plotter<ToyBSP::ToyPlotter>(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper);

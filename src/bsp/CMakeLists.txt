@@ -16,7 +16,7 @@ include_directories(
   ${QWT_INCLUDE_DIR}
 )
 
-SET(toy_qt_HEADERS toy_optimizer_task.hpp toy_plotter.hpp)
+SET(toy_qt_HEADERS toy.hpp bsp_optimizer_task.hpp bsp_qt_plotter.hpp)
 QT4_WRAP_CPP(toy_qt_HEADERS_MOC ${toy_qt_HEADERS})
-add_executable(toy toy_main.cpp toy.cpp costs.cpp optimizers.cpp utils.cpp toy_optimizer_task.cpp toy_plotter.cpp ${toy_qt_HEADERS_MOC})
+add_executable(toy toy.cpp costs.cpp bsp_optimizer_task.cpp bsp_qt_plotter.cpp optimizers.cpp utils.cpp ${toy_qt_HEADERS_MOC})
 target_link_libraries(toy trajopt ${QT_LIBRARIES} ${QWT_LIBRARY})

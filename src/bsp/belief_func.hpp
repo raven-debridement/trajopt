@@ -62,9 +62,8 @@ namespace BSP {
     StateFuncPtr f;
     ObserveFuncPtr h;
 
-    
-
     BeliefFunc() : epsilon(BSP_DEFAULT_EPSILON) {}
+
     BeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
       ProblemState(helper), helper(helper), f(f), h(h), epsilon(BSP_DEFAULT_EPSILON) {}
 

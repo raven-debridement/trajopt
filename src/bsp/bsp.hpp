@@ -9,3 +9,5 @@
 #include "costs.hpp"
 #include "constraints.hpp"
 #include "optimizers.hpp"
+#include "bsp_qt_plotter.hpp"
+#include "bsp_optimizer_task.hpp"
