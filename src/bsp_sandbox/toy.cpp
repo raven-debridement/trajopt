@@ -58,23 +58,31 @@ namespace ToyBSP {
   ToyBeliefFunc::ToyBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
     tol(0.1), alpha(0.5), BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>(helper, f, h), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
 
-  bool ToyBeliefFunc::sgndist(const StateT& x, StateT* dists) const {
-    StateT p1(state_dim); p1 << 0, 2;
-    StateT p2(state_dim); p2 << 0, 0;
+  bool ToyBeliefFunc::sgndist(const Vector2d& x, Vector2d* dists) const {
+    Vector2d p1; p1 << 0, 2;
+    Vector2d p2; p2 << 0, 0;
     (*dists)(0) = (x - p1).norm() - 0.5;
     (*dists)(1) = (x - p2).norm() - 0.5;
     return (*dists)(0) < 0 || (*dists)(1) < 0;
   }
 
-  VarianceT ToyBeliefFunc::compute_gamma(const StateT& x) const {
-    StateT dists(state_dim);
-    sgndist(x, &dists);
+  ObserveMatT ToyBeliefFunc::compute_gamma(const StateT& x) const {
+    Vector2d dists;
+    sgndist(x.head<2>(), &dists);
     double gamma1 = 1. - (1./(1.+exp(-alpha*(dists(0)+tol))));
     double gamma2 = 1. - (1./(1.+exp(-alpha*(dists(1)+tol))));
-    VarianceT gamma(state_dim, state_dim);
+    ObserveMatT gamma(observe_dim, observe_dim);
     gamma << gamma1, 0,
              0, gamma2;
     return gamma;
+  }
+
+  ObserveStateGradT ToyBeliefFunc::sensor_constrained_observe_state_gradient(const ObserveStateGradT& H, const StateT& x) const {
+    return compute_gamma(x) * H; 
+  }
+
+  VarianceT ToyBeliefFunc::sensor_constrained_variance_reduction(const VarianceT& reduction, const StateT& x) const {
+    return compute_gamma(x) * reduction;
   }
 
   ToyPlotter::ToyPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
@@ -93,9 +101,9 @@ namespace ToyBSP {
         for (int i = 0; i < width(); ++i) {
           double x = unscale_x(i),
                  y = unscale_y(j);
-          StateT dists(state_dim);
-          StateT state(state_dim); state << x, y;
-          toy_helper->belief_func->sgndist(state, &dists);
+          Vector2d dists;
+          Vector2d pos; pos << x, y;
+          toy_helper->belief_func->sgndist(pos, &dists);
           double grayscale = fmax(1./(1. + exp(toy_helper->belief_func->alpha*dists(0))),
                                   1./(1. + exp(toy_helper->belief_func->alpha*dists(1))));
           line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
