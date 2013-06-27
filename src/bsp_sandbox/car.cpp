@@ -22,7 +22,7 @@ namespace CarBSP {
     set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
+    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
@@ -97,10 +97,10 @@ namespace CarBSP {
     return out;
   }
 
-  CarBeliefFunc::CarBeliefFunc() : BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(), tol(0.1), alpha(0.5) {}
+  CarBeliefFunc::CarBeliefFunc() : BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(), tol(0.0), alpha(0.25) {}
 
   CarBeliefFunc::CarBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-    tol(0.1), alpha(0.5), BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(helper, f, h), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
+    tol(0.0), alpha(0.25), BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(helper, f, h), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
 
   bool CarBeliefFunc::sgndist(const Vector2d& x, Vector2d* dists) const {
     Vector2d p1; p1 << 0, 2;
@@ -207,7 +207,7 @@ namespace CarBSP {
   }
 
   void CarOptimizerTask::run() {
-    int T = 20;
+    int T = 30;
 
     bool plotting = false;
 
@@ -244,9 +244,10 @@ namespace CarBSP {
 
     BSPTrustRegionSQP opt(prob);
     opt.max_iter_ = 500;
-    opt.merit_error_coeff_ = 500;
-    opt.trust_shrink_ratio_ = 0.5;
-    opt.trust_expand_ratio_ = 1.25;
+    opt.merit_error_coeff_ = 10;
+    opt.merit_coeff_increase_ratio_ = 1;
+    opt.trust_shrink_ratio_ = 0.25;
+    opt.trust_expand_ratio_ = 1.5;
     opt.min_trust_box_size_ = 1e-3;
     opt.min_approx_improve_ = 1e-2;
     opt.min_approx_improve_frac_ = 1e-4;

@@ -50,7 +50,12 @@ namespace ToyBSP {
     ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
 
   ObserveT ToyObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
-    return x + 0.1 * n;
+	  //return x + 0.1 * n;
+	  //experimenting with different scalings
+	  ObserveT z(observe_dim);
+	  z(0) = x(0) + 0.1*n(0);
+	  z(1) = x(1) + 0.1*n(1);
+	  return z;
   }
 
   ToyBeliefFunc::ToyBeliefFunc() : BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>(), tol(0.1), alpha(0.5) {}
@@ -77,8 +82,26 @@ namespace ToyBSP {
     return gamma;
   }
 
+  ObserveMatT ToyBeliefFunc::compute_inverse_gamma(const StateT& x) const {
+	Vector2d dists;
+	sgndist(x.head<2>(), &dists);
+	double minval = 1e-4;
+	double gamma1 = 1. - (1./(1.+exp(-alpha*(dists(0)+tol))));
+	double gamma2 = 1. - (1./(1.+exp(-alpha*(dists(1)+tol))));
+	ObserveMatT invgamma(observe_dim, observe_dim);
+	gamma1 = std::max(gamma1, minval);
+	gamma2 = std::max(gamma2, minval);
+	invgamma << 1/gamma1, 0,
+	         0, 1/gamma2;
+	return invgamma;
+  }
+
   ObserveStateGradT ToyBeliefFunc::sensor_constrained_observe_state_gradient(const ObserveStateGradT& H, const StateT& x) const {
     return compute_gamma(x) * H; 
+  }
+
+  ObserveNoiseGradT ToyBeliefFunc::sensor_constrained_observe_noise_gradient(const ObserveNoiseGradT& N, const StateT& x) const {
+      return N*compute_inverse_gamma(x);
   }
 
   VarianceT ToyBeliefFunc::sensor_constrained_variance_reduction(const VarianceT& reduction, const StateT& x) const {
@@ -193,10 +216,11 @@ namespace ToyBSP {
     helper->configure_problem(*prob);
 
     BSPTrustRegionSQP opt(prob);
-    opt.max_iter_ = 500;
-    opt.merit_error_coeff_ = 500;
-    opt.trust_shrink_ratio_ = 0.5;
-    opt.trust_expand_ratio_ = 1.25;
+    opt.max_iter_ = 100;
+    opt.merit_error_coeff_ = 10;
+    opt.merit_coeff_increase_ratio_= 1;
+    opt.trust_shrink_ratio_ = 0.1;
+    opt.trust_expand_ratio_ = 1.5;
     opt.min_trust_box_size_ = 1e-3;
     opt.min_approx_improve_ = 1e-2;
     opt.min_approx_improve_frac_ = 1e-4;

@@ -54,8 +54,10 @@ namespace ToyBSP {
     ToyBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h);
     bool sgndist(const Vector2d& x, Vector2d* dists) const;
     virtual ObserveStateGradT sensor_constrained_observe_state_gradient(const ObserveStateGradT& H, const StateT& x) const;
+    virtual ObserveNoiseGradT sensor_constrained_observe_noise_gradient(const ObserveNoiseGradT& N, const StateT& x) const;
     virtual VarianceT sensor_constrained_variance_reduction(const VarianceT& reduction, const StateT& x) const;
     virtual ObserveMatT compute_gamma(const StateT& x) const;
+    virtual ObserveMatT compute_inverse_gamma(const StateT& x) const;
   };
 
   class ToyBSPProblemHelper : public BSPProblemHelper<ToyBeliefFunc> {

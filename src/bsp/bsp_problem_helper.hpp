@@ -220,6 +220,10 @@ namespace BSP {
         cur_belief = belief_func->call(cur_belief, init_controls[i]);
         init_beliefs.push_back(cur_belief);
       }
+      for(int bi = 0; bi < (int)init_beliefs.size(); ++bi) {
+    	cout << init_beliefs[bi].transpose() << endl;
+      }
+
       for (int i = 0; i <= T; ++i) {
         for (int j = 0; j < belief_dim; ++j) {
           x[belief_vars.at(i, j).var_rep->index] = init_beliefs[i](j);
@@ -229,15 +233,17 @@ namespace BSP {
     }
 
     virtual void merit_done_callback(OptProb*, DblVec& x) {
-      belief_func->alpha *= 4.;
+      belief_func->alpha *= 2.;
 
       BeliefT cur_belief;
       belief_func->compose_belief(start, start_sigma, &cur_belief);
+      //cout << cur_belief.transpose() << endl;
       for (int i = 0; i < belief_dim; ++i) {
         x[belief_vars.at(0, i).var_rep->index] = cur_belief(i);
       }
       for (int i = 0; i < T; ++i) {
         cur_belief = belief_func->call(cur_belief, (ControlT) getVec(x, control_vars.row(i)));
+        //cout << cur_belief.transpose() << endl;
         for (int j = 0; j < belief_dim; ++j) {
           x[belief_vars.at(i+1, j).var_rep->index] = cur_belief(j);
         }
