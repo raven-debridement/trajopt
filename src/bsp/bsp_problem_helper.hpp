@@ -53,6 +53,7 @@ namespace BSP {
     StateT start;
     StateT goal;
     VarianceT start_sigma;
+    vector<ControlT> initial_controls;
     VarianceT Q; // variance cost
     VarianceT QF; // final variance cost
     ControlCostT R; // control cost
@@ -72,8 +73,6 @@ namespace BSP {
     BeliefFuncPtr belief_func;
 
     vector< BeliefConstraintPtr > belief_constraints;
-
-    virtual void init_control_values(vector<ControlT>* output_init_controls) const = 0;
 
     BSPProblemHelper() {}
 
@@ -203,12 +202,9 @@ namespace BSP {
     virtual void init_optimize_variables(OptProb& prob, BSPTrustRegionSQP& opt) {
       DblVec x(prob.getNumVars()); 
 
-      vector<ControlT> init_controls;
-      init_control_values(&init_controls);
-      
       for (int i = 0; i < T; ++i) {
         for (int j = 0; j < control_dim; ++j) {
-          x[control_vars.at(i, j).var_rep->index] = init_controls[i](j);
+          x[control_vars.at(i, j).var_rep->index] = initial_controls[i](j);
         }
       }
 
@@ -218,7 +214,7 @@ namespace BSP {
       belief_func->compose_belief(start, start_sigma, &cur_belief);
       init_beliefs.push_back(cur_belief);
       for (int i = 0; i < T; ++i) {
-        cur_belief = belief_func->call(cur_belief, init_controls[i]);
+        cur_belief = belief_func->call(cur_belief, initial_controls[i]);
         init_beliefs.push_back(cur_belief);
       }
       for (int i = 0; i <= T; ++i) {

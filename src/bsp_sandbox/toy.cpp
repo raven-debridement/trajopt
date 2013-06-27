@@ -20,18 +20,6 @@ namespace ToyBSP {
     set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
-  void ToyBSPProblemHelper::init_control_values(vector<ControlT>* output_init_controls) const {
-    assert (output_init_controls != NULL);
-    ControlT control_step;
-    control_step.resize(control_dim);
-    control_step(0) = (goal(0) - start(0)) / T;
-    control_step(1) = (goal(1) - start(1)) / T;
-    output_init_controls->clear();
-    for (int i = 0; i < T; ++i) {
-      output_init_controls->push_back(control_step);
-    }
-  }
-
   ToyStateFunc::ToyStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
 
   ToyStateFunc::ToyStateFunc(BSPProblemHelperBasePtr helper) :
@@ -165,39 +153,90 @@ namespace ToyBSP {
   template< class BSPProblemHelperT >
   class BSPPlanner {
   public:
-    typedef BSPProblemHelperT T;
-    //typedef typename BSPProblemHelperT::StateT StateT;
-    //typedef typename BSPProblemHelperT::ControlT ControlT;
-    //typedef typename BSPProblemHelperT::StateNoiseT StateNoiseT;
-    //typedef typename BSPProblemHelperT::StateGradT StateGradT;
-    //typedef typename BSPProblemHelperT::ControlGradT ControlGradT;
-    //typedef typename BSPProblemHelperT::StateNoiseGradT StateNoiseGradT;
-    //typedef typename BSPProblemHelperT::ObserveStateT ObserveStateT;
-    //typedef typename BSPProblemHelperT::ObserveT ObserveT;
-    //typedef typename BSPProblemHelperT::ObserveNoiseT ObserveNoiseT;
-    //typedef typename BSPProblemHelperT::ObserveStateGradT ObserveStateGradT;
-    //typedef typename BSPProblemHelperT::ObserveNoiseGradT ObserveNoiseGradT;
-    //typedef typename BSPProblemHelperT::BeliefT BeliefT;
-    //typedef typename BSPProblemHelperT::BeliefGradT BeliefGradT;
-    //typedef typename BSPProblemHelperT::BeliefControlGradT BeliefControlGradT;
-    //typedef typename BSPProblemHelperT::VarianceT VarianceT;
-    //typedef typename BSPProblemHelperT::StateFuncT StateFuncT;
-    //typedef typename BSPProblemHelperT::ObserveFuncT ObserveFuncT;
-    //typedef typename BSPProblemHelperT::StateFuncPtr StateFuncPtr;
-    //typedef typename BSPProblemHelperT::ObserveFuncPtr ObserveFuncPtr;
-    //typedef typename BSPProblemHelperT::BeliefFuncPtr BeliefFuncPtr;
-    T::StateT start;
-    T::VarianceT start_sigma;
-    T::StateT goal;
-    int T;
+    /** begin annoying typedefs */
+    typedef boost::shared_ptr<BSPProblemHelperT> BSPProblemHelperPtr;
+    typedef typename BSPProblemHelperT::StateT StateT;
+    typedef typename BSPProblemHelperT::ControlT ControlT;
+    typedef typename BSPProblemHelperT::StateNoiseT StateNoiseT;
+    typedef typename BSPProblemHelperT::StateGradT StateGradT;
+    typedef typename BSPProblemHelperT::ControlGradT ControlGradT;
+    typedef typename BSPProblemHelperT::StateNoiseGradT StateNoiseGradT;
+    typedef typename BSPProblemHelperT::ObserveStateT ObserveStateT;
+    typedef typename BSPProblemHelperT::ObserveT ObserveT;
+    typedef typename BSPProblemHelperT::ObserveNoiseT ObserveNoiseT;
+    typedef typename BSPProblemHelperT::ObserveStateGradT ObserveStateGradT;
+    typedef typename BSPProblemHelperT::ObserveNoiseGradT ObserveNoiseGradT;
+    typedef typename BSPProblemHelperT::BeliefT BeliefT;
+    typedef typename BSPProblemHelperT::BeliefGradT BeliefGradT;
+    typedef typename BSPProblemHelperT::BeliefControlGradT BeliefControlGradT;
+    typedef typename BSPProblemHelperT::VarianceT VarianceT;
+    typedef typename BSPProblemHelperT::StateFuncT StateFuncT;
+    typedef typename BSPProblemHelperT::ObserveFuncT ObserveFuncT;
+    typedef typename BSPProblemHelperT::StateFuncPtr StateFuncPtr;
+    typedef typename BSPProblemHelperT::ObserveFuncPtr ObserveFuncPtr;
+    typedef typename BSPProblemHelperT::BeliefFuncPtr BeliefFuncPtr;
+    /** end annoying typedefs */
 
-    BSPPlanne
+    StateT start;
+    VarianceT start_sigma;
+    StateT goal;
+    int T;
+    bool initialized;
+    BSPProblemHelperPtr helper;
+
+    BSPPlanner() : initialized(false) {
+    }
 
     void initialize() {
+      assert(!initialized);
+      helper(new BSPProblemHelperT());
+      helper->start = start;
+      helper->goal = goal;
+      helper->start_sigma = start_sigma;
+      helper->T = T;
+      helper->initial_controls = initial_controls;
+      initialized = true;
+    }
 
+    void solve() {
+      assert (initialized);
+      OptProbPtr prob(new OptProb());
+      helper->configure_problem(*prob);
+      BSPTrustRegionSQP opt(prob);
+      opt.max_iter_ = 500;
+      opt.merit_error_coeff_ = 500;
+      opt.trust_shrink_ratio_ = 0.5;
+      opt.trust_expand_ratio_ = 1.25;
+      opt.min_trust_box_size_ = 1e-3;
+      opt.min_approx_improve_ = 1e-2;
+      opt.min_approx_improve_frac_ = 1e-4;
+      opt.improve_ratio_threshold_ = 0.2;
+      opt.trust_box_size_ = 1;
+      helper->configure_optimizer(*prob, opt);
+      opt.optimize();
+      DblVec x = opt.results().x;
+      solved_controls.clear();
+      for (int i = 0; i < helper->T; ++i) {
+        solved_controls.push_back((ControlT) getVec(x, control_vars.row(i)));
+      }
+    }
+    
+    void simulate_executions(int nsteps) {
+      if (nsteps <= 0 || nsteps > solved_controls.size()) {
+        return;
+      }
+      StateT current_state = helper->start;
+      VarianceT current_sigma = helper->start_sigma;
+    }
+
+    void simulate_execution() {
+      simulate_executions(1);
+    }
+
+    void plot_simulation(BSPPlotterPtr plotter) {
+          
     }
   }
-  class BSPPlanner
 
   class ToyBSPPlanner : public BSPPlanner<ToyBSPProblemHelper> {
   public:
@@ -237,72 +276,36 @@ namespace ToyBSP {
     //helper->start_sigma = start_sigma;
     //helper->T = T;
     //helper->set_initial_controls()
+    vector<Vector2d> initial_controls;
+    Vector2d control_step = (goal - start) / T;
+    for (int i = 0; i < T; ++i) {
+      initial_controls.push_back(control_step);
+    }
 
-    ToyBSPPlannerPtr planner(new ToyBSPPlanner());
+    BSPPlannerPtr planner(new ToyBSPPlanner());
 
     planner->start = start;
     planner->goal = goal;
     planner->start_sigma = start_sigma;
     planner->T = T;
+    planner->initial_controls = initial_controls;
     planner->initialize();
 
-    boost::shared_ptr<ToyPlotter> plotter;
+    boost::shared_ptr<BSPPlotter> plotter;
     if (plotting) {
       double x_min = -7, x_max = 2, y_min = -3, y_max = 5;
-      plotter.reset(planner->create_plotter(x_min, x_max, y_min, y_max));
+      planner->create_plotter<ToyPlotter>(x_min, x_max, y_min, y_max);
     }
 
     while (!planner.finished()) {
       planner.solve();
       // simulate one step
-      planner.simulate_execution(1);
+      planner.simulate_execution();
       if (plotting) {
-        planner.plot_simulation(plotter);
+        planner.plot_simulation();
       }
     }
 
-    if (!plotting) {
-      emit finished_signal();
-    }
-      
-    start = ...
-    goal = ...
-    start_sigma = ...
-    T = ...
-    while (!replanner.finished()) {
-      replanner.solve 
-      replanner.simulate_execution
-      replanner.plot_simulation
-
-    Replanner.solve
-    Replanner.simulate_execution(1)
-
-    helper->configure_problem(*prob);
-
-    BSPTrustRegionSQP opt(prob);
-    opt.max_iter_ = 500;
-    opt.merit_error_coeff_ = 500;
-    opt.trust_shrink_ratio_ = 0.5;
-    opt.trust_expand_ratio_ = 1.25;
-    opt.min_trust_box_size_ = 1e-3;
-    opt.min_approx_improve_ = 1e-2;
-    opt.min_approx_improve_frac_ = 1e-4;
-    opt.improve_ratio_threshold_ = 0.2;
-    opt.trust_box_size_ = 1;
-
-    helper->configure_optimizer(*prob, opt);
-
-    boost::shared_ptr<ToyPlotter> plotter;
-    if (plotting) {
-      double x_min = -7, x_max = 2, y_min = -3, y_max = 5;
-      plotter.reset(create_plotter<ToyPlotter>(x_min, x_max, y_min, y_max, helper));
-      plotter->show();
-      opt.addCallback(boost::bind(&ToyOptimizerTask::emit_plot_message, boost::ref(this), _1, _2));
-    }
-    opt.optimize();
-    if (!plotting) {
-      emit finished_signal();
-    }
   }
 }
 

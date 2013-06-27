@@ -16,7 +16,6 @@ set(BSP_SOURCE_FILES
   bsp_qt_plotter.cpp
   costs.cpp
   optimizers.cpp
-  utils.cpp
 )
 
 SET(QT_HEADERS bsp_optimizer_task.hpp bsp_qt_plotter.hpp)
