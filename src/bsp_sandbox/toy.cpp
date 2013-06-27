@@ -15,8 +15,8 @@ namespace ToyBSP {
     set_control_dim(2);
     set_state_bounds(DblVec(2, -10), DblVec(2, 10));
     set_control_bounds(DblVec(2, -0.9), DblVec(2, 0.9));
-    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 2);
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 20);
+    set_variance_cost(VarianceT::Identity(state_dim, state_dim));
+    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 40);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
@@ -50,15 +50,14 @@ namespace ToyBSP {
     ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
 
   ObserveT ToyObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
-    return x + 0.1 * n;
+    return compute_gamma(x, -1) * x + 0.1 * n;
   }
 
-  ToyBeliefFunc::ToyBeliefFunc() : BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>(), tol(0.1), alpha(0.5) {}
+  ObserveT ToyObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const {
+    return compute_gamma(x, approx_factor) * x + 0.1 * n;
+  }
 
-  ToyBeliefFunc::ToyBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-    tol(0.1), alpha(0.5), BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>(helper, f, h), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
-
-  bool ToyBeliefFunc::sgndist(const Vector2d& x, Vector2d* dists) const {
+  bool ToyObserveFunc::sgndist(const Vector2d& x, Vector2d* dists) const {
     Vector2d p1; p1 << 0, 2;
     Vector2d p2; p2 << 0, 0;
     (*dists)(0) = (x - p1).norm() - 0.5;
@@ -66,34 +65,42 @@ namespace ToyBSP {
     return (*dists)(0) < 0 || (*dists)(1) < 0;
   }
 
-  ObserveMatT ToyBeliefFunc::compute_gamma(const StateT& x) const {
+  ObserveMatT ToyObserveFunc::compute_gamma(const StateT& x, double approx_factor) const {
+    double tol = 0.1;
     Vector2d dists;
     sgndist(x.head<2>(), &dists);
-    double gamma1 = 1. - (1./(1.+exp(-alpha*(dists(0)+tol))));
-    double gamma2 = 1. - (1./(1.+exp(-alpha*(dists(1)+tol))));
+    double gamma1, gamma2;
+    if (approx_factor < 0) {
+      gamma1 = dists(0) <= 0 ? 1 : 0;
+      gamma2 = dists(1) <= 0 ? 1 : 0;
+    } else {
+      gamma1 = 1. - (1./(1.+exp(-approx_factor*(dists(0)+tol))));
+      gamma2 = 1. - (1./(1.+exp(-approx_factor*(dists(1)+tol))));
+    }
     ObserveMatT gamma(observe_dim, observe_dim);
     gamma << gamma1, 0,
              0, gamma2;
     return gamma;
   }
 
-  ObserveStateGradT ToyBeliefFunc::sensor_constrained_observe_state_gradient(const ObserveStateGradT& H, const StateT& x) const {
-    return compute_gamma(x) * H; 
+  ToyBeliefFunc::ToyBeliefFunc() : BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>() {
+    set_approx_factor(0.5);
   }
 
-  VarianceT ToyBeliefFunc::sensor_constrained_variance_reduction(const VarianceT& reduction, const StateT& x) const {
-    return compute_gamma(x) * reduction;
+  ToyBeliefFunc::ToyBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
+    BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>(helper, f, h), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {
+    set_approx_factor(0.5);
   }
 
   ToyPlotter::ToyPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
    BSPQtPlotter(x_min, x_max, y_min, y_max, helper, parent),
    ProblemState(helper),
    toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)),
-   old_alpha(-1), cur_alpha(-1), distmap(400, 400, QImage::Format_RGB32) {}
+   old_approx_factor(-1), cur_approx_factor(-1), distmap(400, 400, QImage::Format_RGB32) {}
 
   void ToyPlotter::paintEvent(QPaintEvent* ) {
     QPainter painter(this);
-    if (cur_alpha != old_alpha || distmap.height() != height() || distmap.width() != width()) {
+    if (cur_approx_factor != old_approx_factor || distmap.height() != height() || distmap.width() != width()) {
       // replot distmap
       distmap = QImage(width(), height(), QImage::Format_RGB32);
       for (int j = 0; j < height(); ++j) {
@@ -103,9 +110,9 @@ namespace ToyBSP {
                  y = unscale_y(j);
           Vector2d dists;
           Vector2d pos; pos << x, y;
-          toy_helper->belief_func->sgndist(pos, &dists);
-          double grayscale = fmax(1./(1. + exp(toy_helper->belief_func->alpha*dists(0))),
-                                  1./(1. + exp(toy_helper->belief_func->alpha*dists(1))));
+          toy_helper->belief_func->h->sgndist(pos, &dists);
+          double grayscale = fmax(1./(1. + exp(toy_helper->belief_func->approx_factor*dists(0))),
+                                  1./(1. + exp(toy_helper->belief_func->approx_factor*dists(1))));
           line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
         }
       }
@@ -133,8 +140,8 @@ namespace ToyBSP {
   void ToyPlotter::update_plot_data(OptProb*, DblVec& xvec) {
     vector<VectorXd> new_states;
     vector<MatrixXd> new_sigmas;
-    old_alpha = cur_alpha;
-    cur_alpha = toy_helper->belief_func->alpha;
+    old_approx_factor = cur_approx_factor;
+    cur_approx_factor = toy_helper->belief_func->approx_factor;
     BeliefT cur_belief;
     toy_helper->belief_func->compose_belief(toy_helper->start, toy_helper->start_sigma, &cur_belief);
     for (int i = 0; i <= T; ++i) {
@@ -155,21 +162,61 @@ namespace ToyBSP {
 
   ToyOptimizerTask::ToyOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
+  template< class BSPProblemHelperT >
+  class BSPPlanner {
+  public:
+    typedef BSPProblemHelperT T;
+    //typedef typename BSPProblemHelperT::StateT StateT;
+    //typedef typename BSPProblemHelperT::ControlT ControlT;
+    //typedef typename BSPProblemHelperT::StateNoiseT StateNoiseT;
+    //typedef typename BSPProblemHelperT::StateGradT StateGradT;
+    //typedef typename BSPProblemHelperT::ControlGradT ControlGradT;
+    //typedef typename BSPProblemHelperT::StateNoiseGradT StateNoiseGradT;
+    //typedef typename BSPProblemHelperT::ObserveStateT ObserveStateT;
+    //typedef typename BSPProblemHelperT::ObserveT ObserveT;
+    //typedef typename BSPProblemHelperT::ObserveNoiseT ObserveNoiseT;
+    //typedef typename BSPProblemHelperT::ObserveStateGradT ObserveStateGradT;
+    //typedef typename BSPProblemHelperT::ObserveNoiseGradT ObserveNoiseGradT;
+    //typedef typename BSPProblemHelperT::BeliefT BeliefT;
+    //typedef typename BSPProblemHelperT::BeliefGradT BeliefGradT;
+    //typedef typename BSPProblemHelperT::BeliefControlGradT BeliefControlGradT;
+    //typedef typename BSPProblemHelperT::VarianceT VarianceT;
+    //typedef typename BSPProblemHelperT::StateFuncT StateFuncT;
+    //typedef typename BSPProblemHelperT::ObserveFuncT ObserveFuncT;
+    //typedef typename BSPProblemHelperT::StateFuncPtr StateFuncPtr;
+    //typedef typename BSPProblemHelperT::ObserveFuncPtr ObserveFuncPtr;
+    //typedef typename BSPProblemHelperT::BeliefFuncPtr BeliefFuncPtr;
+    T::StateT start;
+    T::VarianceT start_sigma;
+    T::StateT goal;
+    int T;
+
+    BSPPlanne
+
+    void initialize() {
+
+    }
+  }
+  class BSPPlanner
+
+  class ToyBSPPlanner : public BSPPlanner<ToyBSPProblemHelper> {
+  public:
+    
+  };
+
+  typedef boost::shared_ptr<ToyBSPPlanner> ToyBSPPlannerPtr;
+
   void ToyOptimizerTask::emit_plot_message(OptProb* prob, DblVec& xvec) {
     BSPOptimizerTask::emit_plot_message(prob, xvec);
   }
 
   void ToyOptimizerTask::run() {
     int T = 20;
-
     bool plotting = false;
-
     double start_vec_array[] = {-5, 2};
     double goal_vec_array[] = {-5, 0};
-
     vector<double> start_vec(start_vec_array, end(start_vec_array));
     vector<double> goal_vec(goal_vec_array, end(goal_vec_array));
-
     {
       Config config;
       config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
@@ -178,18 +225,58 @@ namespace ToyBSP {
       CommandParser parser(config);
       parser.read(argc, argv, true);
     }
-
     Vector2d start = toVectorXd(start_vec);
     Vector2d goal = toVectorXd(goal_vec);
     Matrix2d start_sigma = Matrix2d::Identity();
 
-    OptProbPtr prob(new OptProb());
+    //OptProbPtr prob(new OptProb());
 
-    ToyBSPProblemHelperPtr helper(new ToyBSPProblemHelper());
-    helper->start = start;
-    helper->goal = goal;
-    helper->start_sigma = start_sigma;
-    helper->T = T;
+    //ToyBSPProblemHelperPtr helper(new ToyBSPProblemHelper());
+    //helper->start = start;
+    //helper->goal = goal;
+    //helper->start_sigma = start_sigma;
+    //helper->T = T;
+    //helper->set_initial_controls()
+
+    ToyBSPPlannerPtr planner(new ToyBSPPlanner());
+
+    planner->start = start;
+    planner->goal = goal;
+    planner->start_sigma = start_sigma;
+    planner->T = T;
+    planner->initialize();
+
+    boost::shared_ptr<ToyPlotter> plotter;
+    if (plotting) {
+      double x_min = -7, x_max = 2, y_min = -3, y_max = 5;
+      plotter.reset(planner->create_plotter(x_min, x_max, y_min, y_max));
+    }
+
+    while (!planner.finished()) {
+      planner.solve();
+      // simulate one step
+      planner.simulate_execution(1);
+      if (plotting) {
+        planner.plot_simulation(plotter);
+      }
+    }
+
+    if (!plotting) {
+      emit finished_signal();
+    }
+      
+    start = ...
+    goal = ...
+    start_sigma = ...
+    T = ...
+    while (!replanner.finished()) {
+      replanner.solve 
+      replanner.simulate_execution
+      replanner.plot_simulation
+
+    Replanner.solve
+    Replanner.simulate_execution(1)
+
     helper->configure_problem(*prob);
 
     BSPTrustRegionSQP opt(prob);
@@ -207,7 +294,7 @@ namespace ToyBSP {
 
     boost::shared_ptr<ToyPlotter> plotter;
     if (plotting) {
-      double x_min = -7, x_max = 2, y_min = -1, y_max = 3;
+      double x_min = -7, x_max = 2, y_min = -3, y_max = 5;
       plotter.reset(create_plotter<ToyPlotter>(x_min, x_max, y_min, y_max, helper));
       plotter->show();
       opt.addCallback(boost::bind(&ToyOptimizerTask::emit_plot_message, boost::ref(this), _1, _2));

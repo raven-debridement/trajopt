@@ -35,4 +35,8 @@ using namespace sco;
 using namespace Eigen;
 
 #define DEBUG
-#define BSP_DEFAULT_EPSILON 0.00390625
+
+// constants
+namespace BSP {
+  const double DefaultEpsilon = 0.00390625;
+}

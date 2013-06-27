@@ -37,25 +37,20 @@ namespace ToyBSP {
   public:
     typedef boost::shared_ptr<ToyObserveFunc> Ptr;
     ToyBSPProblemHelperPtr toy_helper;
-    
     ToyObserveFunc();
     ToyObserveFunc(BSPProblemHelperBasePtr helper);
+    bool sgndist(const Vector2d& x, Vector2d* dists) const;
+    ObserveMatT compute_gamma(const StateT& x, double approx_factor) const;
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
+    virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const;
   };
 
   class ToyBeliefFunc : public BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT> {
   public:
     typedef boost::shared_ptr<ToyBeliefFunc> Ptr;
     ToyBSPProblemHelperPtr toy_helper;
-    double alpha;
-    double tol;
-
     ToyBeliefFunc();
     ToyBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h);
-    bool sgndist(const Vector2d& x, Vector2d* dists) const;
-    virtual ObserveStateGradT sensor_constrained_observe_state_gradient(const ObserveStateGradT& H, const StateT& x) const;
-    virtual VarianceT sensor_constrained_variance_reduction(const VarianceT& reduction, const StateT& x) const;
-    virtual ObserveMatT compute_gamma(const StateT& x) const;
   };
 
   class ToyBSPProblemHelper : public BSPProblemHelper<ToyBeliefFunc> {
@@ -73,7 +68,7 @@ namespace ToyBSP {
   public slots:
     virtual void update_plot_data(OptProb*, DblVec& x);
   protected:
-    double old_alpha, cur_alpha;
+    double old_approx_factor, cur_approx_factor;
     ToyBSPProblemHelperPtr toy_helper;
     QImage distmap;
     vector<VectorXd> states;

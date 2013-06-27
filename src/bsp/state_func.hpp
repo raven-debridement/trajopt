@@ -37,8 +37,8 @@ namespace BSP {
     double epsilon;
     BSPProblemHelperBasePtr helper;
 
-    StateFunc() : epsilon(BSP_DEFAULT_EPSILON) {}
-    StateFunc(BSPProblemHelperBasePtr helper) : ProblemState(helper), helper(helper), epsilon(BSP_DEFAULT_EPSILON) {}
+    StateFunc() : epsilon(DefaultEpsilon) {}
+    StateFunc(BSPProblemHelperBasePtr helper) : ProblemState(helper), helper(helper), epsilon(DefaultEpsilon) {}
 
     virtual StateT operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const = 0;
 

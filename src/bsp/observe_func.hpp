@@ -36,10 +36,15 @@ namespace BSP {
     double epsilon;
     BSPProblemHelperBasePtr helper;
 
-    ObserveFunc() : epsilon(BSP_DEFAULT_EPSILON) {}
-    ObserveFunc(BSPProblemHelperBasePtr helper) : ProblemState(helper), helper(helper), epsilon(BSP_DEFAULT_EPSILON) {}
+    ObserveFunc() : epsilon(DefaultEpsilon) {}
+    ObserveFunc(BSPProblemHelperBasePtr helper) : ProblemState(helper), helper(helper), epsilon(DefaultEpsilon) {}
 
+    // This should give the exact measurement
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const = 0;
+
+    // This should give the smooth approximation of the measurement.
+    // the larger the approx_factor (> 0), the better the smooth approximation should be
+    virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const = 0;
 
     virtual BSPProblemHelperBasePtr get_helper() const {
       return helper;
@@ -54,8 +59,22 @@ namespace BSP {
       if (output_N) num_diff((boost::function<ObserveT (const ObserveNoiseT& )>) boost::bind(&ObserveFunc::operator(), this, x, _1), n, observe_dim, this->epsilon, output_N);
     }
 
+    virtual void linearize(const StateT& x
+                         , const ObserveNoiseT& n
+                         , ObserveStateGradT* output_H
+                         , ObserveNoiseGradT* output_N
+                         , double approx_factor
+                          ) const {
+      if (output_H) num_diff((boost::function<ObserveT (const StateT& )>) boost::bind(&ObserveFunc::operator(), this, _1, n, approx_factor), x, observe_dim, this->epsilon, output_H);
+      if (output_N) num_diff((boost::function<ObserveT (const ObserveNoiseT& )>) boost::bind(&ObserveFunc::operator(), this, x, _1, approx_factor), n, observe_dim, this->epsilon, output_N);
+    }
+
     ObserveT call(const StateT& x, const ObserveNoiseT& n) const {
       return operator()(x, n);
+    }
+
+    ObserveT call(const StateT& x, const ObserveNoiseT& n, double approx_factor) const {
+      return operator()(x, n, approx_factor);
     }
   };
 }

@@ -12,9 +12,10 @@
 namespace BSP {
 
   template< class BeliefFuncT >
-  class BSPProblemHelper : public boost::enable_shared_from_this< BSPProblemHelper<BeliefFuncT> >, public BSPProblemHelperBase {
+  class BSPProblemHelper : public boost::enable_shared_from_this< BSPProblemHelper<_BeliefFuncT> >, public BSPProblemHelperBase {
   public:
     /** begin typedefs */
+    typedef _BeliefFuncT BeliefFuncT;
     typedef typename BeliefConstraint<BeliefFuncT>::Ptr BeliefConstraintPtr;
     typedef Matrix<typename BeliefFuncT::scalar_type, BeliefFuncT::_control_dim, BeliefFuncT::_control_dim> ControlCostT;
     typedef typename BeliefFuncT::StateT StateT;
@@ -229,7 +230,7 @@ namespace BSP {
     }
 
     virtual void merit_done_callback(OptProb*, DblVec& x) {
-      belief_func->alpha *= 4.;
+      belief_func->scale_approx_factor(4.);
 
       BeliefT cur_belief;
       belief_func->compose_belief(start, start_sigma, &cur_belief);

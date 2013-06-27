@@ -60,14 +60,27 @@ namespace BSP {
     /** end typedefs */
 
     double epsilon;
+    double approx_factor;
     BSPProblemHelperBasePtr helper;
     StateFuncPtr f;
     ObserveFuncPtr h;
 
-    BeliefFunc() : epsilon(BSP_DEFAULT_EPSILON) {}
+    BeliefFunc() : epsilon(DefaultEpsilon), approx_factor(0.5) {}
 
     BeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-      ProblemState(helper), helper(helper), f(f), h(h), epsilon(BSP_DEFAULT_EPSILON) {}
+      ProblemState(helper), helper(helper), f(f), h(h), epsilon(DefaultEpsilon), approx_factor(0.5) {}
+
+    void set_approx_factor(double new_approx_factor) {
+      approx_factor = new_approx_factor;
+    }
+    
+    void scale_approx_factor(double scale_factor) {
+      approx_factor *= scale_factor;
+    }
+
+    void get_approx_factor() {
+      return approx_factor;
+    }
 
     virtual ObserveStateGradT sensor_constrained_observe_state_gradient(const ObserveStateGradT& H, const StateT& x) const {
       return H; 
@@ -81,7 +94,19 @@ namespace BSP {
       return helper;
     }
 
+    // Assume that the observations are exact, used for trajectory planning phase
     virtual BeliefT operator()(const BeliefT& b, const ControlT& u) const {
+      StateT             x(state_dim), new_x(state_dim);
+      StateNoiseT        zero_state_noise = StateNoiseT::Zero(state_noise_dim);
+      ObserveNoiseT      zero_observe_noise = ObserveNoiseT::Zero(observe_noise_dim);
+      extract_state(b, &x);
+      new_x = f->call(x, u, zero_state_noise);
+      return operator()(b, u, h->call(new_x, zero_observe_noise));
+    }
+
+    // The full Kalman filter, used for replanning preparation phase (update current state
+    // estimate based on the measurement)
+    virtual BeliefT operator()(const BeliefT& b, const ControlT& u, const ObserveT& z) const {
       StateT             x(state_dim), new_x(state_dim);
       BeliefT            new_b(belief_dim);
       VarianceT          sigma(state_dim, state_dim);
@@ -104,14 +129,14 @@ namespace BSP {
 
       new_x = f->call(x, u, zero_state_noise);
 
-      //gamma = compute_gamma(new_x); // TODO make this more generalizable
-
       // linearize the observation function around current point
-      h->linearize(new_x, zero_observe_noise, &H, &N); 
+      h->linearize(new_x, zero_observe_noise, &H, &N, approx_factor);
 
-      H = sensor_constrained_observe_state_gradient(H, new_x);//gamma*H;
+      //H = sensor_constrained_observe_state_gradient(H, new_x);//gamma*H;
 
       K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose()));
+
+      new_x = new_x + K * (z - h->call(new_x, zero_observe_noise));
 
       sigma = sigma - K*(H*sigma);
 
@@ -135,7 +160,11 @@ namespace BSP {
     BeliefT call(const BeliefT& b, const ControlT& u) const {
       return operator()(b, u);
     }
-    
+
+    BeliefT call(const BeliefT& b, const ControlT& u, const ObserveT& z) const {
+      return operator()(b, u, z);
+    }
+
     virtual void extract_state(const BeliefT& belief, StateT* output_state) const {
       assert (belief.size() == belief_dim);
       assert (output_state != NULL);
