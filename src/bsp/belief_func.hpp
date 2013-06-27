@@ -113,7 +113,7 @@ namespace BSP {
 
       K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose()));
 
-      sigma = sigma - sensor_constrained_variance_reduction(K*(H*sigma), new_x);
+      sigma = sigma - K*(H*sigma);
 
       compose_belief(new_x, matrix_sqrt(sigma), &new_b);
 

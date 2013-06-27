@@ -15,8 +15,8 @@ namespace ToyBSP {
     set_control_dim(2);
     set_state_bounds(DblVec(2, -10), DblVec(2, 10));
     set_control_bounds(DblVec(2, -0.9), DblVec(2, 0.9));
-    set_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
+    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 2);
+    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 20);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
