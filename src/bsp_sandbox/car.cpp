@@ -16,13 +16,6 @@ CarBSPProblemHelper::CarBSPProblemHelper() : BSPProblemHelper<CarBeliefFunc>() {
 	set_observe_dim(2);
 	set_control_dim(2);
 
-	cout << "Before init" << endl;
-	state_func.reset(new CarStateFunc(this->shared_from_this()));
-	cout << "Before observe func" << endl;
-	observe_func.reset(new CarObserveFunc(this->shared_from_this()));
-	belief_func.reset(new CarBeliefFunc(this->shared_from_this(), state_func, observe_func));
-	cout << "After init" << endl;
-
 	double state_lbs_array[] = {-10, -5, -PI, 0};
 	double state_ubs_array[] = {10, 5, PI, 2};
 	double control_lbs_array[] = {-PI*0.25, -1};
@@ -306,14 +299,14 @@ void CarPlotter::update_plot_data(OptProb*, DblVec& xvec) {
 	cur_alpha = car_helper->belief_func->alpha;
 	BeliefT cur_belief;
 	car_helper->belief_func->compose_belief(car_helper->start, car_helper->start_sigma, &cur_belief);
-	for (int i = 0; i <= T; ++i) {
+	for (int i = 0; i <= helper->get_T(); ++i) {
 		StateT cur_state;
 		VarianceT cur_sigma;
 		car_helper->belief_func->extract_state(cur_belief, &cur_state);
 		car_helper->belief_func->extract_sigma(cur_belief, &cur_sigma);
 		new_states.push_back(cur_state);
 		new_sigmas.push_back(cur_sigma);
-		if (i < T) cur_belief = car_helper->belief_func->call(cur_belief, (ControlT) getVec(xvec, car_helper->control_vars.row(i)));
+		if (i < helper->get_T()) cur_belief = car_helper->belief_func->call(cur_belief, (ControlT) getVec(xvec, car_helper->control_vars.row(i)));
 	}
 	states = new_states;
 	sigmas = new_sigmas;
@@ -359,6 +352,7 @@ void CarOptimizerTask::run() {
 
 	cout << "Before constructor call" << endl;
 	CarBSPProblemHelperPtr helper(new CarBSPProblemHelper());
+  helper->initialize();
 	helper->start = start;
 	helper->goal = goal;
 	helper->start_sigma = start_sigma;

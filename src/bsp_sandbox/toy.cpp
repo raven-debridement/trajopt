@@ -209,6 +209,7 @@ namespace ToyBSP {
     OptProbPtr prob(new OptProb());
 
     ToyBSPProblemHelperPtr helper(new ToyBSPProblemHelper());
+    helper->initialize();
     helper->start = start;
     helper->goal = goal;
     helper->start_sigma = start_sigma;

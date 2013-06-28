@@ -75,10 +75,14 @@ public:
 	virtual void init_control_values(vector<ControlT>* output_init_controls) const = 0;
 
 	BSPProblemHelper() {
-		//state_func.reset(new StateFuncT(this->shared_from_this()));
-		//observe_func.reset(new ObserveFuncT(this->shared_from_this()));
-		//belief_func.reset(new BeliefFuncT(this->shared_from_this(), state_func, observe_func));
+    
 	}
+
+  virtual void initialize() {
+    state_func.reset(new StateFuncT(this->shared_from_this()));
+		observe_func.reset(new ObserveFuncT(this->shared_from_this()));
+		belief_func.reset(new BeliefFuncT(this->shared_from_this(), state_func, observe_func));
+  }
 
 	virtual int get_state_dim() const { return state_dim; }
 	virtual int get_control_dim() const { return control_dim; }
