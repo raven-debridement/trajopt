@@ -45,7 +45,7 @@ namespace BSP {
     const static int _control_dim = StateFuncT::_control_dim;
     const static int _state_noise_dim = StateFuncT::_state_noise_dim;
     const static int _observe_dim = ObserveFuncT::_observe_dim;
-    const static int _observe_noise_dim = ObserveNoiseT::_observe_noise_dim;
+    const static int _observe_noise_dim = ObserveFuncT::_observe_noise_dim;
     const static int _belief_dim = MatrixTraits<BeliefT>::rows;
     
     BOOST_STATIC_ASSERT( (_belief_dim >= _state_dim) );
@@ -134,6 +134,7 @@ namespace BSP {
 
       //H = sensor_constrained_observe_state_gradient(H, new_x);//gamma*H;
 
+      //cout << "observe noise gradient: \n" << N << endl;
       K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose()));
 
       new_x = new_x + K * (z - h->call(new_x, zero_observe_noise));

@@ -202,8 +202,8 @@ namespace CarBSP {
 
   CarOptimizerTask::CarOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
-  void CarOptimizerTask::emit_plot_message(OptProb* prob, DblVec& xvec) {
-    BSPOptimizerTask::emit_plot_message(prob, xvec);
+  void CarOptimizerTask::emit_plot_message(const boost::any& data) {
+    BSPOptimizerTask::emit_plot_message(data);
   }
 
   void CarOptimizerTask::run() {

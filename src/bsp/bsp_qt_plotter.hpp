@@ -24,8 +24,9 @@ namespace BSP {
     double y_min;
     double y_max;
     BSPProblemHelperBasePtr helper;
-  public slots:
-    virtual void update_plot_data(OptProb*, DblVec& x) = 0;
+    virtual void update_plot_data(void* d1) {}
+    virtual void update_plot_data(void* d1, void* d2) {}
+    virtual void update_plot_data(void* d1, void* d2, void* d3) {}
   signals:
     void finished_signal();
     void proceed_signal();
@@ -39,4 +40,6 @@ namespace BSP {
     vector<VectorXd> states;
     vector<MatrixXd> sigmas;
   };
+
+  typedef boost::shared_ptr<BSPQtPlotter> BSPQtPlotterPtr;
 }

@@ -20,8 +20,11 @@
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
 #include <boost/static_assert.hpp>
+#include <boost/any.hpp>
 #include <boost/type_traits.hpp>
 #include <ctime>
+#include <vector>
+#include <deque>
 #include <openrave-core.h>
 #include <openrave/openrave.h>
 #include <assert.h>

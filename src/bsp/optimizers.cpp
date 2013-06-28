@@ -27,7 +27,7 @@ namespace BSP {
     if (x_.size() == 0) PRINT_AND_THROW("you forgot to initialize!");
     if (!prob_) PRINT_AND_THROW("you forgot to set the optimization problem");    
     
-    x_ = prob_->getClosestFeasiblePoint(x_);
+    //x_ = prob_->getClosestFeasiblePoint(x_);
 
     assert(x_.size() == prob_->getVars().size());
     assert(prob_->getCosts().size() > 0 || constraints.size() > 0);

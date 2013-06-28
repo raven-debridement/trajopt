@@ -11,3 +11,4 @@
 #include "optimizers.hpp"
 #include "bsp_qt_plotter.hpp"
 #include "bsp_optimizer_task.hpp"
+#include "bsp_planner.hpp"

@@ -93,4 +93,5 @@ namespace BSP {
   void BSPQtPlotter::closeEvent(QCloseEvent*) {
     emit finished_signal();
   }
+
 }

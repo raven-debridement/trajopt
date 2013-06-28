@@ -14,10 +14,4 @@ namespace BSP {
     emit proceed_signal();
   }
 
-  void BSPOptimizerTask::emit_plot_message(OptProb* prob, DblVec& xvec) {
-    QEventLoop loop;
-    connect(this, SIGNAL(proceed_signal()), &loop, SLOT(quit()));
-    emit replot_signal(prob, xvec);
-    loop.exec();
-  }
 }

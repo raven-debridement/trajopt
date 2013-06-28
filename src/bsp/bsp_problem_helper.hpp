@@ -11,7 +11,7 @@
 
 namespace BSP {
 
-  template< class BeliefFuncT >
+  template< class _BeliefFuncT >
   class BSPProblemHelper : public boost::enable_shared_from_this< BSPProblemHelper<_BeliefFuncT> >, public BSPProblemHelperBase {
   public:
     /** begin typedefs */
@@ -53,7 +53,7 @@ namespace BSP {
     StateT start;
     StateT goal;
     VarianceT start_sigma;
-    vector<ControlT> initial_controls;
+    deque<ControlT> initial_controls;
     VarianceT Q; // variance cost
     VarianceT QF; // final variance cost
     ControlCostT R; // control cost
@@ -74,7 +74,9 @@ namespace BSP {
 
     vector< BeliefConstraintPtr > belief_constraints;
 
-    BSPProblemHelper() {}
+    BSPProblemHelper() { initialize(); }
+
+    virtual void initialize() {}
 
     virtual int get_state_dim() const { return state_dim; }
     virtual int get_control_dim() const { return control_dim; }
@@ -226,7 +228,7 @@ namespace BSP {
     }
 
     virtual void merit_done_callback(OptProb*, DblVec& x) {
-      belief_func->scale_approx_factor(4.);
+      belief_func->scale_approx_factor(2.);
 
       BeliefT cur_belief;
       belief_func->compose_belief(start, start_sigma, &cur_belief);

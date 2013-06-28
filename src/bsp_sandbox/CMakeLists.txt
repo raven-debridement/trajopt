@@ -1,4 +1,7 @@
 find_package(Qt4 REQUIRED)
+find_package(Armadillo REQUIRED)
+find_package(LibXml2 REQUIRED)
+find_package(mlpack REQUIRED)
 
 include(${QT_USE_FILE})
 ADD_DEFINITIONS(${QT_DEFINITIONS})
@@ -10,12 +13,14 @@ include_directories(
   ${Eigen_INCLUDE_DIRS}
   ${OpenRAVE_INCLUDE_DIRS}
   ${JSON_INCLUDE_DIRS}
+  ${LIBXML2_INCLUDE_DIR}
+  ${MLPACK_INCLUDE_DIRS}
 )
 
 SET(toy_qt_headers toy.hpp)
 QT4_WRAP_CPP(toy_qt_headers_moc ${toy_qt_headers})
 add_executable(toy toy.cpp ${toy_qt_headers_moc})
-target_link_libraries(toy bsp trajopt ${QT_LIBRARIES})
+target_link_libraries(toy bsp trajopt ${QT_LIBRARIES} ${LIBXML2_LIBRARIES} ${MLPACK_LIBRARIES})
 
 #SET(car_qt_headers car.hpp)
 #QT4_WRAP_CPP(car_qt_headers_moc ${car_qt_headers})
