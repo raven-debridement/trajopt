@@ -62,7 +62,7 @@ namespace BSP {
       return (helper->T <= 0);
     }
 
-    void initialize() {
+    virtual void initialize() {
       assert(!initialized);
       helper.reset(new BSPProblemHelperT());
       helper->start = start;
