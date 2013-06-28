@@ -166,14 +166,11 @@ void BasicTrustRegionSQP::initParameters() {
   trust_shrink_ratio_=.1;
   trust_expand_ratio_ = 1.5;
   cnt_tolerance_ = 1e-4;
-  max_merit_coeff_increases_ = 5;
+  max_merit_coeff_increases_ = 10;
   merit_coeff_increase_ratio_ = 10;
   max_time_ = INFINITY;
-
   merit_error_coeff_ = 10;
   trust_box_size_ = 1e-1;
-
-
 }
 
 void BasicTrustRegionSQP::setProblem(OptProbPtr prob) {

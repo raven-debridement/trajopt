@@ -35,4 +35,4 @@ using namespace sco;
 using namespace Eigen;
 
 #define DEBUG
-#define BSP_DEFAULT_EPSILON 0.00390625
+#define BSP_DEFAULT_EPSILON 0.0009765625

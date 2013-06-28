@@ -27,7 +27,22 @@ namespace BSP {
     if (x_.size() == 0) PRINT_AND_THROW("you forgot to initialize!");
     if (!prob_) PRINT_AND_THROW("you forgot to set the optimization problem");    
     
+    // Solving a constrained minimization problem without the nonconvex constraints
     x_ = prob_->getClosestFeasiblePoint(x_);
+
+    /*
+    int idx1 = 0;
+	int idx2 = 42;
+    for(int ti = 0; ti <= 20; ++ti) {
+    	cout << x_[idx1] << " " << x_[idx1+1] << " " << x_[idx2] << " " << x_[idx2+1] << " " << x_[idx2+2] << endl;
+    	idx1 += 2; idx2 += 3;
+    }
+    int idx3 = 105;
+    for(int ti = 0; ti < 20; ++ti) {
+    	cout << x_[idx3] << " " << x_[idx3+1] << endl;
+    	idx3 += 2;
+    }
+	*/
 
     assert(x_.size() == prob_->getVars().size());
     assert(prob_->getCosts().size() > 0 || constraints.size() > 0);
@@ -35,12 +50,28 @@ namespace BSP {
     OptStatus retval = INVALID;
 
     for (int merit_increases=0; merit_increases < max_merit_coeff_increases_; ++merit_increases) { /* merit adjustment loop */
+    	/*
+    	int idx1 = 0;
+    	int idx2 = 42;
+    	for(int ti = 0; ti <= 20; ++ti) {
+    		cout << x_[idx1] << " " << x_[idx1+1] << " " << x_[idx2] << " " << x_[idx2+1] << " " << x_[idx2+2] << endl;
+    		idx1 += 2; idx2 += 3;
+    	}
+		*/
+
       results_.cnt_viols = evaluateConstraintViols(constraints, x_);
       results_.cost_vals = evaluateCosts(prob_->getCosts(), x_);
       //assert(results_.n_func_evals == 0);
       ++results_.n_func_evals;
 
-      for (int iter=1; ; ++iter) { /* sqp loop */
+      //cout << "phiold.costs: " << vecSum(results_.cost_vals) << endl;
+      //cout << "phiold.conviol: " <<  merit_error_coeff_ * vecSum(results_.cnt_viols) << endl;
+
+      //cout << "Paused inside optimize()" << endl;
+      //int num;
+      //cin >> num;
+
+      for (int iter=1; ;) { /* sqp loop */
         callCallbacks(x_);
         vector<bool> incmask = prob_->getIncrementMask();
         for (int i=0; i < incmask.size(); ++i) if (incmask[i]) x_[i] = 0;
@@ -133,8 +164,33 @@ namespace BSP {
             printCostInfo(results_.cost_vals, model_cost_vals, new_cost_vals,
                           results_.cnt_viols, model_cnt_viols, new_cnt_viols, cost_names,
                           cnt_names, merit_error_coeff_);
-            printf("%15s | %10.3e | %10.3e | %10.3e | %10.3e\n", "TOTAL", old_merit, approx_merit_improve, exact_merit_improve, merit_improve_ratio);
+            printf("%15s | %10.4e | %10.4e | %10.4e | %10.4e\n", "TOTAL", old_merit, approx_merit_improve, exact_merit_improve, merit_improve_ratio);
           }
+
+          /*
+          int idx1 = 0;
+          int idx2 = 42;
+          for(int ti = 0; ti <= 20; ++ti) {
+        	  cout << new_x[idx1] << " " << new_x[idx1+1] << " " << new_x[idx2] << " " << new_x[idx2+1] << " " << new_x[idx2+2] << endl;
+        	  idx1 += 2; idx2 += 3;
+          }
+          cout << endl;
+          int idx3 = 105;
+          for(int ti = 0; ti < 20; ++ti) {
+              cout << new_x[idx3] << " " << new_x[idx3+1] << endl;
+              idx3 += 2;
+          }
+
+          cout << "phicvx.costs: " << vecSum(model_cost_vals) << endl;
+          cout << "phicvx.conviol: " <<  merit_error_coeff_ * vecSum(model_cnt_viols) << endl;
+
+          cout << "phinew.costs: " << vecSum(new_cost_vals) << endl;
+          cout << "phinew.conviol: " <<  merit_error_coeff_ * vecSum(new_cnt_viols) << endl;
+		  */
+
+          //cout << "Paused inside optimize()" << endl;
+          //int num;
+          //cin >> num;
 
           if (approx_merit_improve < -1e-4) {
             LOG_ERROR("approximate merit function got worse (%.3e). (convexification is probably wrong to zeroth order)", approx_merit_improve);
@@ -174,6 +230,7 @@ namespace BSP {
           retval = OPT_SCO_ITERATION_LIMIT;
           goto cleanup;
         }
+        iter++;
       }
 
       penaltyadjustment: {
@@ -189,8 +246,6 @@ namespace BSP {
       }
 
       //cout << "cur inc: " << 
-
-
     }
     retval = OPT_PENALTY_ITERATION_LIMIT;
     LOG_INFO("optimization couldn't satisfy all constraints");

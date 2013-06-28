@@ -73,6 +73,10 @@ namespace BSP {
       return H; 
     }
 
+    virtual ObserveNoiseGradT sensor_constrained_observe_noise_gradient(const ObserveNoiseGradT& N, const StateT& x) const {
+      return N;
+    }
+
     virtual VarianceT sensor_constrained_variance_reduction(const VarianceT& reduction, const StateT& x) const {
       return reduction;
     }
@@ -110,9 +114,11 @@ namespace BSP {
       h->linearize(new_x, zero_observe_noise, &H, &N); 
 
       H = sensor_constrained_observe_state_gradient(H, new_x);//gamma*H;
+      //N = sensor_constrained_observe_noise_gradient(N, new_x);//N/gamma;
 
       K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose()));
 
+      //sigma = sigma - sensor_constrained_variance_reduction(K*(H*sigma), new_x);
       sigma = sigma - K*(H*sigma);
 
       compose_belief(new_x, matrix_sqrt(sigma), &new_b);
