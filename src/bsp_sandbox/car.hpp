@@ -74,9 +74,12 @@ public:
 	typedef typename BeliefConstraint<CarBeliefFunc>::Ptr BeliefConstraintPtr;
 	double input_dt;
 	double carlen;
+	double goaleps;
 	vector<ControlT> init_controls;
 
-	virtual void RRTplan();
+	vector<Vector4d> rrt_edges;
+
+	virtual void RRTplan(bool compute);
 	virtual void init_control_values(vector<ControlT>* output_init_controls) const;
 	virtual void add_goal_constraint(OptProb& prob);
 	CarBSPProblemHelper();
@@ -92,8 +95,8 @@ protected:
 double old_alpha, cur_alpha;
 CarBSPProblemHelperPtr car_helper;
 QImage distmap;
-vector<VectorXd> states;
-vector<MatrixXd> sigmas;
+vector<VectorXd> states_opt, states_actual;
+vector<MatrixXd> sigmas_opt, sigmas_actual;
 virtual void paintEvent(QPaintEvent*);
 };
 

@@ -75,14 +75,14 @@ public:
 	virtual void init_control_values(vector<ControlT>* output_init_controls) const = 0;
 
 	BSPProblemHelper() {
-    
+
 	}
 
-  virtual void initialize() {
-    state_func.reset(new StateFuncT(this->shared_from_this()));
+	virtual void initialize() {
+		state_func.reset(new StateFuncT(this->shared_from_this()));
 		observe_func.reset(new ObserveFuncT(this->shared_from_this()));
 		belief_func.reset(new BeliefFuncT(this->shared_from_this(), state_func, observe_func));
-  }
+	}
 
 	virtual int get_state_dim() const { return state_dim; }
 	virtual int get_control_dim() const { return control_dim; }
@@ -196,10 +196,6 @@ public:
 	}
 
 	virtual void add_belief_constraint(OptProb& prob) {
-		//state_func.reset(new StateFuncT(this->shared_from_this()));
-		//observe_func.reset(new ObserveFuncT(this->shared_from_this()));
-		//belief_func.reset(new BeliefFuncT(this->shared_from_this(), state_func, observe_func));
-
 		for (int i = 0; i < T; ++i) {
 			belief_constraints.push_back(BeliefConstraintPtr(new BeliefConstraint<BeliefFuncT>(belief_vars.row(i), control_vars.row(i), belief_vars.row(i+1), belief_func)));
 			belief_constraints.back()->setName((boost::format("belief_%i")%i).str());
@@ -228,9 +224,9 @@ public:
 			cur_belief = belief_func->call(cur_belief, init_controls[i]);
 			init_beliefs.push_back(cur_belief);
 		}
-		for(int bi = 0; bi < (int)init_beliefs.size(); ++bi) {
-			cout << init_beliefs[bi].transpose() << endl;
-		}
+		//for(int bi = 0; bi < (int)init_beliefs.size(); ++bi) {
+		//	cout << init_beliefs[bi].transpose() << endl;
+		//}
 
 		for (int i = 0; i <= T; ++i) {
 			for (int j = 0; j < belief_dim; ++j) {

@@ -11,9 +11,11 @@ namespace CarBSP {
 CarBSPProblemHelper::CarBSPProblemHelper() : BSPProblemHelper<CarBeliefFunc>() {
 	input_dt = 0.25;
 	carlen = 0.5;
+	goaleps = 0.01;
+
 	set_state_dim(4);
 	set_sigma_dof(10);
-	set_observe_dim(2);
+	set_observe_dim(3);
 	set_control_dim(2);
 
 	double state_lbs_array[] = {-10, -5, -PI, 0};
@@ -22,14 +24,19 @@ CarBSPProblemHelper::CarBSPProblemHelper() : BSPProblemHelper<CarBeliefFunc>() {
 	double control_ubs_array[] = {PI*0.25, 1};
 	set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
 	set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
-	set_variance_cost(VarianceT::Identity(state_dim, state_dim));
+	set_variance_cost(VarianceT::Identity(state_dim, state_dim)*10);
 	set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
-	set_control_cost(ControlCostT::Identity(control_dim, control_dim));
+	set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.1);
 }
 
 void CarBSPProblemHelper::add_goal_constraint(OptProb& prob) {
 	for (int i = 0; i < 2; ++i) {
 		prob.addLinearConstraint(exprSub(AffExpr(state_vars.at(T, i)), goal(i)), EQ);
+
+		// box constraint of buffer goaleps around goal position
+		//Var optvar = state_vars.at(T, i);
+		//prob.addLinearConstraint(exprSub(AffExpr(optvar), (goal(i)+goaleps) ), INEQ);
+		//prob.addLinearConstraint(exprSub(exprSub(AffExpr(0), AffExpr(optvar)), (-goal(i)+goaleps) ), INEQ);
 	}
 }
 
@@ -45,106 +52,139 @@ void CarBSPProblemHelper::init_control_values(vector<ControlT>* output_init_cont
 	for (int i = 0; i < T; ++i) {
 		output_init_controls->push_back(control_step);
 	}
-	*/
+	 */
 }
 
-void CarBSPProblemHelper::RRTplan() {
-	srand(time(0));
+void CarBSPProblemHelper::RRTplan(bool compute) {
 
-	vector<RRTNode> rrtTree;
+	if (compute) {
+		srand(time(0));
 
-	RRTNode startNode;
-	startNode.x = start;
-	rrtTree.push_back(startNode);
+		vector<RRTNode> rrtTree;
+		RRTNode startNode;
+		startNode.x = start;
+		rrtTree.push_back(startNode);
 
-	Vector2d poserr = (startNode.x.head<2>() - goal.head<2>());
+		Vector2d poserr = (startNode.x.head<2>() - goal.head<2>());
 
-	while (poserr.squaredNorm() > 1e-2)
-	{
-		StateT sample;
-		for (int xd = 0; xd < state_dim; ++xd) {
-			sample(xd) = (((double) rand()) / RAND_MAX) * (state_ubs[xd] - state_lbs[xd]) + state_lbs[xd];
-		}
-		cout << "Inside RRTplan1" << endl;
+		double state_lbs_array[] = {-6, -3, -PI, 0};
+		double state_ubs_array[] = {-3, 4, PI, 1};
+		double control_lbs_array[] = {-PI*0.25, -1};
+		double control_ubs_array[] = {PI*0.25, 1};
 
-		// Check sample for collisions, turned off for now
+		int numiter = 0;
+		while (poserr.squaredNorm() > goaleps*goaleps || numiter < 100)
+		{
+			cout << ".";
 
-		int node = -1;
-		double mindist = 9e99;
-		for (int j = 0; j < (int) rrtTree.size(); ++j) {
-			double ddist = (rrtTree[j].x - sample).squaredNorm();
-			if (ddist < mindist) {
-				mindist = ddist;
-				node = j;
+			StateT sample;
+			for (int xd = 0; xd < state_dim; ++xd) {
+				sample(xd) = (((double) rand()) / RAND_MAX) * (state_ubs_array[xd] - state_lbs_array[xd]) + state_lbs_array[xd];
 			}
-		}
-		if (node == -1) {
-			continue;
-		}
-		cout << "Inside RRTplan2 " << endl;
 
+			// Check sample for collisions, turned off for now
 
-		ControlT input;
-		for (int ud = 0; ud < control_dim; ++ud) {
-			input(ud) = (((double) rand()) / RAND_MAX) * (control_ubs[ud] - control_lbs[ud]) + control_lbs[ud];
-		}
-
-		cout << "Inside RRTplan3" << endl;
-		StateNoiseT zero_state_noise = StateNoiseT::Zero(state_noise_dim);
-		StateT new_x = state_func->call(rrtTree[node].x, input, zero_state_noise);
-		cout << "Inside RRTplan4" << endl;
-
-		bool valid = true;
-		for (int xd = 0; xd < state_dim; ++xd) {
-			if (new_x(xd) < state_lbs[xd] || new_x(xd) > state_ubs[xd]) {
-				valid = false;
-				break;
+			int node = -1;
+			double mindist = 9e99;
+			for (int j = 0; j < (int) rrtTree.size(); ++j) {
+				double ddist = (rrtTree[j].x - sample).squaredNorm();
+				if (ddist < mindist) {
+					mindist = ddist;
+					node = j;
+				}
 			}
+			if (node == -1) {
+				continue;
+			}
+
+			ControlT input;
+			for (int ud = 0; ud < control_dim; ++ud) {
+				input(ud) = (((double) rand()) / RAND_MAX) * (control_ubs_array[ud] - control_lbs_array[ud]) + control_lbs_array[ud];
+			}
+
+			StateNoiseT zero_state_noise = StateNoiseT::Zero(state_noise_dim);
+			StateT new_x = state_func->call(rrtTree[node].x, input, zero_state_noise);
+
+			bool valid = true;
+			for (int xd = 0; xd < state_dim; ++xd) {
+				if (new_x(xd) < state_lbs[xd] || new_x(xd) > state_ubs[xd]) {
+					valid = false;
+					break;
+				}
+			}
+			if (!valid) {
+				continue;
+			}
+
+			// Check edge for collisions here, turned off for now
+
+			RRTNode newnode;
+			newnode.x = new_x;
+			newnode.u = input;
+			newnode.bp = node;
+
+			rrtTree.push_back(newnode);
+			Vector4d edge;
+			edge << rrtTree[node].x(0), rrtTree[node].x(1), newnode.x(0), newnode.x(1);
+			rrt_edges.push_back(edge);
+
+			poserr = (newnode.x.head<2>() - goal.head<2>());
+			++numiter;
 		}
-		if (!valid) {
-			continue;
-		}
+		cout << endl;
 
-		// Check edge for collisions here, turned off for now
+		deque<RRTNode> path;
 
-		RRTNode newnode;
-		newnode.x = new_x;
-		newnode.u = input;
-		newnode.bp = node;
-
-		rrtTree.push_back(newnode);
-
-		poserr = (newnode.x.head<2>() - goal.head<2>());
-	}
-
-	deque<RRTNode> path;
-
-	int i = (int)rrtTree.size() - 1;
-	RRTNode node;
-	node.x = rrtTree[i].x;
-	node.u = ControlT::Zero(control_dim);
-	path.push_front(node);
-
-	while (i != 0)
-	{
-		node.u = rrtTree[i].u;
-		i = rrtTree[i].bp;
+		int i = (int)rrtTree.size() - 1;
+		RRTNode node;
 		node.x = rrtTree[i].x;
-		node.bp = -1;
-
+		node.u = ControlT::Zero(control_dim);
 		path.push_front(node);
+
+		while (i != 0)
+		{
+			node.u = rrtTree[i].u;
+			i = rrtTree[i].bp;
+			node.x = rrtTree[i].x;
+			node.bp = -1;
+
+			path.push_front(node);
+		}
+
+		init_controls.clear();
+		for (int i = 0; i < (int)path.size()-1; ++i) {
+			init_controls.push_back(path[i].u);
+			cout << path[i].u(0) << " " << path[i].u(1) << endl;
+		}
+
+		cout << "T: " << init_controls.size() << endl;
+	} else {
+		ifstream fptr("/home/sachin/Workspace/bspfov/trajopt/data/car-rrt.txt", ios::in);
+		if (!fptr.is_open()) {
+			cout << "Could not open file, check location" << endl;
+		}
+		int nu;
+		fptr >> nu;
+		//cout << "nu: " << nu << endl;
+		init_controls.clear();
+		ControlT u;
+		for (int i = 0; i < nu; ++i) {
+			fptr >> u(0) >> u(1);
+			init_controls.push_back(u);
+			//cout << u(0) << " " << u(1) << endl;
+		}
+		if (fptr.is_open()) fptr.close();
 	}
 
-	init_controls.clear();
-	for (int i = 0; i < (int)path.size()-1; ++i) {
-		init_controls.push_back(path[i].u);
-	}
+	//cout << "PAUSED INSIDE RRT BUILD" << endl;
+	//int num;
+	//cin >> num;
 }
 
 CarStateFunc::CarStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
 
 CarStateFunc::CarStateFunc(BSPProblemHelperBasePtr helper) :
-    				StateFunc<StateT, ControlT, StateNoiseT>(helper), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
+    						StateFunc<StateT, ControlT, StateNoiseT>(helper), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
 
 StateT CarStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
 	StateT new_x(state_dim);
@@ -185,23 +225,24 @@ StateT CarStateFunc::operator()(const StateT& x, const ControlT& u, const StateN
 CarObserveFunc::CarObserveFunc() : ObserveFunc<StateT, ObserveT, ObserveNoiseT>() {}
 
 CarObserveFunc::CarObserveFunc(BSPProblemHelperBasePtr helper) :
-    				ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
+    						ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
 
 ObserveT CarObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
 	ObserveT out(observe_dim);
-	out(0) = x(0) + 0.1 * n(0);
-	out(1) = x(1) + 0.1 * n(1);
+	out(0) = x(0) + 0.01 * n(0);
+	out(1) = x(1) + 0.01 * n(1);
+	out(2) = x(2) + 0.01 * n(2);
 	return out;
 }
 
-CarBeliefFunc::CarBeliefFunc() : BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(), tol(0.1), alpha(0.5) {}
+CarBeliefFunc::CarBeliefFunc() : BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(), tol(0.1), alpha(1) {}
 
 CarBeliefFunc::CarBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-    				tol(0.1), alpha(0.5), BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(helper, f, h), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
+    						tol(0.1), alpha(1), BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(helper, f, h), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
 
 bool CarBeliefFunc::sgndist(const Vector2d& x, Vector2d* dists) const {
 	Vector2d p1; p1 << 0, 2;
-	Vector2d p2; p2 << 0, 0;
+	Vector2d p2; p2 << 0, -2;
 	(*dists)(0) = (x.head<2>() - p1).norm() - 0.5;
 	(*dists)(1) = (x.head<2>() - p2).norm() - 0.5;
 	return (*dists)(0) < 0 || (*dists)(1) < 0;
@@ -213,8 +254,10 @@ ObserveMatT CarBeliefFunc::compute_gamma(const StateT& x) const {
 	double gamma1 = 1. - (1./(1.+exp(-alpha*(dists(0)+tol))));
 	double gamma2 = 1. - (1./(1.+exp(-alpha*(dists(1)+tol))));
 	ObserveMatT gamma(observe_dim, observe_dim);
-	gamma << gamma1, 0,
-			0, gamma2;
+	//gamma << gamma1, 0, 0, gamma2;
+	gamma << gamma1, 0, 0,
+			 0, gamma2, 0,
+			 0, 0, 1;
 	return gamma;
 }
 
@@ -227,8 +270,10 @@ ObserveMatT CarBeliefFunc::compute_inverse_gamma(const StateT& x) const {
 	ObserveMatT invgamma(observe_dim, observe_dim);
 	gamma1 = std::max(gamma1, minval);
 	gamma2 = std::max(gamma2, minval);
-	invgamma << 1/gamma1, 0,
-			0, 1/gamma2;
+	invgamma << 1/gamma1, 0, 0,
+			    0, 1/gamma2, 0,
+			    0, 0, 1;
+	//invgamma << 1/gamma1, 0, 0, 1/gamma2;
 	return invgamma;
 }
 
@@ -248,10 +293,10 @@ VarianceT CarBeliefFunc::sensor_constrained_variance_reduction(const VarianceT& 
 }
 
 CarPlotter::CarPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
-				   BSPQtPlotter(x_min, x_max, y_min, y_max, helper, parent),
-				   ProblemState(helper),
-				   car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)),
-				   old_alpha(-1), cur_alpha(-1), distmap(400, 400, QImage::Format_RGB32) {}
+						   BSPQtPlotter(x_min, x_max, y_min, y_max, helper, parent),
+						   ProblemState(helper),
+						   car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)),
+						   old_alpha(-1), cur_alpha(-1), distmap(400, 400, QImage::Format_RGB32) {}
 
 void CarPlotter::paintEvent(QPaintEvent* ) {
 	QPainter painter(this);
@@ -273,43 +318,83 @@ void CarPlotter::paintEvent(QPaintEvent* ) {
 		}
 	}
 	painter.drawImage(0, 0, distmap);
-	QPen cvx_cov_pen(Qt::red, 2, Qt::SolidLine);
-	QPen path_pen(Qt::red, 2, Qt::SolidLine);
+	QPen cvx_cov_pen(Qt::red, 3, Qt::SolidLine);
+	QPen path_pen(Qt::red, 3, Qt::SolidLine);
 	QPen pos_pen(Qt::red, 8, Qt::SolidLine);
 	painter.setRenderHint(QPainter::Antialiasing);
 	painter.setRenderHint(QPainter::HighQualityAntialiasing);
 	painter.setPen(cvx_cov_pen);
-	for (int i = 0; i < states.size(); ++i) {
-		draw_ellipse(states[i].head<2>(), sigmas[i].block<2,2>(0,0), painter, 0.5);
+	for (int i = 0; i < states_opt.size(); ++i) {
+		draw_ellipse(states_opt[i], sigmas_opt[i], painter, 0.5);
 	}
 	painter.setPen(path_pen);
-	for (int i = 0; i < states.size() - 1; ++i) {
-		draw_line(states[i](0), states[i](1), states[i+1](0), states[i+1](1), painter);
+	for (int i = 0; i < states_opt.size() - 1; ++i) {
+		draw_line(states_opt[i](0), states_opt[i](1), states_opt[i+1](0), states_opt[i+1](1), painter);
+	}
+	vector<Vector4d>& edges = car_helper->rrt_edges;
+	for (int i = 0; i < edges.size(); ++i) {
+		draw_line(edges[i](0), edges[i](1), edges[i](2), edges[i](3), painter);
 	}
 	painter.setPen(pos_pen);
-	for (int i = 0; i < states.size(); ++i) {
-		draw_point(states[i](0), states[i](1), painter);
+	for (int i = 0; i < states_opt.size(); ++i) {
+		draw_point(states_opt[i](0), states_opt[i](1), painter);
+	}
+
+	// draw beliefs computed using belief dynamics
+	QPen cvx_cov_pen2(Qt::blue, 3, Qt::SolidLine);
+	painter.setPen(cvx_cov_pen2);
+	for (int i = 0; i < states_actual.size(); ++i) {
+		draw_ellipse(states_actual[i], sigmas_actual[i], painter, 0.5);
+	}
+	QPen pos_pen2(Qt::blue, 8, Qt::SolidLine);
+	painter.setPen(pos_pen2);
+	for (int i = 0; i < states_actual.size(); ++i) {
+		draw_point(states_actual[i](0), states_actual[i](1), painter);
 	}
 }
 
 void CarPlotter::update_plot_data(OptProb*, DblVec& xvec) {
-	vector<VectorXd> new_states;
-	vector<MatrixXd> new_sigmas;
+	vector<VectorXd> new_states_opt, new_states_actual;
+	vector<MatrixXd> new_sigmas_opt, new_sigmas_actual;
 	old_alpha = cur_alpha;
 	cur_alpha = car_helper->belief_func->alpha;
-	BeliefT cur_belief;
-	car_helper->belief_func->compose_belief(car_helper->start, car_helper->start_sigma, &cur_belief);
-	for (int i = 0; i <= helper->get_T(); ++i) {
+	car_helper->belief_func->alpha = 1000;
+	BeliefT cur_belief_opt, cur_belief_actual;
+	car_helper->belief_func->compose_belief(car_helper->start, car_helper->start_sigma, &cur_belief_actual);
+	int T = car_helper->get_T();
+
+	for (int i = 0; i <= T; ++i) {
 		StateT cur_state;
 		VarianceT cur_sigma;
-		car_helper->belief_func->extract_state(cur_belief, &cur_state);
-		car_helper->belief_func->extract_sigma(cur_belief, &cur_sigma);
-		new_states.push_back(cur_state);
-		new_sigmas.push_back(cur_sigma);
-		if (i < helper->get_T()) cur_belief = car_helper->belief_func->call(cur_belief, (ControlT) getVec(xvec, car_helper->control_vars.row(i)));
+
+		cur_belief_opt = (BeliefT) getVec(xvec, car_helper->belief_vars.row(i));
+		car_helper->belief_func->extract_state(cur_belief_opt, &cur_state);
+		car_helper->belief_func->extract_sigma(cur_belief_opt, &cur_sigma);
+		new_states_opt.push_back(cur_state);
+		new_sigmas_opt.push_back(cur_sigma);
+
+		car_helper->belief_func->extract_state(cur_belief_actual, &cur_state);
+		car_helper->belief_func->extract_sigma(cur_belief_actual, &cur_sigma);
+		new_states_actual.push_back(cur_state);
+		new_sigmas_actual.push_back(cur_sigma);
+		if (i < T) {
+			cur_belief_actual = car_helper->belief_func->call(cur_belief_actual, (ControlT) getVec(xvec, car_helper->control_vars.row(i)));
+		}
 	}
-	states = new_states;
-	sigmas = new_sigmas;
+	states_opt = new_states_opt; states_actual = new_states_actual;
+	sigmas_opt = new_sigmas_opt; sigmas_actual = new_sigmas_actual;
+
+	/*
+	for(int i = 0; i < (int)states_opt.size(); ++i) {
+		cout << states_opt[i](0) << " " << states_opt[i](1) << " " << states_opt[i](2) << " " << states_opt[i](3) << endl;
+	}
+
+	for(int i = 0; i < (int)states_actual.size(); ++i) {
+		cout << states_actual[i](0) << " " << states_actual[i](1) << " " << states_actual[i](2) << " " << states_actual[i](3) << endl;
+	}
+	*/
+
+	car_helper->belief_func->alpha = cur_alpha;
 	this->repaint();
 }
 
@@ -324,8 +409,8 @@ void CarOptimizerTask::emit_plot_message(OptProb* prob, DblVec& xvec) {
 void CarOptimizerTask::run() {
 	bool plotting = false;
 
-	double start_vec_array[] = {-5, 2, -PI*0.5, 0.2};
-	double goal_vec_array[] = {-5, 0, 0, 0};
+	double start_vec_array[] = {-5, 2, -PI*0.25, 0.2};
+	double goal_vec_array[] = {-5, -2, 0, 0};
 
 	vector<double> start_vec(start_vec_array, end(start_vec_array));
 	vector<double> goal_vec(goal_vec_array, end(goal_vec_array));
@@ -341,7 +426,8 @@ void CarOptimizerTask::run() {
 
 	Vector4d start = toVectorXd(start_vec);
 	Vector4d goal = toVectorXd(goal_vec);
-	Matrix4d start_sigma = Matrix4d::Identity(); //start_sigma << 1, 0, 0, 0,
+	Matrix4d start_sigma = Matrix4d::Identity();
+	//start_sigma << 1, 0, 0, 0,
 	//               0, 1, 0, 0,
 	//               0, 0, 1, 0,
 	//               0, 0, 0, 1;
@@ -350,13 +436,12 @@ void CarOptimizerTask::run() {
 
 	//int T = 30;
 
-	cout << "Before constructor call" << endl;
 	CarBSPProblemHelperPtr helper(new CarBSPProblemHelper());
-  helper->initialize();
+	helper->initialize();
 	helper->start = start;
 	helper->goal = goal;
 	helper->start_sigma = start_sigma;
-	helper->RRTplan();
+	helper->RRTplan(false);
 	helper->T = (int)helper->init_controls.size();
 	helper->configure_problem(*prob);
 
@@ -381,8 +466,7 @@ void CarOptimizerTask::run() {
 		plotter->show();
 		opt.addCallback(boost::bind(&CarOptimizerTask::emit_plot_message, boost::ref(this), _1, _2));
 	}
-	int num;
-	cin >> num;
+
 	opt.optimize();
 	if (!plotting) {
 		emit finished_signal();

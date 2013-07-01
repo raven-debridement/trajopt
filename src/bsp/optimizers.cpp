@@ -28,6 +28,7 @@ namespace BSP {
     if (!prob_) PRINT_AND_THROW("you forgot to set the optimization problem");    
     
     // Solving a constrained minimization problem without the nonconvex constraints
+    cout << "Solving for closest feasible point" << endl;
     x_ = prob_->getClosestFeasiblePoint(x_);
 
     /*

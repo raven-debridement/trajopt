@@ -78,8 +78,8 @@ namespace ToyBSP {
     double old_alpha, cur_alpha;
     ToyBSPProblemHelperPtr toy_helper;
     QImage distmap;
-    vector<VectorXd> states;
-    vector<MatrixXd> sigmas;
+    vector<VectorXd> states_opt, states_actual;
+    vector<MatrixXd> sigmas_opt, sigmas_actual;
     virtual void paintEvent(QPaintEvent*);
   };
 
