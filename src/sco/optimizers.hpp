@@ -17,6 +17,7 @@ enum OptStatus {
   OPT_SCO_ITERATION_LIMIT, // hit iteration limit before convergence
   OPT_PENALTY_ITERATION_LIMIT,
   OPT_FAILED,
+  OPT_ALPHA_ITERATION_LIMIT,
   INVALID
 };
 static const char* OptStatus_strings[]  = {
@@ -24,6 +25,7 @@ static const char* OptStatus_strings[]  = {
   "SCO_ITERATION_LIMIT",
   "PENALTY_ITERATION_LIMIT",
   "FAILED",
+  "ALPHA_ITERATION_LIMIT",
   "INVALID"
 };
 inline string statusToString(OptStatus status) {
@@ -89,10 +91,10 @@ public:
          trust_shrink_ratio_, // if improvement is less than improve_ratio_threshold, shrink trust region by this ratio
          trust_expand_ratio_, // see above
          cnt_tolerance_, // after convergence of penalty subproblem, if constraint violation is less than this, we're done
-         max_merit_coeff_increases_, // number of times that we jack up penalty coefficient
          merit_coeff_increase_ratio_, // ratio that we increate coeff each time
          max_time_ // not yet implemented
          ;
+  int    max_merit_coeff_increases_; // number of times that we jack up penalty coefficient
   double merit_error_coeff_, // initial penalty coefficient
          trust_box_size_ // current size of trust region (component-wise)
          ;

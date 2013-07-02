@@ -237,6 +237,26 @@ public:
 	}
 
 	virtual void merit_done_callback(OptProb*, DblVec& x) {
+		//belief_func->alpha *= 2;
+
+		BeliefT cur_belief;
+		belief_func->compose_belief(start, start_sigma, &cur_belief);
+		//cout << cur_belief.transpose() << endl;
+		for (int i = 0; i < belief_dim; ++i) {
+			x[belief_vars.at(0, i).var_rep->index] = cur_belief(i);
+		}
+		for (int i = 0; i < T; ++i) {
+			cur_belief = belief_func->call(cur_belief, (ControlT) getVec(x, control_vars.row(i)));
+			ControlT u = (ControlT) getVec(x, control_vars.row(i));
+			cout << u.transpose() << endl;
+			//cout << cur_belief.transpose() << endl;
+			for (int j = 0; j < belief_dim; ++j) {
+				x[belief_vars.at(i+1, j).var_rep->index] = cur_belief(j);
+			}
+		}
+	}
+
+	virtual void alpha_done_callback(OptProb*, DblVec& x) {
 		belief_func->alpha *= 2.;
 
 		BeliefT cur_belief;
@@ -247,6 +267,8 @@ public:
 		}
 		for (int i = 0; i < T; ++i) {
 			cur_belief = belief_func->call(cur_belief, (ControlT) getVec(x, control_vars.row(i)));
+			ControlT u = (ControlT) getVec(x, control_vars.row(i));
+			cout << u.transpose() << endl;
 			//cout << cur_belief.transpose() << endl;
 			for (int j = 0; j < belief_dim; ++j) {
 				x[belief_vars.at(i+1, j).var_rep->index] = cur_belief(j);
@@ -256,6 +278,7 @@ public:
 
 	virtual void add_optimizer_callback(OptProb& prob, BSPTrustRegionSQP& opt) {
 		opt.addMeritDoneCallback(boost::bind(&BSPProblemHelper::merit_done_callback, this, _1, _2));
+		//opt.addAlphaDoneCallback(boost::bind(&BSPProblemHelper::alpha_done_callback, this, _1, _2));
 	}
 
 	void configure_optimizer(OptProb& prob, BSPTrustRegionSQP& opt) {

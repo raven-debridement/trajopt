@@ -14,8 +14,8 @@ BSP_TYPEDEFS(
 		4, // state_dim
 		4, // state_noise_dim
 		2, // control_dim
-		2, // observe_dim
-		2, // observe_noise_dim
+		4, // observe_dim
+		4, // observe_noise_dim
 		10, // sigma_dof
 		14 // belief_dim
 );

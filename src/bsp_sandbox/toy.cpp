@@ -14,7 +14,7 @@ ToyBSPProblemHelper::ToyBSPProblemHelper() : BSPProblemHelper<ToyBeliefFunc>() {
 	set_observe_dim(2);
 	set_control_dim(2);
 	set_state_bounds(DblVec(2, -10), DblVec(2, 10));
-	set_control_bounds(DblVec(2, -0.9), DblVec(2, 0.9));
+	set_control_bounds(DblVec(2, -0.8), DblVec(2, 0.8));
 	set_variance_cost(VarianceT::Identity(state_dim, state_dim));
 	set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
 	set_control_cost(ControlCostT::Identity(control_dim, control_dim));
@@ -55,13 +55,16 @@ ObserveT ToyObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) con
 	ObserveT z(observe_dim);
 	z(0) = x(0) + 0.1*n(0);
 	z(1) = x(1) + 0.1*n(1);
+	//double noise = sqrt((double)(0.5*0.5*x(0)*x(0) + 0.01));
+	//z(0) = x(0) + noise*n(0);
+	//z(1) = x(1) + noise*n(1);
 	return z;
 }
 
-ToyBeliefFunc::ToyBeliefFunc() : BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>(), tol(0.1), alpha(0.5) {}
+ToyBeliefFunc::ToyBeliefFunc() : BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>(), tol(0.2), alpha(0.5) {}
 
 ToyBeliefFunc::ToyBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-    		tol(0.1), alpha(0.5), BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>(helper, f, h), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
+    		tol(0.2), alpha(0.5), BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>(helper, f, h), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
 
 bool ToyBeliefFunc::sgndist(const Vector2d& x, Vector2d* dists) const {
 	Vector2d p1; p1 << 0, 2;
@@ -124,11 +127,12 @@ void ToyPlotter::paintEvent(QPaintEvent* ) {
 			for (int i = 0; i < width(); ++i) {
 				double x = unscale_x(i),
 						y = unscale_y(j);
-				Vector2d dists;
 				Vector2d pos; pos << x, y;
+				Vector2d dists;
 				toy_helper->belief_func->sgndist(pos, &dists);
 				double grayscale = fmax(1./(1. + exp(toy_helper->belief_func->alpha*dists(0))),
 						1./(1. + exp(toy_helper->belief_func->alpha*dists(1))));
+				//double grayscale = ((abs(x)-7)*(abs(x)-7))/49;
 				line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
 			}
 		}
@@ -244,13 +248,14 @@ void ToyOptimizerTask::run() {
 	BSPTrustRegionSQP opt(prob);
 	opt.max_iter_ = 100;
 	opt.merit_error_coeff_ = 10;
-	opt.merit_coeff_increase_ratio_= 1;
-	opt.trust_shrink_ratio_ = 0.25;
+	opt.merit_coeff_increase_ratio_= 1.1;
+	opt.max_merit_coeff_increases_ = 5;
+	opt.trust_shrink_ratio_ = 0.1;
 	opt.trust_expand_ratio_ = 1.5;
-	opt.min_trust_box_size_ = 0.01;
+	opt.min_trust_box_size_ = 0.005;
 	opt.min_approx_improve_ = 0.01;
 	opt.min_approx_improve_frac_ = 1e-4;
-	opt.improve_ratio_threshold_ = 0.2;
+	opt.improve_ratio_threshold_ = 0.25;
 	opt.trust_box_size_ = 1;
 
 	helper->configure_optimizer(*prob, opt);

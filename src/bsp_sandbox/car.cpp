@@ -11,32 +11,33 @@ namespace CarBSP {
 CarBSPProblemHelper::CarBSPProblemHelper() : BSPProblemHelper<CarBeliefFunc>() {
 	input_dt = 0.25;
 	carlen = 0.5;
-	goaleps = 0.01;
+	goaleps = 0.1;
 
 	set_state_dim(4);
 	set_sigma_dof(10);
-	set_observe_dim(3);
+	set_observe_dim(4);
 	set_control_dim(2);
 
-	double state_lbs_array[] = {-10, -5, -PI, 0};
-	double state_ubs_array[] = {10, 5, PI, 2};
+	double state_lbs_array[] = {-10, -5, -PI*1.25, 0};
+	double state_ubs_array[] = {10, 5, PI*1.25, 3};
 	double control_lbs_array[] = {-PI*0.25, -1};
-	double control_ubs_array[] = {PI*0.25, 1};
+	double control_ubs_array[] = {PI*0.25, 1.5};
+
 	set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
 	set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
-	set_variance_cost(VarianceT::Identity(state_dim, state_dim)*10);
-	set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
-	set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.1);
+	set_variance_cost(VarianceT::Identity(state_dim, state_dim));
+	set_final_variance_cost(VarianceT::Identity(state_dim, state_dim)*10);
+	set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.5);
 }
 
 void CarBSPProblemHelper::add_goal_constraint(OptProb& prob) {
 	for (int i = 0; i < 2; ++i) {
-		prob.addLinearConstraint(exprSub(AffExpr(state_vars.at(T, i)), goal(i)), EQ);
+		//prob.addLinearConstraint(exprSub(AffExpr(state_vars.at(T, i)), goal(i)), EQ);
 
 		// box constraint of buffer goaleps around goal position
-		//Var optvar = state_vars.at(T, i);
-		//prob.addLinearConstraint(exprSub(AffExpr(optvar), (goal(i)+goaleps) ), INEQ);
-		//prob.addLinearConstraint(exprSub(exprSub(AffExpr(0), AffExpr(optvar)), (-goal(i)+goaleps) ), INEQ);
+		Var optvar = state_vars.at(T, i);
+		prob.addLinearConstraint(exprSub(AffExpr(optvar), (goal(i)+goaleps) ), INEQ);
+		prob.addLinearConstraint(exprSub(exprSub(AffExpr(0), AffExpr(optvar)), (-goal(i)+goaleps) ), INEQ);
 	}
 }
 
@@ -159,9 +160,10 @@ void CarBSPProblemHelper::RRTplan(bool compute) {
 
 		cout << "T: " << init_controls.size() << endl;
 	} else {
-		ifstream fptr("/home/sachin/Workspace/bspfov/trajopt/data/car-rrt.txt", ios::in);
+		ifstream fptr("/home/sachin/Workspace/bspfov/trajopt/data/car-rrt-seq.txt", ios::in);
 		if (!fptr.is_open()) {
-			cout << "Could not open file, check location" << endl;
+			cerr << "Could not open file, check location" << endl;
+			std::exit(-1);
 		}
 		int nu;
 		fptr >> nu;
@@ -219,7 +221,8 @@ StateT CarStateFunc::operator()(const StateT& x, const ControlT& u, const StateN
 	new_x = x + car_helper->input_dt/6.0*(x1+2.0*(x2+x3)+x4);
 
 	double umag = u.squaredNorm();
-	return new_x + 0.01*umag*m;
+	//return new_x + 0.1*umag*m;
+	return new_x + 0.1*m;
 }
 
 CarObserveFunc::CarObserveFunc() : ObserveFunc<StateT, ObserveT, ObserveNoiseT>() {}
@@ -232,6 +235,12 @@ ObserveT CarObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) con
 	out(0) = x(0) + 0.01 * n(0);
 	out(1) = x(1) + 0.01 * n(1);
 	out(2) = x(2) + 0.01 * n(2);
+	out(3) = x(3) + 0.01 * n(3);
+
+	//double noise = sqrt((double)(0.5*0.5*x(0)*x(0) + 0.01));
+	//out(0) = x(0) + noise*n(0);
+	//out(1) = x(1) + noise*n(1);
+	//out(2) = x(3) + noise*n(2);
 	return out;
 }
 
@@ -255,9 +264,16 @@ ObserveMatT CarBeliefFunc::compute_gamma(const StateT& x) const {
 	double gamma2 = 1. - (1./(1.+exp(-alpha*(dists(1)+tol))));
 	ObserveMatT gamma(observe_dim, observe_dim);
 	//gamma << gamma1, 0, 0, gamma2;
-	gamma << gamma1, 0, 0,
-			 0, gamma2, 0,
-			 0, 0, 1;
+
+	//gamma << gamma1, 0, 0,
+	//		 0, gamma2, 0,
+	//		 0, 0, 1;
+
+	gamma << gamma1, 0, 0, 0,
+			 0, gamma2, 0, 0,
+			 0, 0, 1, 0,
+			 0, 0, 0, 1;
+
 	return gamma;
 }
 
@@ -270,10 +286,15 @@ ObserveMatT CarBeliefFunc::compute_inverse_gamma(const StateT& x) const {
 	ObserveMatT invgamma(observe_dim, observe_dim);
 	gamma1 = std::max(gamma1, minval);
 	gamma2 = std::max(gamma2, minval);
-	invgamma << 1/gamma1, 0, 0,
-			    0, 1/gamma2, 0,
-			    0, 0, 1;
+	//invgamma << 1/gamma1, 0, 0,
+	//		    0, 1/gamma2, 0,
+	//		    0, 0, 1;
 	//invgamma << 1/gamma1, 0, 0, 1/gamma2;
+	invgamma << 1/gamma1, 0, 0, 0,
+		        0, 1/gamma2, 0, 0,
+		        0, 0, 1, 0,
+		        0, 0, 0, 1;
+
 	return invgamma;
 }
 
@@ -308,11 +329,12 @@ void CarPlotter::paintEvent(QPaintEvent* ) {
 			for (int i = 0; i < width(); ++i) {
 				double x = unscale_x(i),
 						y = unscale_y(j);
-				Vector2d dists;
 				Vector2d pos; pos << x, y;
+				Vector2d dists;
 				car_helper->belief_func->sgndist(pos, &dists);
 				double grayscale = fmax(1./(1. + exp(car_helper->belief_func->alpha*dists(0))),
 						1./(1. + exp(car_helper->belief_func->alpha*dists(1))));
+				//double grayscale = ((abs(x)-7)*(abs(x)-7))/49;
 				line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
 			}
 		}
@@ -325,7 +347,7 @@ void CarPlotter::paintEvent(QPaintEvent* ) {
 	painter.setRenderHint(QPainter::HighQualityAntialiasing);
 	painter.setPen(cvx_cov_pen);
 	for (int i = 0; i < states_opt.size(); ++i) {
-		draw_ellipse(states_opt[i], sigmas_opt[i], painter, 0.5);
+		draw_ellipse(states_opt[i].head<2>(), sigmas_opt[i].topLeftCorner(2,2), painter, 0.5);
 	}
 	painter.setPen(path_pen);
 	for (int i = 0; i < states_opt.size() - 1; ++i) {
@@ -344,7 +366,7 @@ void CarPlotter::paintEvent(QPaintEvent* ) {
 	QPen cvx_cov_pen2(Qt::blue, 3, Qt::SolidLine);
 	painter.setPen(cvx_cov_pen2);
 	for (int i = 0; i < states_actual.size(); ++i) {
-		draw_ellipse(states_actual[i], sigmas_actual[i], painter, 0.5);
+		draw_ellipse(states_actual[i].head<2>(), sigmas_actual[i].topLeftCorner(2,2), painter, 0.5);
 	}
 	QPen pos_pen2(Qt::blue, 8, Qt::SolidLine);
 	painter.setPen(pos_pen2);
@@ -358,7 +380,7 @@ void CarPlotter::update_plot_data(OptProb*, DblVec& xvec) {
 	vector<MatrixXd> new_sigmas_opt, new_sigmas_actual;
 	old_alpha = cur_alpha;
 	cur_alpha = car_helper->belief_func->alpha;
-	car_helper->belief_func->alpha = 1000;
+	//car_helper->belief_func->alpha = 100;
 	BeliefT cur_belief_opt, cur_belief_actual;
 	car_helper->belief_func->compose_belief(car_helper->start, car_helper->start_sigma, &cur_belief_actual);
 	int T = car_helper->get_T();
@@ -409,7 +431,7 @@ void CarOptimizerTask::emit_plot_message(OptProb* prob, DblVec& xvec) {
 void CarOptimizerTask::run() {
 	bool plotting = false;
 
-	double start_vec_array[] = {-5, 2, -PI*0.25, 0.2};
+	double start_vec_array[] = {-5, 2, -PI*0.5, 0.2};
 	double goal_vec_array[] = {-5, -2, 0, 0};
 
 	vector<double> start_vec(start_vec_array, end(start_vec_array));
@@ -426,7 +448,7 @@ void CarOptimizerTask::run() {
 
 	Vector4d start = toVectorXd(start_vec);
 	Vector4d goal = toVectorXd(goal_vec);
-	Matrix4d start_sigma = Matrix4d::Identity();
+	Matrix4d start_sigma = Matrix4d::Identity()*1.5;
 	//start_sigma << 1, 0, 0, 0,
 	//               0, 1, 0, 0,
 	//               0, 0, 1, 0,
@@ -436,6 +458,7 @@ void CarOptimizerTask::run() {
 
 	//int T = 30;
 
+	/*
 	CarBSPProblemHelperPtr helper(new CarBSPProblemHelper());
 	helper->initialize();
 	helper->start = start;
@@ -447,27 +470,72 @@ void CarOptimizerTask::run() {
 
 	BSPTrustRegionSQP opt(prob);
 	opt.max_iter_ = 100;
-	opt.merit_error_coeff_ = 10;
-	opt.merit_coeff_increase_ratio_ = 1;
-	opt.trust_shrink_ratio_ = 0.25;
+	opt.merit_error_coeff_ = 5;
+	opt.merit_coeff_increase_ratio_ = 2;
+	opt.max_merit_coeff_increases_ = 10;
+	opt.trust_shrink_ratio_ = 0.1;
 	opt.trust_expand_ratio_ = 1.5;
-	opt.min_trust_box_size_ = 1e-3;
+	opt.min_trust_box_size_ = 0.001;
 	opt.min_approx_improve_ = 1e-2;
 	opt.min_approx_improve_frac_ = 1e-4;
-	opt.improve_ratio_threshold_ = 0.2;
+	opt.improve_ratio_threshold_ = 0.25;
 	opt.trust_box_size_ = 1;
+	opt.cnt_tolerance_ = 1e-06;
+	opt.max_alpha_increases_ = 5;
+	*/
 
-	helper->configure_optimizer(*prob, opt);
+	CarBSPProblemHelperPtr helper(new CarBSPProblemHelper());
+	helper->initialize();
+	helper->start = start;
+	helper->goal = goal;
+	helper->start_sigma = start_sigma;
+	helper->RRTplan(false);
+	helper->T = (int)helper->init_controls.size();
+	helper->configure_problem(*prob);
 
 	boost::shared_ptr<CarPlotter> plotter;
 	if (plotting) {
-		double x_min = -10, x_max = 10, y_min = -5, y_max = 5;
+		double x_min = -7, x_max = 7, y_min = -5, y_max = 5;
 		plotter.reset(create_plotter<CarPlotter>(x_min, x_max, y_min, y_max, helper));
 		plotter->show();
-		opt.addCallback(boost::bind(&CarOptimizerTask::emit_plot_message, boost::ref(this), _1, _2));
 	}
 
-	opt.optimize();
+	for(int i =0; i < 5; ++i)
+	{
+		BSPTrustRegionSQP opt(prob);
+		opt.max_iter_ = 100;
+		opt.merit_error_coeff_ = 10;
+		opt.merit_coeff_increase_ratio_ = 10;
+		opt.max_merit_coeff_increases_ = 3;
+		opt.trust_shrink_ratio_ = 0.1;
+		opt.trust_expand_ratio_ = 1.5;
+		opt.min_trust_box_size_ = 0.001;
+		opt.min_approx_improve_ = 1e-2;
+		opt.min_approx_improve_frac_ = 1e-4;
+		opt.improve_ratio_threshold_ = 0.25;
+		opt.trust_box_size_ = 1;
+		opt.cnt_tolerance_ = 1e-06;
+
+		helper->configure_optimizer(*prob, opt);
+
+		if (plotting) {
+			opt.addCallback(boost::bind(&CarOptimizerTask::emit_plot_message, boost::ref(this), _1, _2));
+		}
+
+		opt.optimize();
+
+		DblVec& xvec = opt.x();
+		helper->init_controls.clear();
+		for (int i = 0; i < helper->T; ++i) {
+			ControlT uvec = (ControlT) getVec(xvec, helper->control_vars.row(i));
+			//cout << uvec.transpose() << endl;
+			helper->init_controls.push_back(uvec);
+		}
+		helper->belief_func->alpha *= 3;
+	}
+
+	//opt.optimize2();
+
 	if (!plotting) {
 		emit finished_signal();
 	}

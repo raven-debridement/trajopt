@@ -87,8 +87,6 @@ public:
 
 	virtual BeliefT operator()(const BeliefT& b, const ControlT& u) const {
 
-		cout << "observe_dim: " << observe_dim << " observe_noise_dim: " << observe_noise_dim << " state_dim: " << state_dim << " state_noise_dim: " << state_noise_dim << endl;
-
 		StateT             x(state_dim), new_x(state_dim);
 		BeliefT            new_b(belief_dim);
 		VarianceT          sigma(state_dim, state_dim);
@@ -116,8 +114,8 @@ public:
 		// linearize the observation function around current point
 		h->linearize(new_x, zero_observe_noise, &H, &N);
 
-		H = sensor_constrained_observe_state_gradient(H, new_x);//gamma*H;
-		//N = sensor_constrained_observe_noise_gradient(N, new_x);//N/gamma;
+		//H = sensor_constrained_observe_state_gradient(H, new_x);//gamma*H;
+		N = sensor_constrained_observe_noise_gradient(N, new_x);//N/gamma;
 
 		K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose()));
 

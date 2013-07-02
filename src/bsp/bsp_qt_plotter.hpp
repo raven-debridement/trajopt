@@ -32,7 +32,7 @@ namespace BSP {
   protected:
     virtual void closeEvent(QCloseEvent*);
     virtual void keyPressEvent(QKeyEvent* event);
-    void draw_ellipse(const VectorXd& mean, const MatrixXd& cov, QPainter& painter, double scale_factor=1);
+    void draw_ellipse(const Vector2d& mean, const Matrix2d& cov, QPainter& painter, double scale_factor=1);
     void draw_ellipse(double cx, double cy, double mx, double my, double theta, QPainter& painter);
     void draw_line(double x1, double y1, double x2, double y2, QPainter& painter);
     void draw_point(double x, double y, QPainter& painter);
