@@ -147,6 +147,7 @@ namespace ArmBSP {
     Beam2D camera;
     int n_fov_parts;
     virtual void initialize();
+    ArmBSPPlanner();
   };
 
   typedef boost::shared_ptr<ArmBSPPlanner> ArmBSPPlannerPtr;

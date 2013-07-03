@@ -87,6 +87,7 @@ namespace BSP {
       helper->start_sigma = start_sigma;
       helper->T = T;
       helper->initial_controls = controls;
+      helper->initialize();
       state_noise_mean = StateNoiseT::Zero(helper->state_noise_dim);
       state_noise_cov = StateNoiseCovT::Identity(helper->state_noise_dim, helper->state_noise_dim);
       observe_noise_mean = ObserveNoiseT::Zero(helper->observe_noise_dim);

@@ -8,6 +8,8 @@ using namespace BSP;
 
 namespace CarBSP {
 
+  CarBSPPlanner::CarBSPPlanner() : BSPPlanner<CarBSPProblemHelper>() {}
+
   void CarBSPPlanner::initialize() {
     assert(!initialized);
     helper.reset(new CarBSPProblemHelper());
@@ -15,9 +17,7 @@ namespace CarBSP {
     helper->goal = goal;
     helper->start_sigma = start_sigma;
     helper->initialize();
-    cout << "doing rrt plan" << endl;
     helper->RRTplan();
-    cout << "finished rrt plan" << endl;
     helper->T = (int) helper->initial_controls.size();
     state_noise_mean = StateNoiseT::Zero(helper->state_noise_dim);
     state_noise_cov = StateNoiseCovT::Identity(helper->state_noise_dim, helper->state_noise_dim);
@@ -289,7 +289,7 @@ namespace CarBSP {
    ProblemState(helper),
    car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
 
-  void CarPlotter::compute_distmap(QImage* distmap, StateT* state, double approx_factor) {
+  void CarPlotter::compute_distmap(QImage* distmap, double approx_factor) {
     assert(distmap != NULL);
     for (int j = 0; j < distmap->height(); ++j) {
       QRgb *line = (QRgb*) distmap->scanLine(j);
@@ -299,8 +299,13 @@ namespace CarBSP {
         Vector2d pos; pos << x, y;
         Vector2d dists;
         car_helper->belief_func->h->sgndist(pos, &dists);
-        double grayscale = fmax(1./(1. + exp(car_helper->belief_func->approx_factor*dists(0))),
-                                1./(1. + exp(car_helper->belief_func->approx_factor*dists(1))));
+        double grayscale;
+        if (approx_factor > 0) {
+          grayscale = fmax(1./(1. + exp(approx_factor*dists(0))),
+                           1./(1. + exp(approx_factor*dists(1))));
+        } else {
+          grayscale = dists(0) <= 0 || dists(1) <= 0 ? 1 : 0;
+        }
         line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
       }
     }
@@ -315,11 +320,7 @@ namespace CarBSP {
     if (cur_approx_factor != old_approx_factor || distmap.height() != height() || distmap.width() != width()) {
       // replot distmap
       distmap = QImage(width(), height(), QImage::Format_RGB32);
-      if (states_opt.size() > 0) {
-        compute_distmap(&distmap, &states_opt.back(), -1);
-      } else {
-        compute_distmap(&distmap, NULL, -1);
-      }
+      compute_distmap(&distmap, car_helper->belief_func->approx_factor);
     }
     painter.drawImage(0, 0, distmap);
     QPen cvx_cov_pen(Qt::red, 3, Qt::SolidLine);
@@ -399,11 +400,7 @@ namespace CarBSP {
   void CarSimulationPlotter::paintEvent(QPaintEvent* ) {
     QPainter painter(this);
     distmap = QImage(width(), height(), QImage::Format_RGB32);
-    if (simulated_positions.size() > 0) {
-      compute_distmap(&distmap, &simulated_positions.back(), -1);
-    } else {
-      compute_distmap(&distmap, NULL, -1);
-    }
+    compute_distmap(&distmap, -1);
     painter.drawImage(0, 0, distmap);
     if (simulated_positions.size() <= 0) {
       return;
@@ -494,9 +491,7 @@ namespace CarBSP {
     }
 
     while (!planner->finished()) {
-      if (plotting) {
-        planner->solve(opt_callback);
-      }
+      planner->solve(opt_callback);
       planner->simulate_execution();
       if (plotting) {
         emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);

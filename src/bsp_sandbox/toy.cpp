@@ -6,9 +6,7 @@ using namespace BSP;
 
 namespace ToyBSP {
 
-  ToyBSPProblemHelper::ToyBSPProblemHelper() : BSPProblemHelper<ToyBeliefFunc>() { initialize(); }
-
-  void ToyBSPProblemHelper::initialize() {
+  ToyBSPProblemHelper::ToyBSPProblemHelper() : BSPProblemHelper<ToyBeliefFunc>() {
     input_dt = 1.0;
     set_state_dim(2);
     set_sigma_dof(3);
@@ -107,34 +105,43 @@ namespace ToyBSP {
     set_approx_factor(0.5);
   }
 
-  ToyOptPlotter::ToyOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
+  ToyPlotter::ToyPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
    BSPQtPlotter(x_min, x_max, y_min, y_max, helper, parent),
    ProblemState(helper),
-   toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)),
-   old_approx_factor(-1), cur_approx_factor(-1), distmap(400, 400, QImage::Format_RGB32) {}
+   toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
 
-  void ToyOptPlotter::keyPressEvent(QKeyEvent*) {
-
+  void ToyPlotter::compute_distmap(QImage* distmap, double approx_factor) {
+    assert(distmap != NULL);
+    for (int j = 0; j < distmap->height(); ++j) {
+      QRgb *line = (QRgb*) distmap->scanLine(j);
+      for (int i = 0; i < distmap->width(); ++i) {
+        double x = unscale_x(i),
+               y = unscale_y(j);
+        Vector2d pos; pos << x, y;
+        Vector2d dists;
+        toy_helper->belief_func->h->sgndist(pos, &dists);
+        double grayscale;
+        if (approx_factor > 0) {
+          grayscale = fmax(1./(1. + exp(approx_factor*dists(0))),
+                           1./(1. + exp(approx_factor*dists(1))));
+        } else {
+          grayscale = dists(0) <= 0 || dists(1) <= 0 ? 1 : 0;
+        }
+        line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
+      }
+    }
   }
+
+  ToyOptPlotter::ToyOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
+   ToyPlotter(x_min, x_max, y_min, y_max, helper, parent),
+   old_approx_factor(-1), cur_approx_factor(-1), distmap(400, 400, QImage::Format_RGB32) {}
 
   void ToyOptPlotter::paintEvent(QPaintEvent* ) {
     QPainter painter(this);
     if (cur_approx_factor != old_approx_factor || distmap.height() != height() || distmap.width() != width()) {
       // replot distmap
       distmap = QImage(width(), height(), QImage::Format_RGB32);
-      for (int j = 0; j < height(); ++j) {
-        QRgb *line = (QRgb*) distmap.scanLine(j);
-        for (int i = 0; i < width(); ++i) {
-          double x = unscale_x(i),
-                 y = unscale_y(j);
-          Vector2d dists;
-          Vector2d pos; pos << x, y;
-          toy_helper->belief_func->h->sgndist(pos, &dists);
-          double grayscale = fmax(1./(1. + exp(toy_helper->belief_func->approx_factor*dists(0))),
-                                  1./(1. + exp(toy_helper->belief_func->approx_factor*dists(1))));
-          line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
-        }
-      }
+      compute_distmap(&distmap, toy_helper->belief_func->approx_factor);
     }
     painter.drawImage(0, 0, distmap);
     QPen cvx_cov_pen(Qt::red, 3, Qt::SolidLine);
@@ -143,16 +150,16 @@ namespace ToyBSP {
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::HighQualityAntialiasing);
     painter.setPen(cvx_cov_pen);
-    for (int i = 0; i < states.size(); ++i) {
-      draw_ellipse(states[i], sigmas[i], painter, 0.5);
+    for (int i = 0; i < states_opt.size(); ++i) {
+      draw_ellipse(states_opt[i], sigmas_opt[i], painter, 0.5);
     }
     painter.setPen(path_pen);
-    for (int i = 0; i < states.size() - 1; ++i) {
-      draw_line(states[i](0), states[i](1), states[i+1](0), states[i+1](1), painter);
+    for (int i = 0; i < states_opt.size() - 1; ++i) {
+      draw_line(states_opt[i](0), states_opt[i](1), states_opt[i+1](0), states_opt[i+1](1), painter);
     }
     painter.setPen(pos_pen);
-    for (int i = 0; i < states.size(); ++i) {
-      draw_point(states[i](0), states[i](1), painter);
+    for (int i = 0; i < states_opt.size(); ++i) {
+      draw_point(states_opt[i](0), states_opt[i](1), painter);
     }
 
     // draw beliefs computed using belief dynamics
@@ -170,11 +177,11 @@ namespace ToyBSP {
 
   void ToyOptPlotter::update_plot_data(void* data) {
     DblVec* xvec = (DblVec* ) data;
-    vector<VectorXd> new_states_opt, new_states_actual;
-    vector<MatrixXd> new_sigmas_opt, new_sigmas_actual;
-    old_alpha = cur_alpha;
-    cur_alpha = toy_helper->belief_func->alpha;
-    toy_helper->belief_func->alpha = 1000;
+    vector<StateT> new_states_opt, new_states_actual;
+    vector<VarianceT> new_sigmas_opt, new_sigmas_actual;
+    old_approx_factor = cur_approx_factor;
+    cur_approx_factor = toy_helper->belief_func->approx_factor;
+    toy_helper->belief_func->approx_factor = 1000;
     BeliefT cur_belief_opt, cur_belief_actual;
     toy_helper->belief_func->compose_belief(toy_helper->start, matrix_sqrt(toy_helper->start_sigma), &cur_belief_actual);
     int T = toy_helper->get_T();
@@ -194,20 +201,18 @@ namespace ToyBSP {
       new_states_actual.push_back(cur_state);
       new_sigmas_actual.push_back(cur_sigma);
       if (i < T) {
-        cur_belief_actual = toy_helper->belief_func->call(cur_belief_actual, (ControlT) getVec(xvec, toy_helper->control_vars.row(i)));
+        cur_belief_actual = toy_helper->belief_func->call(cur_belief_actual, (ControlT) getVec(*xvec, toy_helper->control_vars.row(i)));
       }
     }
 
     states_opt = new_states_opt; states_actual = new_states_actual;
     sigmas_opt = new_sigmas_opt; sigmas_actual = new_sigmas_actual;
-    toy_helper->belief_func->alpha = cur_alpha;
+    toy_helper->belief_func->approx_factor = cur_approx_factor;
     this->repaint();
   }
 
   ToySimulationPlotter::ToySimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
-   BSPQtPlotter(x_min, x_max, y_min, y_max, helper, parent),
-   ProblemState(helper),
-   toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)),
+   ToyPlotter(x_min, x_max, y_min, y_max, helper, parent),
    distmap(400, 400, QImage::Format_RGB32) {}
 
   void ToySimulationPlotter::paintEvent(QPaintEvent* ) {
@@ -215,19 +220,7 @@ namespace ToyBSP {
     if (distmap.height() != height() || distmap.width() != width()) {
       // replot distmap
       distmap = QImage(width(), height(), QImage::Format_RGB32);
-      for (int j = 0; j < height(); ++j) {
-        QRgb *line = (QRgb*) distmap.scanLine(j);
-        for (int i = 0; i < width(); ++i) {
-          double x = unscale_x(i),
-                 y = unscale_y(j);
-          Vector2d dists;
-          Vector2d pos; pos << x, y;
-          toy_helper->belief_func->h->sgndist(pos, &dists);
-          double grayscale = fmax(dists(0) <= 0 ? 1. : 0.,
-                                  dists(1) <= 0 ? 1. : 0.);
-          line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
-        }
-      }
+      compute_distmap(&distmap, -1);
     }
     painter.drawImage(0, 0, distmap);
     if (simulated_positions.size() <= 0) {
@@ -263,17 +256,11 @@ namespace ToyBSP {
     }
   }
 
-  void ToySimulationPlotter::update_plot_data(void* data_x, void* data_sim) {//DblVec& xvec, vector<StateT>& new_simulated_positions) {
-    cout << "start updating data" << endl;
-    //vector<StateT>* new_simulated_positions = ;
+  void ToySimulationPlotter::update_plot_data(void* data_x, void* data_sim) {
     simulated_positions = *((vector<StateT>*) data_sim);
-    //cout << "new simulated position size: " << new_simulated_positions.size() << endl;
-    //for (int i = 0; i < new_simulated_positions->size(); ++i) {
-    //  simulated_positions.push_back(new_simulated_positions->at(i));
-    //}
     DblVec* xvec = (DblVec* ) data_x;
-    vector<VectorXd> new_states;
-    vector<MatrixXd> new_sigmas;
+    vector<StateT> new_states;
+    vector<VarianceT> new_sigmas;
     BeliefT cur_belief;
     toy_helper->belief_func->compose_belief(toy_helper->start, matrix_sqrt(toy_helper->start_sigma), &cur_belief);
     for (int i = 0; i <= toy_helper->T; ++i) {
@@ -287,10 +274,8 @@ namespace ToyBSP {
     }
     states = new_states;
     sigmas = new_sigmas;
-    cout << "repainting" << endl;
 
     this->repaint();
-    cout << "repainted" << endl;
   }
 
   ToyOptimizerTask::ToyOptimizerTask(QObject* parent) : BSPOptimizerTask(parent) {}
@@ -353,13 +338,10 @@ namespace ToyBSP {
     }
 
     while (!planner->finished()) {
-      if (plotting) {
-        planner->solve(opt_callback);
-      }
+      planner->solve(opt_callback);
       planner->simulate_execution();
       if (plotting) {
         emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
-        //emit replot_signal(planner->result, planner->simulated_positions);
       }
     }
     emit finished_signal();

@@ -82,7 +82,7 @@ namespace CarBSP {
   protected:
     CarBSPProblemHelperPtr car_helper;
     CarPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
-    void compute_distmap(QImage* distmap, StateT* current_state, double approx_factor);
+    void compute_distmap(QImage* distmap, double approx_factor);
   };
 
   class CarOptPlotter : public CarPlotter {
@@ -124,6 +124,7 @@ namespace CarBSP {
   class CarBSPPlanner : public BSPPlanner<CarBSPProblemHelper> {
   public:
     virtual void initialize();
+    CarBSPPlanner();
   };
 
   typedef boost::shared_ptr<CarBSPPlanner> CarBSPPlannerPtr;

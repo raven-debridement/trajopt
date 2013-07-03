@@ -52,15 +52,6 @@ namespace ToyBSP {
     ToyBSPProblemHelperPtr toy_helper;
     ToyBeliefFunc();
     ToyBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h);
-//<<<<<<< HEAD
-//=======
-//    bool sgndist(const Vector2d& x, Vector2d* dists) const;
-//    virtual ObserveStateGradT sensor_constrained_observe_state_gradient(const ObserveStateGradT& H, const StateT& x) const;
-//    virtual ObserveNoiseGradT sensor_constrained_observe_noise_gradient(const ObserveNoiseGradT& N, const StateT& x) const;
-//    virtual VarianceT sensor_constrained_variance_reduction(const VarianceT& reduction, const StateT& x) const;
-//    virtual ObserveMatT compute_gamma(const StateT& x) const;
-//    virtual ObserveMatT compute_inverse_gamma(const StateT& x) const;
-//>>>>>>> bsp
   };
 
   class ToyBSPProblemHelper : public BSPProblemHelper<ToyBeliefFunc> {
@@ -68,10 +59,16 @@ namespace ToyBSP {
     typedef typename BeliefConstraint<ToyBeliefFunc>::Ptr BeliefConstraintPtr;
     double input_dt;
     ToyBSPProblemHelper();
-    virtual void initialize();
   };
 
-  class ToyOptPlotter : public BSPQtPlotter, public ProblemState {
+  class ToyPlotter : public BSPQtPlotter, public ProblemState {
+  protected:
+    ToyBSPProblemHelperPtr toy_helper;
+    ToyPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    void compute_distmap(QImage* distmap, double approx_factor);
+  };
+
+  class ToyOptPlotter : public ToyPlotter {
     Q_OBJECT
   public:
     ToyOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
@@ -79,32 +76,22 @@ namespace ToyBSP {
     virtual void update_plot_data(void* data);
   protected:
     double old_approx_factor, cur_approx_factor;
-    ToyBSPProblemHelperPtr toy_helper;
     QImage distmap;
-//    vector<VectorXd> states;
-//    vector<MatrixXd> sigmas;
-    vector<VectorXd> states_opt, states_actual;
-    vector<MatrixXd> sigmas_opt, sigmas_actual;
+    vector<StateT> states_opt, states_actual;
+    vector<VarianceT> sigmas_opt, sigmas_actual;
     virtual void paintEvent(QPaintEvent*);
-    virtual void keyPressEvent(QKeyEvent*);
   };
 
-  class ToySimulationPlotter : public BSPQtPlotter, public ProblemState {
+  class ToySimulationPlotter : public ToyPlotter {
     Q_OBJECT
   public:
     ToySimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
-  //public slots:
-    virtual void update_plot_data(void* data_x, void* data_sim);//DblVec& x, vector<StateT>& sim);
+    virtual void update_plot_data(void* data_x, void* data_sim);
   protected:
-    ToyBSPProblemHelperPtr toy_helper;
     QImage distmap;
-//<<<<<<< HEAD
-    vector<VectorXd> states;
-    vector<MatrixXd> sigmas;
+    vector<StateT> states;
+    vector<VarianceT> sigmas;
     vector<StateT> simulated_positions;
-//=======
-
-//>>>>>>> bsp
     virtual void paintEvent(QPaintEvent*);
   };
 
@@ -115,8 +102,6 @@ namespace ToyBSP {
     ToyOptimizerTask(int argc, char **argv, QObject* parent=NULL);
     virtual void run();
     void stage_plot_callback(boost::shared_ptr<ToyOptPlotter> plotter, OptProb*, DblVec& x);
-  //signals:
-    //void replot_signal(DblVec& x, vector<StateT>& sim);
   };
 }
 

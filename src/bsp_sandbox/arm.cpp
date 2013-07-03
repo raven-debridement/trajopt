@@ -5,6 +5,8 @@ using namespace Geometry2D;
 
 namespace ArmBSP {
 
+  ArmBSPPlanner::ArmBSPPlanner() : BSPPlanner<ArmBSPProblemHelper>() {}
+
   void ArmBSPPlanner::initialize() {
     BSPPlanner<ArmBSPProblemHelper>::initialize(); 
     helper->link_lengths = link_lengths;
@@ -15,9 +17,7 @@ namespace ArmBSP {
     partition(camera, n_fov_parts, &helper->partitioned_fov);
   }
   
-  ArmBSPProblemHelper::ArmBSPProblemHelper() : BSPProblemHelper<ArmBeliefFunc>() { initialize(); }
-
-  void ArmBSPProblemHelper::initialize() {
+  ArmBSPProblemHelper::ArmBSPProblemHelper() : BSPProblemHelper<ArmBeliefFunc>() {
     input_dt = 1.0;
     set_state_dim(5);
     set_sigma_dof(15);
@@ -28,6 +28,10 @@ namespace ArmBSP {
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim) * 0.1);
+  }
+
+  void ArmBSPProblemHelper::initialize() {
+    BSPProblemHelper<ArmBeliefFunc>::initialize();
     belief_constraints.clear();
     truncate_beams(partitioned_fov, angle_to_segments(start.head<3>()), &cur_fov);
   }
@@ -397,9 +401,7 @@ namespace ArmBSP {
     }
 
     while (!planner->finished()) {
-      if (plotting) {
-        planner->solve(opt_callback);
-      }
+      planner->solve(opt_callback);
       planner->simulate_execution();
       if (plotting) {
         emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
