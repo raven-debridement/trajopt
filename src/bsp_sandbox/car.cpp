@@ -450,7 +450,7 @@ namespace CarBSP {
 
 
   void CarOptimizerTask::run() {
-    bool plotting = false;
+    bool plotting = true;
 
     double start_vec_array[] = {-5, 2, -PI*0.5, 0.2};
     double goal_vec_array[] = {-5, -2, 0, 0};

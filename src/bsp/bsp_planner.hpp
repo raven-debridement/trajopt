@@ -64,6 +64,21 @@ namespace BSP {
       return (helper->T <= 0);
     }
 
+    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
+      opt.max_iter_                   = 100;
+      opt.merit_error_coeff_          = 10;
+      opt.merit_coeff_increase_ratio_ = 10;
+      opt.max_merit_coeff_increases_  = 3;
+      opt.trust_shrink_ratio_         = 0.1;
+      opt.trust_expand_ratio_         = 1.5;
+      opt.min_trust_box_size_         = 0.001;
+      opt.min_approx_improve_         = 1e-2;
+      opt.min_approx_improve_frac_    = 1e-4;
+      opt.improve_ratio_threshold_    = 0.25;
+      opt.trust_box_size_             = 1;
+      opt.cnt_tolerance_              = 1e-06;
+    }
+
     virtual void initialize() {
       assert(!initialized);
       helper.reset(new BSPProblemHelperT());
@@ -92,28 +107,16 @@ namespace BSP {
 
       for (int i = 0; i < n_alpha_iterations; ++i) {
         BSPTrustRegionSQP opt(prob);
-        opt.max_iter_ = 100;
-        opt.merit_error_coeff_ = 10;
-        opt.merit_coeff_increase_ratio_ = 10;
-        opt.max_merit_coeff_increases_ = 3;
-        opt.trust_shrink_ratio_ = 0.1;
-        opt.trust_expand_ratio_ = 1.5;
-        opt.min_trust_box_size_ = 0.001;
-        opt.min_approx_improve_ = 1e-2;
-        opt.min_approx_improve_frac_ = 1e-4;
-        opt.improve_ratio_threshold_ = 0.25;
-        opt.trust_box_size_ = 1;
-        opt.cnt_tolerance_ = 1e-06;
-
+        initialize_optimizer_parameters(opt);
         helper->configure_optimizer(*prob, opt);
         if (opt_callback) {
           opt.addCallback(opt_callback);
         }
         opt.optimize();
-        DblVec& xvec = opt.x();
+        this->result = opt.x();
         helper->initial_controls.clear();
         for (int i = 0; i < helper->get_T(); ++i) {
-          ControlT uvec = (ControlT) getVec(xvec, helper->control_vars.row(i));
+          ControlT uvec = (ControlT) getVec(result, helper->control_vars.row(i));
           helper->initial_controls.push_back(uvec);
         }
         helper->belief_func->approx_factor *= 3;
