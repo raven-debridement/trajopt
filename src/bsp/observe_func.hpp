@@ -46,6 +46,11 @@ namespace BSP {
     // the larger the approx_factor (> 0), the better the smooth approximation should be
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const = 0;
 
+    // Gives the observation in real case
+    virtual ObserveT real_observation(const StateT& x, const ObserveNoiseT& n) const {
+      return operator()(x, n);
+    }
+
     virtual BSPProblemHelperBasePtr get_helper() const {
       return helper;
     }

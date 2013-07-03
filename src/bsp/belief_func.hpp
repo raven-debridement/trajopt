@@ -101,12 +101,12 @@ namespace BSP {
       ObserveNoiseT      zero_observe_noise = ObserveNoiseT::Zero(observe_noise_dim);
       extract_state(b, &x);
       new_x = f->call(x, u, zero_state_noise);
-      return operator()(b, u, h->call(new_x, zero_observe_noise));
+      return operator()(b, u, zero_observe_noise, false);
     }
 
     // The full Kalman filter, used for replanning preparation phase (update current state
     // estimate based on the measurement)
-    virtual BeliefT operator()(const BeliefT& b, const ControlT& u, const ObserveT& z) const {
+    virtual BeliefT operator()(const BeliefT& b, const ControlT& u, const ObserveT& z, bool update_from_observe=false) const {
       StateT             x(state_dim), new_x(state_dim);
       BeliefT            new_b(belief_dim);
       VarianceT          sigma(state_dim, state_dim);
@@ -122,22 +122,25 @@ namespace BSP {
       extract_state(b, &x);
       extract_sigma(b, &sigma);
 
-      // linearize the state propagation function around current point
       f->linearize(x, u, zero_state_noise, &A, (ControlGradT*) NULL, &M);
 
       sigma = A*sigma*A.transpose() + M*M.transpose();
 
       new_x = f->call(x, u, zero_state_noise);
 
-      // linearize the observation function around current point
       h->linearize(new_x, zero_observe_noise, &H, &N, approx_factor);
 
-      //H = sensor_constrained_observe_state_gradient(H, new_x);//gamma*H;
-
-      //cout << "observe noise gradient: \n" << N << endl;
       K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose()));
 
-      new_x = new_x + K * (z - h->call(new_x, zero_observe_noise));
+      if (update_from_observe) {
+        new_x = new_x + K * (z - h->call(new_x, zero_observe_noise));
+        //cout << "A: " << A << endl;
+        //cout << "M: " << M << endl;
+        //cout << "kalman matrix: " << K << endl;
+        //cout << "H: " << H << endl;
+        //cout << "sigma before applying kalman: " << sigma << endl;
+        //cout << "sigma after applying kalman: " << sigma - K*(H*sigma) << endl;
+      }
 
       sigma = sigma - K*(H*sigma);
 
@@ -162,8 +165,8 @@ namespace BSP {
       return operator()(b, u);
     }
 
-    BeliefT call(const BeliefT& b, const ControlT& u, const ObserveT& z) const {
-      return operator()(b, u, z);
+    BeliefT call(const BeliefT& b, const ControlT& u, const ObserveT& z, bool update_from_observe=false) const {
+      return operator()(b, u, z, update_from_observe);
     }
 
     virtual void extract_state(const BeliefT& belief, StateT* output_state) const {

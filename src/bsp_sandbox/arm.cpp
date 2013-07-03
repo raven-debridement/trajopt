@@ -1,40 +1,44 @@
 #include "arm.hpp"
-#include <QApplication>
-#include <QtCore>
 
 using namespace BSP;
+using namespace Geometry2D;
 
 namespace ArmBSP {
 
-  class ArmBSPPlanner : public BSPPlanner<ArmBSPProblemHelper> {
-  public:
-    Vector2d goal_pos;
-
-    virtual void initialize() {
-      BSPPlanner<ArmBSPProblemHelper>::initialize(); 
-      helper->goal_pos = goal_pos;
-    }
-  };
+  void ArmBSPPlanner::initialize() {
+    BSPPlanner<ArmBSPProblemHelper>::initialize(); 
+    helper->link_lengths = link_lengths;
+    helper->base_config = base_config;
+    helper->real_object_pos = real_object_pos;
+    helper->camera = camera;
+    helper->n_fov_parts = n_fov_parts;
+    partition(camera, n_fov_parts, &helper->partitioned_fov);
+  }
   
-  typedef boost::shared_ptr<ArmBSPPlanner> ArmBSPPlannerPtr;
-
   ArmBSPProblemHelper::ArmBSPProblemHelper() : BSPProblemHelper<ArmBeliefFunc>() { initialize(); }
 
   void ArmBSPProblemHelper::initialize() {
     input_dt = 1.0;
-    set_state_dim(3);
-    set_sigma_dof(6);
-    set_observe_dim(3);
+    set_state_dim(5);
+    set_sigma_dof(15);
+    set_observe_dim(5);
     set_control_dim(3);
-    set_state_bounds(DblVec(3, -PI), DblVec(3, PI));
-    set_control_bounds(DblVec(3, -PI/4), DblVec(3, PI/4));
+    set_state_bounds(concat(DblVec(3, -INFINITY), DblVec(2, -15)), concat(DblVec(3, INFINITY), DblVec(2, 15)));
+    set_control_bounds(DblVec(3, -PI/8), DblVec(3, PI/8));
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 40);
-    set_control_cost(ControlCostT::Identity(control_dim, control_dim));
+    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
+    set_control_cost(ControlCostT::Identity(control_dim, control_dim) * 0.1);
     belief_constraints.clear();
+    truncate_beams(partitioned_fov, angle_to_segments(start.head<3>()), &cur_fov);
   }
 
-  TransT ArmBSPProblemHelper::angle_to_transform(const StateT& angle) const {
+  void ArmBSPProblemHelper::add_goal_constraint(OptProb& prob) {
+    VectorOfVectorPtr f(new ArmGoalError(boost::static_pointer_cast<ArmBSPProblemHelper>(this->shared_from_this())));
+    Vector2d coeffs = Vector2d::Ones();
+    prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, state_vars.row(T), coeffs, EQ, "goal")));
+  }
+
+  TransT ArmBSPProblemHelper::angle_to_transform(const Vector3d& angle) const {
     TransT mat(2, 3);
     double t0 = base_config(2) + angle(0);
     double t1 = t0 + angle(1);
@@ -44,12 +48,12 @@ namespace ArmBSP {
     return mat;
   }
 
-  Vector8d ArmBSPProblemHelper::angle_to_endpoints(const StateT& angle) const {
-    Vector3d l1; l1 << link_length(0), 0, 0;
-    Vector3d l2; l2 << link_length(0), link_length(1), 0;
-    Vector3d l3; l3 << link_length(0), link_length(1), link_length(2);
+  Vector8d ArmBSPProblemHelper::angle_to_endpoints(const Vector3d& angle) const {
+    Vector3d l1; l1 << link_lengths(0), 0, 0;
+    Vector3d l2; l2 << link_lengths(0), link_lengths(1), 0;
+    Vector3d l3; l3 << link_lengths(0), link_lengths(1), link_lengths(2);
     TransT mat = angle_to_transform(angle);
-    Vector6d res;
+    Vector8d res;
     res.segment<2>(0) = base_config.head<2>();
     res.segment<2>(2) = base_config.head<2>() + mat * l1;
     res.segment<2>(4) = base_config.head<2>() + mat * l2;
@@ -57,15 +61,21 @@ namespace ArmBSP {
     return res;
   }
 
-  Vector2d ArmBSPProblemHelper::angle_to_pos(const StateT& angle) const {
-    Vector3d l3; l3 << link_length(0), link_length(1), link_length(2);
+  vector<Segment> ArmBSPProblemHelper::angle_to_segments(const Vector3d& angle) const {
+    vector<Segment> segs;
+    Vector8d endpoints = angle_to_endpoints(angle);
+    Segment seg1; seg1.a = endpoints.segment<2>(0); seg1.b = endpoints.segment<2>(2);
+    Segment seg2; seg2.a = endpoints.segment<2>(2); seg2.b = endpoints.segment<2>(4);
+    Segment seg3; seg3.a = endpoints.segment<2>(4); seg3.b = endpoints.segment<2>(6);
+    segs.push_back(seg1); segs.push_back(seg2); segs.push_back(seg3);
+    return segs;
+  }
+
+  Vector2d ArmBSPProblemHelper::angle_to_pos(const Vector3d& angle) const {
+    Vector3d l3; l3 << link_lengths(0), link_lengths(1), link_lengths(2);
     TransT mat = angle_to_transform(angle);
     return mat * l3 + base_config.head<2>();
   }
-
-  //StateT ArmBSPProblemHelper::pos_to_angle(const Vector2d& x) const {
-
-  //}
 
   ArmStateFunc::ArmStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
 
@@ -73,7 +83,10 @@ namespace ArmBSP {
     StateFunc<StateT, ControlT, StateNoiseT>(helper), arm_helper(boost::static_pointer_cast<ArmBSPProblemHelper>(helper)) {}
 
   StateT ArmStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    return x + u + 0.01*m;
+    StateT ret;
+    ret.head<3>() = x.head<3>() + u + 0.01 * m.head<3>();
+    ret.tail<2>() = x.tail<2>() + 0.0001 * m.tail<2>();
+    return ret;
   }
 
   ArmObserveFunc::ArmObserveFunc() : ObserveFunc<StateT, ObserveT, ObserveNoiseT>() {}
@@ -81,12 +94,53 @@ namespace ArmBSP {
   ArmObserveFunc::ArmObserveFunc(BSPProblemHelperBasePtr helper) :
     ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), arm_helper(boost::static_pointer_cast<ArmBSPProblemHelper>(helper)) {}
 
+  inline double sigmoid(double x) {
+    return 1. / (1. + exp(-x));
+  }
+
   ObserveT ArmObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
-    return x + 0.1 * compute_inverse_gamma(x, -1) * n;
+    return operator()(x, n, -1);
   }
 
   ObserveT ArmObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const {
-    return x + 0.1 * compute_inverse_gamma(x, approx_factor) * n;
+    
+    ObserveT ret;
+    ret.head<3>() = x.head<3>() + 0.01 * n.head<3>();
+    vector<Beam2D> cur_fov;
+    truncate_beams(arm_helper->partitioned_fov, arm_helper->angle_to_segments(x.head<3>()), &cur_fov);
+    if (approx_factor < 0) {
+      if (inside(arm_helper->real_object_pos, cur_fov)) {
+        ret.tail<2>() = x.tail<2>() + 0.01 * n.tail<2>();
+      } else {
+        ret.tail<2>() = x.tail<2>() + 1000 * n.tail<2>();
+      }
+    } else {
+      double dist = Geometry2D::sgndist(x.tail<2>(), cur_fov);
+      double minval = 1e-4;
+      double tol = 0.1;
+      double gamma = 0.;
+      if (approx_factor > 0) {
+        gamma = 1. - sigmoid(approx_factor * (dist + tol));
+      } else {
+        gamma = (dist + tol) <= 0 ? 1 : 0;
+      }
+      double invgamma = 1. / fmax(gamma, minval);
+      ret.tail<2>() = x.tail<2>() + 0.1 * invgamma * n.tail<2>();
+    }
+    return ret;
+  }
+
+  ObserveT ArmObserveFunc::real_observation(const StateT& x, const ObserveNoiseT& n) const {
+    ObserveT ret;
+    ret.head<3>() = x.head<3>() + 0.01 * n.head<3>();
+    vector<Beam2D> cur_fov;
+    truncate_beams(arm_helper->partitioned_fov, arm_helper->angle_to_segments(x.head<3>()), &cur_fov);
+    if (inside(arm_helper->real_object_pos, cur_fov)) {
+      ret.tail<2>() = arm_helper->real_object_pos + + 0.01 * n.tail<2>();
+    } else {
+      ret.tail<2>() = x.tail<2>() + 1000 * n.tail<2>();
+    }
+    return ret;
   }
 
   bool ArmObserveFunc::sgndist(const Vector2d& x, Vector2d* dists) const {
@@ -95,54 +149,6 @@ namespace ArmBSP {
     (*dists)(0) = (x - p1).norm() - 0.5;
     (*dists)(1) = (x - p2).norm() - 0.5;
     return (*dists)(0) < 0 || (*dists)(1) < 0;
-  }
-
-  ObserveMatT ArmObserveFunc::compute_gamma(const StateT& x, double approx_factor) const {
-    double tol = 0.1;
-    Vector2d dists;
-    sgndist(arm_helper->angle_to_pos(x), &dists);
-    double gamma1, gamma2, gamma3;
-    if (approx_factor < 0) {
-      gamma1 = dists(0) <= 0 ? 1 : 0;
-      gamma2 = dists(0) <= 0 ? 1 : 0;
-      gamma3 = dists(1) <= 0 ? 1 : 0;
-    } else {
-      gamma1 = 1. - (1./(1.+exp(-approx_factor*(dists(0)+tol))));
-      gamma2 = 1. - (1./(1.+exp(-approx_factor*(dists(0)+tol))));
-      gamma3 = 1. - (1./(1.+exp(-approx_factor*(dists(1)+tol))));
-    }
-    ObserveMatT gamma(observe_dim, observe_dim);
-    gamma << gamma1, 0, 0,
-             0, gamma2, 0,
-             0, 0, gamma3;
-    return gamma;
-  }
-
-  ObserveMatT ArmObserveFunc::compute_inverse_gamma(const StateT& x, double approx_factor) const {
-    double tol = 0.1;
-    Vector2d dists;
-    sgndist(arm_helper->angle_to_pos(x), &dists);
-    double minval = 1e-4;
-    double invgamma1, invgamma2, invgamma3;
-
-    if (approx_factor < 0) {
-      invgamma1 = dists(0) <= 0 ? 1 : 1/minval;
-      invgamma2 = dists(0) <= 0 ? 1 : 1/minval;
-      invgamma3 = dists(1) <= 0 ? 1 : 1/minval;
-    } else {
-      double gamma1 = 1. - (1./(1.+exp(-approx_factor*(dists(0)+tol))));
-      double gamma2 = 1. - (1./(1.+exp(-approx_factor*(dists(0)+tol))));
-      double gamma3 = 1. - (1./(1.+exp(-approx_factor*(dists(1)+tol))));
-      invgamma1 = 1. / (fmax(gamma1, minval));
-      invgamma2 = 1. / (fmax(gamma2, minval));
-      invgamma3 = 1. / (fmax(gamma3, minval));
-    }
-
-    ObserveMatT invgamma(observe_dim, observe_dim);
-    invgamma << invgamma1, 0, 0,
-                0, invgamma2, 0,
-                0, 0, invgamma3;
-    return invgamma;
   }
 
   ArmBeliefFunc::ArmBeliefFunc() : BeliefFunc<ArmStateFunc, ArmObserveFunc, BeliefT>() {
@@ -154,59 +160,95 @@ namespace ArmBSP {
     set_approx_factor(0.5);
   }
 
-  ArmOptPlotter::ArmOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
+  ArmGoalError::ArmGoalError(ArmBSPProblemHelperPtr helper) : helper(helper) {}
+
+  VectorXd ArmGoalError::operator()(const VectorXd& a) const {
+    assert (a.size() == 5);
+    return a.tail<2>() - helper->angle_to_pos(a.head<3>());
+  }
+
+  ArmPlotter::ArmPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
    BSPQtPlotter(x_min, x_max, y_min, y_max, helper, parent),
    ProblemState(helper),
-   arm_helper(boost::static_pointer_cast<ArmBSPProblemHelper>(helper)),
-   old_approx_factor(-1), cur_approx_factor(-1), distmap(400, 400, QImage::Format_RGB32) {}
+   arm_helper(boost::static_pointer_cast<ArmBSPProblemHelper>(helper)) {}
 
-  void ArmOptPlotter::keyPressEvent(QKeyEvent*) {
-
+  void ArmPlotter::draw_robot(const Vector3d& x, QPainter& painter) {
+    Vector8d endpoints = arm_helper->angle_to_endpoints(x);
+    draw_line(endpoints(0), endpoints(1), endpoints(2), endpoints(3), painter);
+    draw_line(endpoints(2), endpoints(3), endpoints(4), endpoints(5), painter);
+    draw_line(endpoints(4), endpoints(5), endpoints(6), endpoints(7), painter);
   }
+
+  void ArmPlotter::compute_distmap(QImage* distmap, StateT* state, double approx_factor) {
+    assert(distmap != NULL);
+    vector<Beam2D> cur_fov;
+    vector<Segment> segs;
+    if (state != NULL) {
+      vector<Segment> segs = arm_helper->angle_to_segments(state->head<3>());
+      truncate_beams(arm_helper->partitioned_fov, segs, &cur_fov);
+    } else {
+      cur_fov = arm_helper->partitioned_fov;
+    }
+
+    for (int j = 0; j < distmap->height(); ++j) {
+      QRgb *line = (QRgb*) distmap->scanLine(j);
+      for (int i = 0; i < distmap->width(); ++i) {
+        double x = unscale_x(i),
+               y = unscale_y(j);
+        double dist = sgndist(Point(x, y), cur_fov);
+        double grayscale;
+        if (approx_factor > 0) {
+          grayscale = 1./(1. + exp(approx_factor*dist));
+        } else {
+          grayscale = dist <= 0 ? 1 : 0;
+        }
+        line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
+      }
+    }
+  }
+
+  ArmOptPlotter::ArmOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
+   ArmPlotter(x_min, x_max, y_min, y_max, helper, parent),
+   old_approx_factor(-1), cur_approx_factor(-1), distmap(400, 400, QImage::Format_RGB32) {}
 
   void ArmOptPlotter::paintEvent(QPaintEvent* ) {
     QPainter painter(this);
     if (cur_approx_factor != old_approx_factor || distmap.height() != height() || distmap.width() != width()) {
       // replot distmap
       distmap = QImage(width(), height(), QImage::Format_RGB32);
-      for (int j = 0; j < height(); ++j) {
-        QRgb *line = (QRgb*) distmap.scanLine(j);
-        for (int i = 0; i < width(); ++i) {
-          double x = unscale_x(i),
-                 y = unscale_y(j);
-          Vector2d dists;
-          Vector2d pos; pos << x, y;
-          arm_helper->belief_func->h->sgndist(pos, &dists);
-          double grayscale = fmax(1./(1. + exp(arm_helper->belief_func->approx_factor*dists(0))),
-                                  1./(1. + exp(arm_helper->belief_func->approx_factor*dists(1))));
-          line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
-        }
+      if (states.size() > 0) {
+        compute_distmap(&distmap, &states[0], arm_helper->belief_func->approx_factor);
+      } else {
+        compute_distmap(&distmap, NULL, arm_helper->belief_func->approx_factor);
       }
     }
-    painter.drawImage(0, 0, distmap);
-    QPen cvx_cov_pen(Qt::red, 2, Qt::SolidLine);
-    QPen path_pen(Qt::red, 2, Qt::SolidLine);
-    QPen pos_pen(Qt::red, 8, Qt::SolidLine);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::HighQualityAntialiasing);
-    painter.setPen(cvx_cov_pen);
-    for (int i = 0; i < states.size(); ++i) {
-      draw_ellipse(states[i], sigmas[i], painter, 0.5);
-    }
-    painter.setPen(path_pen);
-    for (int i = 0; i < states.size() - 1; ++i) {
-      draw_line(states[i](0), states[i](1), states[i+1](0), states[i+1](1), painter);
-    }
-    painter.setPen(pos_pen);
-    for (int i = 0; i < states.size(); ++i) {
-      draw_point(states[i](0), states[i](1), painter);
+    if (states.size() > 0) {
+      painter.drawImage(0, 0, distmap);
+      QPen robot_start_pen(QColor(255, 0, 0, 255), 4, Qt::SolidLine);
+      QPen robot_middle_pen(QColor(255, 0, 0, 100), 4, Qt::SolidLine);
+      QPen robot_end_pen(QColor(255, 0, 0, 255), 4, Qt::SolidLine);
+
+      painter.setRenderHint(QPainter::Antialiasing);
+      painter.setRenderHint(QPainter::HighQualityAntialiasing);
+      painter.setPen(robot_start_pen);
+      draw_robot(states[0].head<3>(), painter);
+
+      painter.setPen(robot_middle_pen);
+      for (int i = 1; i < states.size() - 1; ++i) {
+        draw_robot(states[i].head<3>(), painter);
+      }
+
+      if (states.size() > 1) {
+        painter.setPen(robot_end_pen);
+        draw_robot(states[states.size() - 1].head<3>(), painter);
+      }
     }
   }
 
   void ArmOptPlotter::update_plot_data(void* data) {
     DblVec* xvec = (DblVec* ) data;
-    vector<VectorXd> new_states;
-    vector<MatrixXd> new_sigmas;
+    vector<StateT> new_states;
+    vector<VarianceT> new_sigmas;
     old_approx_factor = cur_approx_factor;
     cur_approx_factor = arm_helper->belief_func->approx_factor;
     BeliefT cur_belief;
@@ -226,75 +268,48 @@ namespace ArmBSP {
   }
 
   ArmSimulationPlotter::ArmSimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
-   BSPQtPlotter(x_min, x_max, y_min, y_max, helper, parent),
-   ProblemState(helper),
-   arm_helper(boost::static_pointer_cast<ArmBSPProblemHelper>(helper)),
+   ArmPlotter(x_min, x_max, y_min, y_max, helper, parent),
    distmap(400, 400, QImage::Format_RGB32) {}
 
   void ArmSimulationPlotter::paintEvent(QPaintEvent* ) {
     QPainter painter(this);
-    if (distmap.height() != height() || distmap.width() != width()) {
-      // replot distmap
-      distmap = QImage(width(), height(), QImage::Format_RGB32);
-      for (int j = 0; j < height(); ++j) {
-        QRgb *line = (QRgb*) distmap.scanLine(j);
-        for (int i = 0; i < width(); ++i) {
-          double x = unscale_x(i),
-                 y = unscale_y(j);
-          Vector2d dists;
-          Vector2d pos; pos << x, y;
-          arm_helper->belief_func->h->sgndist(pos, &dists);
-          double grayscale = fmax(dists(0) <= 0 ? 1. : 0.,
-                                  dists(1) <= 0 ? 1. : 0.);
-          line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
-        }
-      }
+    distmap = QImage(width(), height(), QImage::Format_RGB32);
+    if (simulated_positions.size() > 0) {
+      compute_distmap(&distmap, &simulated_positions.back(), -1);
+    } else {
+      compute_distmap(&distmap, NULL, -1);
     }
     painter.drawImage(0, 0, distmap);
     if (simulated_positions.size() <= 0) {
       return;
     }
-    QPen path_pen(Qt::blue, 2, Qt::SolidLine);
-    QPen pos_pen(Qt::blue, 8, Qt::SolidLine);
+    QPen sim_prev_robot_pen(QColor(0, 0, 255, 100), 4, Qt::SolidLine);
+    QPen sim_cur_robot_pen(QColor(0, 0, 255, 255), 4, Qt::SolidLine);
+    QPen real_object_pos_pen(Qt::green, 8, Qt::SolidLine);
+    QPen object_position_belief_pen(Qt::blue, 4, Qt::SolidLine);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::HighQualityAntialiasing);
-    painter.setPen(path_pen);
+    painter.setPen(sim_prev_robot_pen);
     for (int i = 0; i < simulated_positions.size() - 1; ++i) {
-      draw_line(simulated_positions[i](0), simulated_positions[i](1), simulated_positions[i+1](0), simulated_positions[i+1](1), painter);
+      draw_robot(simulated_positions[i].head<3>(), painter);
     }
-    painter.setPen(pos_pen);
-    for (int i = 0; i < simulated_positions.size(); ++i) {
-      draw_point(simulated_positions[i](0), simulated_positions[i](1), painter);
+    painter.setPen(sim_cur_robot_pen);
+    if (simulated_positions.size() > 0) {
+      draw_robot(simulated_positions.back().head<3>(), painter);
     }
-
-    QPen opt_cvx_cov_pen(Qt::red, 2, Qt::SolidLine);
-    QPen opt_path_pen(Qt::red, 2, Qt::SolidLine);
-    QPen opt_pos_pen(Qt::red, 8, Qt::SolidLine);
-    painter.setPen(opt_cvx_cov_pen);
-    for (int i = 0; i < states.size(); ++i) {
-      draw_ellipse(states[i], sigmas[i], painter, 0.5);
-    }
-    painter.setPen(opt_path_pen);
-    for (int i = 0; i < states.size() - 1; ++i) {
-      draw_line(states[i](0), states[i](1), states[i+1](0), states[i+1](1), painter);
-    }
-    painter.setPen(opt_pos_pen);
-    for (int i = 0; i < states.size(); ++i) {
-      draw_point(states[i](0), states[i](1), painter);
+    painter.setPen(real_object_pos_pen);
+    draw_point(arm_helper->real_object_pos.x(), arm_helper->real_object_pos.y(), painter);
+    painter.setPen(object_position_belief_pen);
+    for (int i = 0; i < object_position_beliefs.size(); ++i) {
+      draw_point(object_position_beliefs[i].x(), object_position_beliefs[i].y(), painter);
     }
   }
 
-  void ArmSimulationPlotter::update_plot_data(void* data_x, void* data_sim) {//DblVec& xvec, vector<StateT>& new_simulated_positions) {
-    cout << "start updating data" << endl;
-    //vector<StateT>* new_simulated_positions = ;
+  void ArmSimulationPlotter::update_plot_data(void* data_x, void* data_sim) {
     simulated_positions = *((vector<StateT>*) data_sim);
-    //cout << "new simulated position size: " << new_simulated_positions.size() << endl;
-    //for (int i = 0; i < new_simulated_positions->size(); ++i) {
-    //  simulated_positions.push_back(new_simulated_positions->at(i));
-    //}
     DblVec* xvec = (DblVec* ) data_x;
-    vector<VectorXd> new_states;
-    vector<MatrixXd> new_sigmas;
+    vector<StateT> new_states;
+    vector<VarianceT> new_sigmas;
     BeliefT cur_belief;
     arm_helper->belief_func->compose_belief(arm_helper->start, arm_helper->start_sigma, &cur_belief);
     for (int i = 0; i <= arm_helper->T; ++i) {
@@ -308,10 +323,10 @@ namespace ArmBSP {
     }
     states = new_states;
     sigmas = new_sigmas;
-    cout << "repainting" << endl;
+
+    object_position_beliefs.push_back(new_states[0].tail<2>());
 
     this->repaint();
-    cout << "repainted" << endl;
   }
 
   ArmOptimizerTask::ArmOptimizerTask(QObject* parent) : BSPOptimizerTask(parent) {}
@@ -319,55 +334,57 @@ namespace ArmBSP {
   ArmOptimizerTask::ArmOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
   void ArmOptimizerTask::stage_plot_callback(boost::shared_ptr<ArmOptPlotter> plotter, OptProb*, DblVec& x) {
-    plotter->update_plot_data(&x);
+    wait_to_proceed(boost::bind(&ArmOptPlotter::update_plot_data, plotter, &x));
   }
 
   void ArmOptimizerTask::run() {
-    int T = 20;
+    int T = 30;
     bool plotting = true;
-    double base_vec_array[] = {-5, 2, 0};
-    double start_vec_array[] = {PI/4, 0, 0};
-    double goal_vec_array[] = {-5, 0};
+    double base_vec_array[] = {0, -1, 0};
+    double start_vec_array[] = {PI/4+PI/16, PI/2, PI/4+PI/16, -4, 9};
     vector<double> base_vec(base_vec_array, end(base_vec_array));
     vector<double> start_vec(start_vec_array, end(start_vec_array));
-    vector<double> goal_vec(goal_vec_array, end(goal_vec_array));
     {
       Config config;
       config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
       config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
-      config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
       CommandParser parser(config);
       parser.read(argc, argv, true);
     }
-    Vector3d start = toVectorXd(start_vec);
-    Vector2d goal_pos = toVectorXd(goal_vec);
-    Matrix3d start_sigma = Matrix3d::Identity() * 0.1;
+    Vector5d start = toVectorXd(start_vec);
+    Vector3d base_config = toVectorXd(base_vec);
+    Matrix5d start_sigma = Matrix5d::Identity() * 0.1;
+    start_sigma.block<2, 2>(3, 3) = Matrix2d::Identity() * 3;
 
     deque<Vector3d> initial_controls;
     for (int i = 0; i < T; ++i) {
       initial_controls.push_back(Vector3d::Zero());
     }
-    //deque<Vector2d> initial_controls;
-    //Vector2d control_step = (goal - start) / T;
-    //for (int i = 0; i < T; ++i) {
-    //  initial_controls.push_back(control_step);
-    //}
 
-    //typedef boost::shared_ptr< BSPPlanner<ArmBSPProblemHelper> > BSPPlannerPtr;
+    Vector3d link_lengths; link_lengths << 5, 4, 3;
 
-    ArmBSPPlannerPtr planner(new ArmBSPPlanner());//<ArmBSPProblemHelper>());
+    Beam2D camera;
+    camera.base = Point(0, 0);
+    camera.a = Point(5, 10);
+    camera.b = Point(-5, 10);
+
+    ArmBSPPlannerPtr planner(new ArmBSPPlanner());
 
     planner->start = start;
-    planner->goal_pos = goal_pos;
+    planner->base_config = base_config;
     planner->start_sigma = start_sigma;
+    planner->link_lengths = link_lengths;
     planner->T = T;
     planner->controls = initial_controls;
+    planner->camera = camera;
+    planner->n_fov_parts = 10;
+    planner->real_object_pos = Vector2d(2, 8);
     planner->initialize();
 
     boost::shared_ptr<ArmSimulationPlotter> sim_plotter;
     boost::shared_ptr<ArmOptPlotter> opt_plotter;
     if (plotting) {
-      double x_min = -10, x_max = 10, y_min = -10, y_max = 10;
+      double x_min = -15, x_max = 15, y_min = -15, y_max = 15;
       sim_plotter.reset(create_plotter<ArmSimulationPlotter>(x_min, x_max, y_min, y_max, planner->helper));
       sim_plotter->show();
       opt_plotter.reset(create_plotter<ArmOptPlotter>(x_min, x_max, y_min, y_max, planner->helper));
@@ -386,7 +403,6 @@ namespace ArmBSP {
       planner->simulate_execution();
       if (plotting) {
         emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
-        //emit replot_signal(planner->result, planner->simulated_positions);
       }
     }
     emit finished_signal();

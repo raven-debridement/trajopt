@@ -17,11 +17,18 @@ include_directories(
   ${MLPACK_INCLUDE_DIRS}
 )
 
-SET(toy_qt_headers toy.hpp)
-QT4_WRAP_CPP(toy_qt_headers_moc ${toy_qt_headers})
-add_executable(toy toy.cpp ${toy_qt_headers_moc})
-target_link_libraries(toy bsp trajopt ${QT_LIBRARIES} ${LIBXML2_LIBRARIES} ${MLPACK_LIBRARIES})
+#SET(toy_qt_headers toy.hpp)
+#QT4_WRAP_CPP(toy_qt_headers_moc ${toy_qt_headers})
+#add_executable(toy toy.cpp ${toy_qt_headers_moc})
+#target_link_libraries(toy bsp trajopt ${QT_LIBRARIES} ${LIBXML2_LIBRARIES} ${MLPACK_LIBRARIES})
 
+SET(arm_qt_headers arm.hpp)
+QT4_WRAP_CPP(arm_qt_headers_moc ${arm_qt_headers})
+add_executable(arm arm.cpp geometry_2d.cpp ${arm_qt_headers_moc})
+target_link_libraries(arm bsp trajopt ${QT_LIBRARIES} ${LIBXML2_LIBRARIES} ${MLPACK_LIBRARIES} ${Boost_LIBRARIES})
+
+add_executable(geometry_2d_test geometry_2d_test.cpp geometry_2d.cpp)
+target_link_libraries(geometry_2d_test bsp trajopt)
 #SET(car_qt_headers car.hpp)
 #QT4_WRAP_CPP(car_qt_headers_moc ${car_qt_headers})
 #add_executable(car car.cpp ${car_qt_headers_moc})

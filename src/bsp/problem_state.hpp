@@ -10,7 +10,6 @@ namespace BSP {
     int observe_noise_dim;
     int belief_dim;
     int sigma_dof;
-    int T;
     ProblemState() {}
     ProblemState(BSPProblemHelperBasePtr helper) {
       state_dim = helper->get_state_dim();
@@ -20,7 +19,6 @@ namespace BSP {
       observe_noise_dim = helper->get_observe_noise_dim();
       belief_dim = helper->get_belief_dim(); 
       sigma_dof = helper->get_sigma_dof(); 
-      T = helper->get_T(); 
     }
   };
 }

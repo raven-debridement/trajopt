@@ -15,10 +15,10 @@ namespace BSP {
     virtual void run() = 0;
 
     void wait_to_proceed(boost::function<void()> f) {
-      QEventLoop loop;
-      connect(this, SIGNAL(proceed_signal()), &loop, SLOT(quit()));
+      //QEventLoop loop;
+      //connect(this, SIGNAL(proceed_signal()), &loop, SLOT(quit()));
       f();
-      loop.exec();
+      //loop.exec();
     }
 
     template<class PlotterT>

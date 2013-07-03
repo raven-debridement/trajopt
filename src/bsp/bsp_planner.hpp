@@ -122,18 +122,25 @@ namespace BSP {
       for (int i = 0; i < nsteps; ++i) {
         StateNoiseT state_noise = sample_gaussian(state_noise_mean, state_noise_cov);
         ObserveNoiseT observe_noise = sample_gaussian(observe_noise_mean, observe_noise_cov);
-        // update actually position
+        // update actual position
         current_position = state_func->call(current_position, controls.front(), state_noise);
         simulated_positions.push_back(current_position);
-        // update observation (this should call the actual nonsmooth observation function)
-        ObserveT observe = observe_func->call(current_position, observe_noise);
+        // update observation
+        ObserveT observe = observe_func->real_observation(current_position, observe_noise);
         // update Kalman filter
         BeliefT belief(helper->belief_dim);
-        belief_func->compose_belief(start, start_sigma, &belief);
-        //cout << "estimated position before: " << helper-> << endl
-        belief = belief_func->call(belief, controls.front(), observe);
+        cout << "start before: " << start.transpose() << endl;
+        belief_func->compose_belief(start, matrix_sqrt(start_sigma), &belief);
+        {
+          double current_approx_factor = belief_func->approx_factor;
+          belief_func->approx_factor = -1;
+          belief = belief_func->call(belief, controls.front(), observe, true);
+          belief_func->approx_factor = current_approx_factor;
+        }
+        //belief_func->compose_belief(start, matrix_sqrt(start_sigma), &belief);
         belief_func->extract_state(belief, &start);
         belief_func->extract_sigma(belief, &start_sigma);
+        cout << "start after: " << start.transpose() << endl;
         controls.pop_front();
       }
       helper->initial_controls = controls;

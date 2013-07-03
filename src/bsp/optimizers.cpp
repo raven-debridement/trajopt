@@ -27,7 +27,7 @@ namespace BSP {
     if (x_.size() == 0) PRINT_AND_THROW("you forgot to initialize!");
     if (!prob_) PRINT_AND_THROW("you forgot to set the optimization problem");    
     
-    //x_ = prob_->getClosestFeasiblePoint(x_);
+    x_ = prob_->getClosestFeasiblePoint(x_);
 
     assert(x_.size() == prob_->getVars().size());
     assert(prob_->getCosts().size() > 0 || constraints.size() > 0);
@@ -35,6 +35,7 @@ namespace BSP {
     OptStatus retval = INVALID;
 
     for (int merit_increases=0; merit_increases < max_merit_coeff_increases_; ++merit_increases) { /* merit adjustment loop */
+      x_ = prob_->getClosestFeasiblePoint(x_);
       results_.cnt_viols = evaluateConstraintViols(constraints, x_);
       results_.cost_vals = evaluateCosts(prob_->getCosts(), x_);
       //assert(results_.n_func_evals == 0);
