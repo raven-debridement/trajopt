@@ -33,7 +33,7 @@ namespace BSP {
     return ((height() - y) / height()) * (y_max - y_min) + y_min;
   }
 
-  void BSPQtPlotter::draw_ellipse(const VectorXd& mean, const MatrixXd& cov, QPainter& painter, double scale_factor) {
+  void BSPQtPlotter::draw_ellipse(const Vector2d& mean, const Matrix2d& cov, QPainter& painter, double scale_factor) {
     assert(mean.size() == 2);
     assert(cov.rows() == 2 && cov.cols() == 2);
     double cx = mean(0), cy = mean(1);

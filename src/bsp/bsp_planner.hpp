@@ -43,6 +43,7 @@ namespace BSP {
     StateT goal;
     int T;
     bool initialized;
+    int n_alpha_iterations;
     BSPProblemHelperPtr helper;
 
     deque<ControlT> controls;
@@ -56,6 +57,7 @@ namespace BSP {
     DblVec result;
 
     BSPPlanner() : initialized(false) {
+      n_alpha_iterations = 5;
     }
 
     bool finished() {
@@ -81,34 +83,44 @@ namespace BSP {
 
     void solve(boost::function<void(OptProb*, DblVec&)>& opt_callback) {
       assert (initialized);
-      cout << "start mean:\n" << helper->start.transpose() << endl;
-      cout << "start sigma:\n" << helper->start_sigma << endl;
+
       OptProbPtr prob(new OptProb());
       helper->start = start;
       helper->start_sigma = start_sigma;
       helper->initialize();
       helper->configure_problem(*prob);
-      BSPTrustRegionSQP opt(prob);
-      opt.max_iter_ = 50;
-      opt.merit_error_coeff_ = 10;
-      opt.merit_coeff_increase_ratio_ = 1;
-      opt.trust_shrink_ratio_ = 0.5;
-      opt.trust_expand_ratio_ = 1.25;
-      opt.min_trust_box_size_ = 1e-3;
-      opt.min_approx_improve_ = 1e-2;
-      opt.min_approx_improve_frac_ = 1e-4;
-      opt.improve_ratio_threshold_ = 0.2;
-      opt.trust_box_size_ = 1;
-      helper->configure_optimizer(*prob, opt);
-      if (opt_callback) {
-        opt.addCallback(opt_callback);
+
+      for (int i = 0; i < n_alpha_iterations; ++i) {
+        BSPTrustRegionSQP opt(prob);
+        opt.max_iter_ = 100;
+        opt.merit_error_coeff_ = 10;
+        opt.merit_coeff_increase_ratio_ = 10;
+        opt.max_merit_coeff_increases_ = 3;
+        opt.trust_shrink_ratio_ = 0.1;
+        opt.trust_expand_ratio_ = 1.5;
+        opt.min_trust_box_size_ = 0.001;
+        opt.min_approx_improve_ = 1e-2;
+        opt.min_approx_improve_frac_ = 1e-4;
+        opt.improve_ratio_threshold_ = 0.25;
+        opt.trust_box_size_ = 1;
+        opt.cnt_tolerance_ = 1e-06;
+
+        helper->configure_optimizer(*prob, opt);
+        if (opt_callback) {
+          opt.addCallback(opt_callback);
+        }
+        opt.optimize();
+        DblVec& xvec = opt.x();
+        helper->initial_controls.clear();
+        for (int i = 0; i < helper->get_T(); ++i) {
+          ControlT uvec = (ControlT) getVec(xvec, helper->control_vars.row(i));
+          helper->initial_controls.push_back(uvec);
+        }
+        helper->belief_func->approx_factor *= 3;
       }
-      opt.optimize();
-      this->result = opt.results().x;
-      controls.clear();
-      for (int i = 0; i < helper->T; ++i) {
-        controls.push_back((ControlT) getVec(result, helper->control_vars.row(i)));
-      }
+
+      controls = helper->initial_controls;
+      
     }
     
     void simulate_executions(int nsteps) {
@@ -129,7 +141,6 @@ namespace BSP {
         ObserveT observe = observe_func->real_observation(current_position, observe_noise);
         // update Kalman filter
         BeliefT belief(helper->belief_dim);
-        cout << "start before: " << start.transpose() << endl;
         belief_func->compose_belief(start, matrix_sqrt(start_sigma), &belief);
         {
           double current_approx_factor = belief_func->approx_factor;
@@ -137,10 +148,8 @@ namespace BSP {
           belief = belief_func->call(belief, controls.front(), observe, true);
           belief_func->approx_factor = current_approx_factor;
         }
-        //belief_func->compose_belief(start, matrix_sqrt(start_sigma), &belief);
         belief_func->extract_state(belief, &start);
         belief_func->extract_sigma(belief, &start_sigma);
-        cout << "start after: " << start.transpose() << endl;
         controls.pop_front();
       }
       helper->initial_controls = controls;

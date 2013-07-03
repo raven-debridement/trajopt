@@ -52,6 +52,15 @@ namespace ToyBSP {
     ToyBSPProblemHelperPtr toy_helper;
     ToyBeliefFunc();
     ToyBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h);
+//<<<<<<< HEAD
+//=======
+//    bool sgndist(const Vector2d& x, Vector2d* dists) const;
+//    virtual ObserveStateGradT sensor_constrained_observe_state_gradient(const ObserveStateGradT& H, const StateT& x) const;
+//    virtual ObserveNoiseGradT sensor_constrained_observe_noise_gradient(const ObserveNoiseGradT& N, const StateT& x) const;
+//    virtual VarianceT sensor_constrained_variance_reduction(const VarianceT& reduction, const StateT& x) const;
+//    virtual ObserveMatT compute_gamma(const StateT& x) const;
+//    virtual ObserveMatT compute_inverse_gamma(const StateT& x) const;
+//>>>>>>> bsp
   };
 
   class ToyBSPProblemHelper : public BSPProblemHelper<ToyBeliefFunc> {
@@ -72,8 +81,10 @@ namespace ToyBSP {
     double old_approx_factor, cur_approx_factor;
     ToyBSPProblemHelperPtr toy_helper;
     QImage distmap;
-    vector<VectorXd> states;
-    vector<MatrixXd> sigmas;
+//    vector<VectorXd> states;
+//    vector<MatrixXd> sigmas;
+    vector<VectorXd> states_opt, states_actual;
+    vector<MatrixXd> sigmas_opt, sigmas_actual;
     virtual void paintEvent(QPaintEvent*);
     virtual void keyPressEvent(QKeyEvent*);
   };
@@ -87,9 +98,13 @@ namespace ToyBSP {
   protected:
     ToyBSPProblemHelperPtr toy_helper;
     QImage distmap;
+//<<<<<<< HEAD
     vector<VectorXd> states;
     vector<MatrixXd> sigmas;
     vector<StateT> simulated_positions;
+//=======
+
+//>>>>>>> bsp
     virtual void paintEvent(QPaintEvent*);
   };
 

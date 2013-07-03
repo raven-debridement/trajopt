@@ -15,9 +15,9 @@ namespace ToyBSP {
     set_observe_dim(2);
     set_control_dim(2);
     set_state_bounds(DblVec(2, -10), DblVec(2, 10));
-    set_control_bounds(DblVec(2, -0.9), DblVec(2, 0.9));
+    set_control_bounds(DblVec(2, -0.8), DblVec(2, 0.8));
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 40);
+    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim));
     belief_constraints.clear();
   }
@@ -58,7 +58,7 @@ namespace ToyBSP {
   }
 
   ObserveMatT ToyObserveFunc::compute_gamma(const StateT& x, double approx_factor) const {
-    double tol = 0.1;
+    double tol = 0.2;
     Vector2d dists;
     sgndist(x.head<2>(), &dists);
     double gamma1, gamma2;
@@ -76,7 +76,7 @@ namespace ToyBSP {
   }
 
   ObserveMatT ToyObserveFunc::compute_inverse_gamma(const StateT& x, double approx_factor) const {
-    double tol = 0.1;
+    double tol = 0.2;
     Vector2d dists;
     sgndist(x.head<2>(), &dists);
     double minval = 1e-4;
@@ -137,8 +137,8 @@ namespace ToyBSP {
       }
     }
     painter.drawImage(0, 0, distmap);
-    QPen cvx_cov_pen(Qt::red, 2, Qt::SolidLine);
-    QPen path_pen(Qt::red, 2, Qt::SolidLine);
+    QPen cvx_cov_pen(Qt::red, 3, Qt::SolidLine);
+    QPen path_pen(Qt::red, 3, Qt::SolidLine);
     QPen pos_pen(Qt::red, 8, Qt::SolidLine);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::HighQualityAntialiasing);
@@ -154,27 +154,53 @@ namespace ToyBSP {
     for (int i = 0; i < states.size(); ++i) {
       draw_point(states[i](0), states[i](1), painter);
     }
+
+    // draw beliefs computed using belief dynamics
+    QPen cvx_cov_pen2(Qt::blue, 3, Qt::SolidLine);
+    painter.setPen(cvx_cov_pen2);
+    for (int i = 0; i < states_actual.size(); ++i) {
+      draw_ellipse(states_actual[i], sigmas_actual[i], painter, 0.5);
+    }
+    QPen pos_pen2(Qt::blue, 8, Qt::SolidLine);
+    painter.setPen(pos_pen2);
+    for (int i = 0; i < states_actual.size(); ++i) {
+      draw_point(states_actual[i](0), states_actual[i](1), painter);
+    }
   }
 
   void ToyOptPlotter::update_plot_data(void* data) {
     DblVec* xvec = (DblVec* ) data;
-    vector<VectorXd> new_states;
-    vector<MatrixXd> new_sigmas;
-    old_approx_factor = cur_approx_factor;
-    cur_approx_factor = toy_helper->belief_func->approx_factor;
-    BeliefT cur_belief;
-    toy_helper->belief_func->compose_belief(toy_helper->start, toy_helper->start_sigma, &cur_belief);
-    for (int i = 0; i <= toy_helper->T; ++i) {
+    vector<VectorXd> new_states_opt, new_states_actual;
+    vector<MatrixXd> new_sigmas_opt, new_sigmas_actual;
+    old_alpha = cur_alpha;
+    cur_alpha = toy_helper->belief_func->alpha;
+    toy_helper->belief_func->alpha = 1000;
+    BeliefT cur_belief_opt, cur_belief_actual;
+    toy_helper->belief_func->compose_belief(toy_helper->start, matrix_sqrt(toy_helper->start_sigma), &cur_belief_actual);
+    int T = toy_helper->get_T();
+
+    for (int i = 0; i <= T; ++i) {
       StateT cur_state;
       VarianceT cur_sigma;
-      toy_helper->belief_func->extract_state(cur_belief, &cur_state);
-      toy_helper->belief_func->extract_sigma(cur_belief, &cur_sigma);
-      new_states.push_back(cur_state);
-      new_sigmas.push_back(cur_sigma);
-      if (i < toy_helper->T) cur_belief = toy_helper->belief_func->call(cur_belief, (ControlT) getVec(*xvec, toy_helper->control_vars.row(i)));
+
+      cur_belief_opt = (BeliefT) getVec(*xvec, toy_helper->belief_vars.row(i));
+      toy_helper->belief_func->extract_state(cur_belief_opt, &cur_state);
+      toy_helper->belief_func->extract_sigma(cur_belief_opt, &cur_sigma);
+      new_states_opt.push_back(cur_state);
+      new_sigmas_opt.push_back(cur_sigma);
+
+      toy_helper->belief_func->extract_state(cur_belief_actual, &cur_state);
+      toy_helper->belief_func->extract_sigma(cur_belief_actual, &cur_sigma);
+      new_states_actual.push_back(cur_state);
+      new_sigmas_actual.push_back(cur_sigma);
+      if (i < T) {
+        cur_belief_actual = toy_helper->belief_func->call(cur_belief_actual, (ControlT) getVec(xvec, toy_helper->control_vars.row(i)));
+      }
     }
-    states = new_states;
-    sigmas = new_sigmas;
+
+    states_opt = new_states_opt; states_actual = new_states_actual;
+    sigmas_opt = new_sigmas_opt; sigmas_actual = new_sigmas_actual;
+    toy_helper->belief_func->alpha = cur_alpha;
     this->repaint();
   }
 
@@ -220,8 +246,8 @@ namespace ToyBSP {
       draw_point(simulated_positions[i](0), simulated_positions[i](1), painter);
     }
 
-    QPen opt_cvx_cov_pen(Qt::red, 2, Qt::SolidLine);
-    QPen opt_path_pen(Qt::red, 2, Qt::SolidLine);
+    QPen opt_cvx_cov_pen(Qt::red, 3, Qt::SolidLine);
+    QPen opt_path_pen(Qt::red, 3, Qt::SolidLine);
     QPen opt_pos_pen(Qt::red, 8, Qt::SolidLine);
     painter.setPen(opt_cvx_cov_pen);
     for (int i = 0; i < states.size(); ++i) {
@@ -249,7 +275,7 @@ namespace ToyBSP {
     vector<VectorXd> new_states;
     vector<MatrixXd> new_sigmas;
     BeliefT cur_belief;
-    toy_helper->belief_func->compose_belief(toy_helper->start, toy_helper->start_sigma, &cur_belief);
+    toy_helper->belief_func->compose_belief(toy_helper->start, matrix_sqrt(toy_helper->start_sigma), &cur_belief);
     for (int i = 0; i <= toy_helper->T; ++i) {
       StateT cur_state;
       VarianceT cur_sigma;
@@ -343,9 +369,9 @@ namespace ToyBSP {
 using namespace ToyBSP;
 
 int main(int argc, char *argv[]) {
-  QApplication app(argc, argv);
-  ToyOptimizerTask* task = new ToyOptimizerTask(argc, argv, &app);
-  QTimer::singleShot(0, task, SLOT(run_slot()));
-  QObject::connect(task, SIGNAL(finished_signal()), &app, SLOT(quit()));
-  return app.exec();
+	QApplication app(argc, argv);
+	ToyOptimizerTask* task = new ToyOptimizerTask(argc, argv, &app);
+	QTimer::singleShot(0, task, SLOT(run_slot()));
+	QObject::connect(task, SIGNAL(finished_signal()), &app, SLOT(quit()));
+	return app.exec();
 }

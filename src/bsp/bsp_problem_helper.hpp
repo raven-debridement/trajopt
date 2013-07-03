@@ -74,9 +74,13 @@ namespace BSP {
 
     vector< BeliefConstraintPtr > belief_constraints;
 
-    BSPProblemHelper() { initialize(); }
-
-    virtual void initialize() {}
+    BSPProblemHelper() {} 
+    
+    virtual void initialize() {
+      state_func.reset(new StateFuncT(this->shared_from_this()));
+      observe_func.reset(new ObserveFuncT(this->shared_from_this()));
+      belief_func.reset(new BeliefFuncT(this->shared_from_this(), state_func, observe_func));
+    }
 
     virtual int get_state_dim() const { return state_dim; }
     virtual int get_control_dim() const { return control_dim; }
@@ -213,7 +217,7 @@ namespace BSP {
       assert(belief_func->helper);
       vector<BeliefT> init_beliefs;
       BeliefT cur_belief(belief_dim);
-      belief_func->compose_belief(start, start_sigma, &cur_belief);
+      belief_func->compose_belief(start, matrix_sqrt(start_sigma), &cur_belief);
       init_beliefs.push_back(cur_belief);
       for (int i = 0; i < T; ++i) {
         cur_belief = belief_func->call(cur_belief, initial_controls[i]);
@@ -228,10 +232,10 @@ namespace BSP {
     }
 
     virtual void merit_done_callback(OptProb*, DblVec& x) {
-      belief_func->scale_approx_factor(2.);
+      //belief_func->scale_approx_factor(2.);
 
       BeliefT cur_belief;
-      belief_func->compose_belief(start, start_sigma, &cur_belief);
+      belief_func->compose_belief(start, matrix_sqrt(start_sigma), &cur_belief);
       for (int i = 0; i < belief_dim; ++i) {
         x[belief_vars.at(0, i).var_rep->index] = cur_belief(i);
       }

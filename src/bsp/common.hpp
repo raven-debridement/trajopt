@@ -41,5 +41,5 @@ using namespace Eigen;
 
 // constants
 namespace BSP {
-  const double DefaultEpsilon = 0.00390625;
+  const double DefaultEpsilon = 0.0009765625;
 }

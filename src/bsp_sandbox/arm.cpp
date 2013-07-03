@@ -252,7 +252,7 @@ namespace ArmBSP {
     old_approx_factor = cur_approx_factor;
     cur_approx_factor = arm_helper->belief_func->approx_factor;
     BeliefT cur_belief;
-    arm_helper->belief_func->compose_belief(arm_helper->start, arm_helper->start_sigma, &cur_belief);
+    arm_helper->belief_func->compose_belief(arm_helper->start, matrix_sqrt(arm_helper->start_sigma), &cur_belief);
     for (int i = 0; i <= arm_helper->T; ++i) {
       StateT cur_state;
       VarianceT cur_sigma;
@@ -311,7 +311,7 @@ namespace ArmBSP {
     vector<StateT> new_states;
     vector<VarianceT> new_sigmas;
     BeliefT cur_belief;
-    arm_helper->belief_func->compose_belief(arm_helper->start, arm_helper->start_sigma, &cur_belief);
+    arm_helper->belief_func->compose_belief(arm_helper->start, matrix_sqrt(arm_helper->start_sigma), &cur_belief);
     for (int i = 0; i <= arm_helper->T; ++i) {
       StateT cur_state;
       VarianceT cur_sigma;
@@ -339,7 +339,7 @@ namespace ArmBSP {
 
   void ArmOptimizerTask::run() {
     int T = 30;
-    bool plotting = true;
+    bool plotting = false;
     double base_vec_array[] = {0, -1, 0};
     double start_vec_array[] = {PI/4+PI/16, PI/2, PI/4+PI/16, -4, 9};
     vector<double> base_vec(base_vec_array, end(base_vec_array));

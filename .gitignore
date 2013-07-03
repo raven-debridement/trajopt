@@ -21,6 +21,7 @@ build
 chromedriver.log
 *.swp
 *.swo
+*.swn
 tooltip/bin/data
 Testing/
 .svn
