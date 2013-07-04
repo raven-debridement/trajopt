@@ -11,17 +11,20 @@ namespace CarBSP {
 
   // This will generate a bunch of types like StateT, ControlT, etc.
   BSP_TYPEDEFS(
-      4, // state_dim
-      4, // state_noise_dim
-      2, // control_dim
-      4, // observe_dim
-      4, // observe_noise_dim
-      10, // sigma_dof
-      14 // belief_dim
+      8, // state_dim
+      8, // state_noise_dim
+      6, // control_dim
+      5, // observe_dim
+      5, // observe_noise_dim
+      36, // sigma_dof
+      44 // belief_dim
   );
 
-  // state: { x, y, angle, velocity }
-  // control: { theta, acceleration }
+  typedef Matrix<double, 8, 1> Vector8d;
+  typedef Matrix<double, 8, 8> Matrix8d;
+
+  // state: { x, y, angle, velocity, landmark1_x, landmark1_y, landmark2_x, landmark2_y }
+  // control: { theta, acceleration, landmark1_dx, landmark1_dy, landmark2_dx, landmark2_dy }
 
   class CarBSPProblemHelper;
   typedef boost::shared_ptr<CarBSPProblemHelper> CarBSPProblemHelperPtr;
@@ -43,7 +46,7 @@ namespace CarBSP {
 
     CarObserveFunc();
     CarObserveFunc(BSPProblemHelperBasePtr helper);
-    bool sgndist(const Vector2d& x, Vector2d* dists) const;
+    bool sgndist(const StateT& x, Vector2d* dists) const;
     ObserveMatT compute_gamma(const StateT& x, double approx_factor) const;
     ObserveMatT compute_inverse_gamma(const StateT& x, double approx_factor) const;
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
@@ -58,11 +61,14 @@ namespace CarBSP {
     CarBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h);
   };
 
+  typedef Vector4d RobotStateT;
+  typedef Vector2d RobotControlT;
+
   class CarBSPProblemHelper : public BSPProblemHelper<CarBeliefFunc> {
   public:
     struct RRTNode {
-      StateT x;
-      ControlT u;
+      RobotStateT x;
+      RobotControlT u;
       int bp;
     };
 
@@ -70,6 +76,9 @@ namespace CarBSP {
     double input_dt;
     double carlen;
     double goaleps;
+
+    double robot_state_dim;
+    double robot_control_dim;
 
     vector<Vector4d> rrt_edges;
 
@@ -82,7 +91,7 @@ namespace CarBSP {
   protected:
     CarBSPProblemHelperPtr car_helper;
     CarPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
-    void compute_distmap(QImage* distmap, double approx_factor);
+    void compute_distmap(QImage* distmap, StateT* state, double approx_factor);
   };
 
   class CarOptPlotter : public CarPlotter {
