@@ -126,5 +126,45 @@ int main() {
     cout << "should be half beam: " << beams[0] << endl;
     cout << "should be half beam: " << beams[1] << endl;
   }
+  {
+    cout << "cdf(standard_normal, 2.57) = " << cdf(standard_normal, 2.57) << endl;
+  }
+  {
+    double mean, cov;
+    double z = 0;
+    truncate_univariate_gaussian(z, 0, 1, &mean, &cov);
+    cout << "truncate standard gaussian (>=0). mean: " << mean << "; cov: " << cov << endl;
+  }
+  {
+    Vector2d c(-1, -1);
+    double d = 0;
+    Vector2d cur_mean(0, 0);
+    Matrix2d cur_cov = Matrix2d::Identity();
+    Vector2d new_mean;
+    Matrix2d new_cov;
+    truncate_gaussian(c, d, cur_mean, cur_cov, &new_mean, &new_cov);
+    cout << "truncated mean: " << new_mean.transpose() << endl;
+    cout << "truncated covariance: \n" << new_cov << endl;
+  }
+  {
+    Beam2D beam1;
+    beam1.base = Point(-1, -1);
+    beam1.a = Point(3, 0);
+    beam1.b = Point(0, 0);
+    Beam2D beam2;
+    beam2.base = Point(-1, -1);
+    beam2.a = Point(0, 0);
+    beam2.b = Point(0, 3);
+    vector<Beam2D> beams;
+    beams.push_back(beam1);
+    beams.push_back(beam2);
+    Vector2d cur_mean(0, 0);
+    Matrix2d cur_cov = Matrix2d::Identity();
+    Vector2d new_mean;
+    Matrix2d new_cov;
+    truncate_belief(beams, cur_mean, cur_cov, &new_mean, &new_cov);
+    cout << "truncated mean: " << new_mean.transpose() << endl;
+    cout << "truncated covariance: \n" << new_cov << endl;
+  }
   return 0;
 }

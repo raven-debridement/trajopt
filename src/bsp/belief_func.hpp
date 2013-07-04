@@ -142,7 +142,7 @@ namespace BSP {
         //cout << "sigma after applying kalman: " << sigma - K*(H*sigma) << endl;
       }
 
-      sigma = sigma - K*(H*sigma);
+      sigma = ensure_precision((VarianceT) (sigma - K*(H*sigma)));
 
       compose_belief(new_x, matrix_sqrt(sigma), &new_b);
 

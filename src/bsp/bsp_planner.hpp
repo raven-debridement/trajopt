@@ -126,6 +126,8 @@ namespace BSP {
       controls = helper->initial_controls;
       
     }
+
+    virtual void custom_simulation_update(StateT* state, VarianceT* sigma) {}
     
     void simulate_executions(int nsteps) {
       assert (initialized);
@@ -154,6 +156,7 @@ namespace BSP {
         }
         belief_func->extract_state(belief, &start);
         belief_func->extract_sigma(belief, &start_sigma);
+        custom_simulation_update(&start, &start_sigma);
         controls.pop_front();
       }
       helper->initial_controls = controls;

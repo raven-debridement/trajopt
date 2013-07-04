@@ -35,6 +35,18 @@ namespace Geometry2D {
     return (a - b).norm();
   }
 
+  double dist_to_line(const Point& p, const Point& v, const Point& w) {
+    // Return minimum distance between line segment vw and point p
+    double l2 = (v - w).squaredNorm();  // i.e. |w-v|^2 -  avoid a sqrt
+    if (l2 == 0.0) return dist(p, v);
+    // Consider the line extending the segment, parameterized as v + t (w - v).
+    // We find projection of point p onto the line. 
+    // It falls where t = [(p-v) . (w-v)] / |w-v|^2
+    double t = (p - v).dot(w - v) / l2;
+    Point projection = v + t * (w - v);
+    return dist(p, projection);
+  }
+
   double dist_to_segment(const Point& p, const Point& v, const Point& w) {
     // Return minimum distance between line segment vw and point p
     double l2 = (v - w).squaredNorm();  // i.e. |w-v|^2 -  avoid a sqrt
@@ -235,5 +247,52 @@ namespace Geometry2D {
       part_beam.b = Point(x1 + dx * (i + 1), y1 + dy * (i + 1));
       beams->push_back(part_beam);
     }
+  }
+
+  void truncate_univariate_gaussian(double x, double cur_mean, double cur_var, double *out_mean, double *out_var) {
+    double sd = sqrt(cur_var);
+    double y = (x - cur_mean) / sd;
+    double z = pdf(standard_normal, y) / cdf(standard_normal, y);
+    *out_mean = cur_mean - z * sd;
+    *out_var = cur_var * (1.0 - y*z - z*z);
+  }
+
+  //void truncate_standard_gaussian(double *mean, double *var, double z) {
+  //  double norm = m_sqrt_pi_2 * (1.0 - cdf(standard_normal, z * m_sqrt_1_2));
+  //  if (norm < 1e-2) { cout << "Likelihood of that truncation is very low: " << norm << endl; }
+  //  *mean = exp(-z*z*0.5) / norm;
+  //  *var = 1.0 + z*(*mean) - (*mean) * (*mean);
+  //}
+
+  void truncate_belief(const vector<Beam2D>& beams, const Vector2d& cur_mean, const Matrix2d& cur_cov, Vector2d* out_mean, Matrix2d* out_cov) {
+    assert (out_mean != NULL);
+    assert (out_cov != NULL);
+    Point p1 = beams[0].a;
+    Point p2 = beams.back().b;
+    Point max_point = p1;
+    double max_dist = 0.0;
+    if (feq(p1.x(), p2.x())) {
+      *out_mean = cur_mean;
+      *out_cov = cur_cov;
+      return;
+    }
+    for (int i = 0; i < beams.size(); ++i) {
+      const Beam2D &beam = beams[i];
+      double tmpdist;
+      cout << "beam : " << beam << endl;
+      if (!segment_intersects_segment(beam.base, beam.a, p1, p2) && (tmpdist = dist_to_line(beam.a, p1, p2)) > max_dist) {
+        max_dist = tmpdist;
+        max_point = beam.a;
+      }
+      if (!segment_intersects_segment(beam.base, beam.b, p1, p2) && (tmpdist = dist_to_line(beam.b, p1, p2)) > max_dist) {
+        max_dist = tmpdist;
+        max_point = beam.b;
+      }
+    }
+    cout << "max dist: " << max_dist << endl;
+    double x1 = p1.x(), y1 = p1.y(), x2 = p2.x(), y2 = p2.y(), x3 = max_point.x(), y3 = max_point.y();
+    Vector2d c; c << y1 - y2, x2 - x1;
+    double d = (y2 - y1) * x3 - (x2 - x1) * y3;
+    truncate_gaussian(c, d, cur_mean, cur_cov, out_mean, out_cov);
   }
 }

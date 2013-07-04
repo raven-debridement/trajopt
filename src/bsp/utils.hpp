@@ -128,4 +128,17 @@ namespace BSP {
     mlpack::distribution::GaussianDistribution distribution(to_arma_vec<MeanT>(mean), to_arma_mat<VarianceT>(cov));
     return to_eigen_vec<MeanT>(distribution.Random());
   }
+
+  template< class MatT >
+  MatT ensure_precision(const MatT& mat) {
+    MatT out = mat;
+    for (int i = 0; i < out.rows(); ++i) {
+      for (int j = 0; j < out.cols(); ++j) {
+        if (isnan(out(i, j))) {
+          out(i, j) = eps;
+        }
+      }
+    }
+    return out;
+  }
 }

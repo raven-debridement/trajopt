@@ -16,6 +16,36 @@ namespace ArmBSP {
     helper->n_fov_parts = n_fov_parts;
     partition(camera, n_fov_parts, &helper->partitioned_fov);
   }
+
+  Vector2d get_pos_within_region(const Vector2d& pos) {
+    Vector2d out = pos;
+    out.y() = fmax(fmin(out.y(), 10.), 0.);
+    if (out.x() < 0) {
+      out.x() = fmax(out.x(), -out.y() * 0.5);
+    } else {
+      out.x() = fmin(out.x(), out.y() * 0.5);
+    }
+    return out;
+  }
+
+  void ArmBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma) {
+    assert (state != NULL);
+    assert (sigma != NULL);
+    vector<Beam2D> cur_fov;
+    truncate_beams(helper->partitioned_fov, helper->angle_to_segments(state->head<3>()), &cur_fov);
+    if (!inside(real_object_pos, cur_fov)) { // truncate current belief if object is not in view
+      cout << "updating belief" << endl;
+      Vector2d new_state;
+      Matrix2d new_sigma;
+      truncate_belief(cur_fov, state->tail<2>(), sigma->bottomRightCorner<2, 2>(), &new_state, &new_sigma);
+      cout << "state before: " << state->tail<2>().transpose() << endl;
+      cout << "sigma before: " << sigma->bottomRightCorner<2, 2>().transpose() << endl;
+      state->tail<2>() = get_pos_within_region(new_state);
+      sigma->bottomRightCorner<2, 2>() = ensure_precision(new_sigma);
+      cout << "state after: " << state->tail<2>().transpose() << endl;
+      cout << "sigma after: " << sigma->bottomRightCorner<2, 2>().transpose() << endl;
+    }
+  }
   
   ArmBSPProblemHelper::ArmBSPProblemHelper() : BSPProblemHelper<ArmBeliefFunc>() {
     input_dt = 1.0;
@@ -24,7 +54,7 @@ namespace ArmBSP {
     set_observe_dim(5);
     set_control_dim(3);
     set_state_bounds(concat(DblVec(3, -INFINITY), DblVec(2, -15)), concat(DblVec(3, INFINITY), DblVec(2, 15)));
-    set_control_bounds(DblVec(3, -PI/8), DblVec(3, PI/8));
+    set_control_bounds(DblVec(3, -PI/32), DblVec(3, PI/32));
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim) * 0.1);
@@ -358,14 +388,14 @@ namespace ArmBSP {
     Vector5d start = toVectorXd(start_vec);
     Vector3d base_config = toVectorXd(base_vec);
     Matrix5d start_sigma = Matrix5d::Identity() * 0.1;
-    start_sigma.block<2, 2>(3, 3) = Matrix2d::Identity() * 3;
+    start_sigma.bottomRightCorner<2, 2>() = Matrix2d::Identity() * 200;
 
     deque<Vector3d> initial_controls;
     for (int i = 0; i < T; ++i) {
       initial_controls.push_back(Vector3d::Zero());
     }
 
-    Vector3d link_lengths; link_lengths << 5, 4, 3;
+    Vector3d link_lengths; link_lengths << 5, 5, 4;
 
     Beam2D camera;
     camera.base = Point(0, 0);
