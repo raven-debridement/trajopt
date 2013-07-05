@@ -17,7 +17,7 @@ namespace CarBSP {
     helper->goal = goal;
     helper->start_sigma = start_sigma;
     helper->initialize();
-    helper->RRTplan();
+    helper->RRTplan(false);
     helper->T = (int) helper->initial_controls.size();
     state_noise_mean = StateNoiseT::Zero(helper->state_noise_dim);
     state_noise_cov = StateNoiseCovT::Identity(helper->state_noise_dim, helper->state_noise_dim);
@@ -42,14 +42,22 @@ namespace CarBSP {
 
     double state_lbs_array[] = {-10, -5, -PI*1.25, 0, -10, -5, -10, -5};
     double state_ubs_array[] = {10, 5, PI*1.25, 3, 10, 5, 10, 5};
-    double control_lbs_array[] = {-PI*0.25, -1, -1.6, -1.6, -1.6, -1.6};
-    double control_ubs_array[] = {PI*0.25, 1.5, 1.6, 1.6, 1.6, 1.6};
+    double control_lbs_array[] = {-PI*0.25, -1, -6, -6, -6, -6};
+    double control_ubs_array[] = {PI*0.25, 1.5, 6, 6, 6, 6};
+    //double control_lbs_array[] = {-PI*0.25, -1, 0, 0, 0, 0};
+    //double control_ubs_array[] = {PI*0.25, 1.5, 0, 0, 0, 0};
 
     set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
-    set_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim)*10);
-    set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.5);
+
+    VarianceT variance_cost = VarianceT::Identity(state_dim, state_dim);
+    variance_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0.01;
+    set_variance_cost(variance_cost);//VarianceT::Identity(state_dim, state_dim));
+    set_final_variance_cost(variance_cost * 100);//VarianceT::Identity(state_dim, state_dim)*100);
+
+    ControlCostT control_cost = ControlCostT::Identity(control_dim, control_dim);
+    control_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0.1;//Zero();
+    set_control_cost(control_cost * 0.1);//ControlCostT::Identity(control_dim, control_dim)*0.1);
   }
 
   void CarBSPProblemHelper::add_goal_constraint(OptProb& prob) {
@@ -61,100 +69,124 @@ namespace CarBSP {
     }
   }
 
-  void CarBSPProblemHelper::RRTplan() {
+  void CarBSPProblemHelper::RRTplan(bool compute) {
+    if (compute) {
 
-    srand(time(0));
+      srand(time(0));
 
-    vector<RRTNode> rrtTree;
-    RRTNode startNode;
-    startNode.x = start.head<4>();
-    rrtTree.push_back(startNode);
+      vector<RRTNode> rrtTree;
+      RRTNode startNode;
+      startNode.x = start.head<4>();
+      rrtTree.push_back(startNode);
 
-    Vector2d poserr = (startNode.x.head<2>() - goal.head<2>());
+      Vector2d poserr = (startNode.x.head<2>() - goal.head<2>());
 
-    double state_lbs_array[] = {-6, -3, -PI, 0};
-    double state_ubs_array[] = {-3, 4, PI, 1};
-    double control_lbs_array[] = {-PI*0.25, -1};
-    double control_ubs_array[] = {PI*0.25, 1};
+      double state_lbs_array[] = {-6, -3, -PI, 0};
+      double state_ubs_array[] = {-3, 4, PI, 1};
+      double control_lbs_array[] = {-PI*0.25, -1};
+      double control_ubs_array[] = {PI*0.25, 1};
 
-    int numiter = 0;
-    while (poserr.squaredNorm() > goaleps*goaleps || numiter < 100) {
+      int numiter = 0;
+      while (poserr.squaredNorm() > goaleps*goaleps || numiter < 100) {
 
-      RobotStateT sample;
-      for (int xd = 0; xd < robot_state_dim; ++xd) {
-        sample(xd) = (((double) rand()) / RAND_MAX) * (state_ubs_array[xd] - state_lbs_array[xd]) + state_lbs_array[xd];
-      }
-
-      // Check sample for collisions, turned off for now
-
-      int node = -1;
-      double mindist = 9e99;
-      for (int j = 0; j < (int) rrtTree.size(); ++j) {
-        double ddist = (rrtTree[j].x - sample).squaredNorm();
-        if (ddist < mindist) {
-          mindist = ddist;
-          node = j;
+        cout << ".";
+        RobotStateT sample;
+        for (int xd = 0; xd < robot_state_dim; ++xd) {
+          sample(xd) = (((double) rand()) / RAND_MAX) * (state_ubs_array[xd] - state_lbs_array[xd]) + state_lbs_array[xd];
         }
-      }
-      if (node == -1) {
-        continue;
-      }
 
-      RobotControlT input;
-      for (int ud = 0; ud < robot_control_dim; ++ud) {
-        input(ud) = (((double) rand()) / RAND_MAX) * (control_ubs_array[ud] - control_lbs_array[ud]) + control_lbs_array[ud];
-      }
+        // Check sample for collisions, turned off for now
 
-      StateNoiseT zero_state_noise = StateNoiseT::Zero(state_noise_dim);
-      RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) concat(input, Vector4d::Zero()), zero_state_noise).head<4>();
-
-      bool valid = true;
-      for (int xd = 0; xd < robot_state_dim; ++xd) {
-        if (new_x(xd) < state_lbs[xd] || new_x(xd) > state_ubs[xd]) {
-          valid = false;
-          break;
+        int node = -1;
+        double mindist = 9e99;
+        for (int j = 0; j < (int) rrtTree.size(); ++j) {
+          double ddist = (rrtTree[j].x - sample).squaredNorm();
+          if (ddist < mindist) {
+            mindist = ddist;
+            node = j;
+          }
         }
+        if (node == -1) {
+          continue;
+        }
+
+        RobotControlT input;
+        for (int ud = 0; ud < robot_control_dim; ++ud) {
+          input(ud) = (((double) rand()) / RAND_MAX) * (control_ubs_array[ud] - control_lbs_array[ud]) + control_lbs_array[ud];
+        }
+
+        StateNoiseT zero_state_noise = StateNoiseT::Zero(state_noise_dim);
+        RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) concat(input, Vector4d::Zero()), zero_state_noise).head<4>();
+
+        bool valid = true;
+        for (int xd = 0; xd < robot_state_dim; ++xd) {
+          if (new_x(xd) < state_lbs[xd] || new_x(xd) > state_ubs[xd]) {
+            valid = false;
+            break;
+          }
+        }
+        if (!valid) {
+          continue;
+        }
+
+        // Check edge for collisions here, turned off for now
+
+        RRTNode newnode;
+        newnode.x = new_x;
+        newnode.u = input;
+        newnode.bp = node;
+
+        rrtTree.push_back(newnode);
+        Vector4d edge;
+        edge << rrtTree[node].x(0), rrtTree[node].x(1), newnode.x(0), newnode.x(1);
+        rrt_edges.push_back(edge);
+
+        poserr = (newnode.x.head<2>() - goal.head<2>());
+        ++numiter;
       }
-      if (!valid) {
-        continue;
-      }
+      cout << endl;
 
-      // Check edge for collisions here, turned off for now
+      deque<RRTNode> path;
 
-      RRTNode newnode;
-      newnode.x = new_x;
-      newnode.u = input;
-      newnode.bp = node;
-
-      rrtTree.push_back(newnode);
-      Vector4d edge;
-      edge << rrtTree[node].x(0), rrtTree[node].x(1), newnode.x(0), newnode.x(1);
-      rrt_edges.push_back(edge);
-
-      poserr = (newnode.x.head<2>() - goal.head<2>());
-      ++numiter;
-    }
-
-    deque<RRTNode> path;
-
-    int i = (int)rrtTree.size() - 1;
-    RRTNode node;
-    node.x = rrtTree[i].x;
-    node.u = RobotControlT::Zero(robot_control_dim);
-    path.push_front(node);
-
-    while (i != 0) {
-      node.u = rrtTree[i].u;
-      i = rrtTree[i].bp;
+      int i = (int)rrtTree.size() - 1;
+      RRTNode node;
       node.x = rrtTree[i].x;
-      node.bp = -1;
-
+      node.u = RobotControlT::Zero(robot_control_dim);
       path.push_front(node);
-    }
 
-    initial_controls.clear();
-    for (int i = 0; i < (int)path.size()-1; ++i) {
-      initial_controls.push_back((ControlT) concat(path[i].u, Vector4d::Zero()));
+      while (i != 0) {
+        node.u = rrtTree[i].u;
+        i = rrtTree[i].bp;
+        node.x = rrtTree[i].x;
+        node.bp = -1;
+
+        path.push_front(node);
+      }
+
+      initial_controls.clear();
+      for (int i = 0; i < (int)path.size()-1; ++i) {
+        initial_controls.push_back((ControlT) concat(path[i].u, Vector4d::Zero()));
+        cout << path[i].u(0) << " " << path[i].u(1) << endl;
+      }
+      cout << "T: " << initial_controls.size() << endl;
+    } else {
+
+      ifstream fptr("car-rrt-seq.txt", ios::in);
+      if (!fptr.is_open()) {
+        cerr << "Could not open file, check location" << endl;
+        std::exit(-1);
+      }
+      int nu;
+      fptr >> nu;
+      //cout << "nu: " << nu << endl;
+      initial_controls.clear();
+      ControlT u = ControlT::Zero(control_dim);
+      for (int i = 0; i < nu; ++i) {
+        fptr >> u(0) >> u(1);
+        initial_controls.push_back(u);
+        //cout << u(0) << " " << u(1) << endl;
+      }
+      if (fptr.is_open()) fptr.close();
     }
 
   }
@@ -196,10 +228,12 @@ namespace CarBSP {
 
     new_x = x + car_helper->input_dt/6.0*(x1+2.0*(x2+x3)+x4);
     new_x.tail<4>() = x.tail<4>() + u.tail<4>() * car_helper->input_dt;
+    new_x.head<4>() += 0.01 * m.head<4>();
+    new_x.tail<4>() += 0.01 * m.tail<4>();
 
     double umag = u.squaredNorm();
     //return new_x + 0.1*umag*m;
-    return new_x + 0.1*m;
+    return new_x;// + 0.01*m;
   }
 
   CarObserveFunc::CarObserveFunc() : ObserveFunc<StateT, ObserveT, ObserveNoiseT>() {}
@@ -207,11 +241,12 @@ namespace CarBSP {
   CarObserveFunc::CarObserveFunc(BSPProblemHelperBasePtr helper) :
     ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
 
-  ObserveT unnoisy_observation(const StateT& x) {
-    ObserveT ret;
+  ObserveT CarObserveFunc::unnoisy_observation(const StateT& x) const {
+    ObserveT ret(observe_dim);
     Vector2d car_pos = x.head<2>(), l1 = x.middleRows<2>(4), l2 = x.tail<2>();
     double car_angle = x(2), car_velocity = x(3);
     ret(0) = car_velocity;
+    //ret(1) = car_pos.x() - l1.x();
     ret(1) = (car_pos - l1).norm();
     ret(2) = atan2(car_pos.y() - l1.y(), car_pos.x() - l1.x()) - car_angle;
     ret(3) = (car_pos - l2).norm();
@@ -228,10 +263,8 @@ namespace CarBSP {
   }
 
   bool CarObserveFunc::sgndist(const StateT& x, Vector2d* dists) const {
-    //Vector2d p1; p1 << 0, 2;
-    //Vector2d p2; p2 << 0, -2;
-    (*dists)(0) = (x.head<2>() - x.middleRows<2>(4)).norm() - 0.5;
-    (*dists)(1) = (x.head<2>() - x.middleRows<2>(6)).norm() - 0.5;
+    (*dists)(0) = (x.head<2>() - x.middleRows<2>(4)).norm() - 1;
+    (*dists)(1) = (x.head<2>() - x.middleRows<2>(6)).norm() - 1;
     return (*dists)(0) < 0 || (*dists)(1) < 0;
   }
 
@@ -346,9 +379,9 @@ namespace CarBSP {
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::HighQualityAntialiasing);
     painter.setPen(cvx_cov_pen);
-    //for (int i = 0; i < states_opt.size(); ++i) {
-    //  draw_ellipse(states_opt[i].head<2>(), sigmas_opt[i].topLeftCorner(2,2), painter, 0.5);
-    //}
+    for (int i = 0; i < states_opt.size(); ++i) {
+      draw_ellipse(states_opt[i].head<2>(), sigmas_opt[i].topLeftCorner(2,2), painter, 0.5);
+    }
     painter.setPen(path_pen);
     for (int i = 0; i < states_opt.size() - 1; ++i) {
       draw_line(states_opt[i](0), states_opt[i](1), states_opt[i+1](0), states_opt[i+1](1), painter);
@@ -365,10 +398,10 @@ namespace CarBSP {
     QPen sensor_cov_pen(Qt::green, 3, Qt::SolidLine);
     QPen sensor_path_pen(Qt::green, 3, Qt::SolidLine);
     QPen sensor_pos_pen(Qt::green, 8, Qt::SolidLine);
-    //painter.setPen(sensor_cov_pen);
-    //for (int i = 0; i < states_opt.size(); ++i) {
-    //  draw_ellipse(states_opt[i].middleRows<2>(4), sigmas_opt[i].block<2, 2>(4, 4), painter, 0.5);
-    //}
+    painter.setPen(sensor_cov_pen);
+    for (int i = 0; i < states_opt.size(); ++i) {
+      draw_ellipse(states_opt[i].middleRows<2>(4), sigmas_opt[i].block<2, 2>(4, 4), painter, 0.5);
+    }
     painter.setPen(sensor_path_pen);
     for (int i = 0; i < states_opt.size() - 1; ++i) {
       draw_line(states_opt[i](4), states_opt[i](5), states_opt[i+1](4), states_opt[i+1](5), painter);
@@ -378,10 +411,10 @@ namespace CarBSP {
       draw_point(states_opt[i](4), states_opt[i](5), painter);
     }
 
-    //painter.setPen(sensor_cov_pen);
-    //for (int i = 0; i < states_opt.size(); ++i) {
-    //  draw_ellipse(states_opt[i].middleRows<2>(6), sigmas_opt[i].block<2, 2>(6, 6), painter, 0.5);
-    //}
+    painter.setPen(sensor_cov_pen);
+    for (int i = 0; i < states_opt.size(); ++i) {
+      draw_ellipse(states_opt[i].middleRows<2>(6), sigmas_opt[i].block<2, 2>(6, 6), painter, 0.5);
+    }
     painter.setPen(sensor_path_pen);
     for (int i = 0; i < states_opt.size() - 1; ++i) {
       draw_line(states_opt[i](6), states_opt[i](7), states_opt[i+1](6), states_opt[i+1](7), painter);
@@ -393,10 +426,10 @@ namespace CarBSP {
 
     // draw beliefs computed using belief dynamics
     QPen cvx_cov_pen2(Qt::blue, 3, Qt::SolidLine);
-    //painter.setPen(cvx_cov_pen2);
-    //for (int i = 0; i < states_actual.size(); ++i) {
-    //  draw_ellipse(states_actual[i].head<2>(), sigmas_actual[i].topLeftCorner(2,2), painter, 0.5);
-    //}
+    painter.setPen(cvx_cov_pen2);
+    for (int i = 0; i < states_actual.size(); ++i) {
+      draw_ellipse(states_actual[i].head<2>(), sigmas_actual[i].topLeftCorner(2,2), painter, 0.5);
+    }
     QPen pos_pen2(Qt::blue, 8, Qt::SolidLine);
     painter.setPen(pos_pen2);
     for (int i = 0; i < states_actual.size(); ++i) {
@@ -507,7 +540,8 @@ namespace CarBSP {
   CarOptimizerTask::CarOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
   void CarOptimizerTask::stage_plot_callback(boost::shared_ptr<CarOptPlotter> plotter, OptProb*, DblVec& x) {
-    wait_to_proceed(boost::bind(&CarOptPlotter::update_plot_data, plotter, &x));
+    plotter->update_plot_data(&x);
+    //wait_to_proceed(boost::bind(&CarOptPlotter::update_plot_data, plotter, &x));
   }
 
 
@@ -531,7 +565,8 @@ namespace CarBSP {
 
     Vector8d start = toVectorXd(start_vec);
     Vector8d goal = toVectorXd(goal_vec);
-    Matrix8d start_sigma = Matrix8d::Identity()*1.5;
+    Matrix8d start_sigma = Matrix8d::Identity()*0.25;
+    start_sigma.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 1;
 
     CarBSPPlannerPtr planner(new CarBSPPlanner());
     planner->start = start;
@@ -557,7 +592,7 @@ namespace CarBSP {
 
     while (!planner->finished()) {
       planner->solve(opt_callback);
-      planner->simulate_execution();
+      planner->simulate_executions(planner->helper->T);
       if (plotting) {
         emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
       }

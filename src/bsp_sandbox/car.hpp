@@ -49,6 +49,7 @@ namespace CarBSP {
     bool sgndist(const StateT& x, Vector2d* dists) const;
     ObserveMatT compute_gamma(const StateT& x, double approx_factor) const;
     ObserveMatT compute_inverse_gamma(const StateT& x, double approx_factor) const;
+    ObserveT unnoisy_observation(const StateT& x) const;
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const;
   };
@@ -82,7 +83,7 @@ namespace CarBSP {
 
     vector<Vector4d> rrt_edges;
 
-    virtual void RRTplan();
+    virtual void RRTplan(bool);
     virtual void add_goal_constraint(OptProb& prob);
     CarBSPProblemHelper();
   };

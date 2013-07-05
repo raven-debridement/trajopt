@@ -66,7 +66,7 @@ namespace BSP {
 
     virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
       opt.max_iter_                   = 100;
-      opt.merit_error_coeff_          = 10;
+      opt.merit_error_coeff_          = 100;
       opt.merit_coeff_increase_ratio_ = 10;
       opt.max_merit_coeff_increases_  = 3;
       opt.trust_shrink_ratio_         = 0.1;

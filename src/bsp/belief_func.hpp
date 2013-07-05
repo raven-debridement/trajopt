@@ -48,7 +48,7 @@ namespace BSP {
     const static int _observe_noise_dim = ObserveFuncT::_observe_noise_dim;
     const static int _belief_dim = MatrixTraits<BeliefT>::rows;
     
-    BOOST_STATIC_ASSERT( (_belief_dim >= _state_dim) );
+    BOOST_STATIC_ASSERT( (_belief_dim == -1 || _belief_dim >= _state_dim) );
 
     typedef typename StateFuncT::scalar_type scalar_type;
 
