@@ -1,8 +1,8 @@
 #pragma once
 
-#include <armadillo>
-#include <mlpack/core.hpp>
 #include "common.hpp"
+#include <boost/random.hpp>
+#include <boost/random/normal_distribution.hpp>
 
 #define BSP_TYPEDEFS(state_dim, state_noise_dim, control_dim, observe_dim, observe_noise_dim, sigma_dof, belief_dim) \
   typedef Matrix<double, state_dim, 1> StateT; \
@@ -102,31 +102,34 @@ namespace BSP {
 
   void AddVarArray(OptProb& prob, int rows, int cols, const string& name_prefix, VarArray& newvars);
 
-  template<class VecT>
-  arma::vec to_arma_vec(VecT x) {
-    return arma::conv_to<arma::vec>::from(toDblVec(x));
-  }
+  
 
-  template<class MatT>
-  arma::mat to_arma_mat(MatT m) {
-    arma::mat out(m.rows(), m.cols());
-    for (int i = 0; i < m.rows(); ++i) {
-      for (int j = 0; j < m.cols(); ++j) {
-        out(i, j) = m(i, j);
-      }
+  inline double normal() {
+    double u_1 = 0;
+    while (u_1 == 0) {
+      u_1 = random();
     }
-    return out;
-  }
-
-  template<class VecT>
-  VecT to_eigen_vec(arma::vec x) {
-    return (VecT) toVectorXd(arma::conv_to<DblVec>::from(x));
+    double u_2 = 0;
+    while (u_2 == 0) {
+      u_2 = random();
+    }
+    return sqrt(-2*log(u_1)) * sin(2*PI*u_2);
   }
 
   template<class MeanT, class VarianceT>
   MeanT sample_gaussian(const MeanT& mean, const VarianceT& cov) {
-    mlpack::distribution::GaussianDistribution distribution(to_arma_vec<MeanT>(mean), to_arma_mat<VarianceT>(cov));
-    return to_eigen_vec<MeanT>(distribution.Random());
+    static boost::normal_distribution<> standard_normal;
+    static boost::mt19937 rng;
+    static boost::variate_generator<boost::mt19937&, 
+                                    boost::normal_distribution<> > gen(rng, standard_normal);
+    MeanT sample(mean.size());
+    for (int i = 0; i < mean.size(); ++i) {
+      sample(i) = gen();
+    }
+    SelfAdjointEigenSolver<VarianceT> solver(cov);
+    return (solver.eigenvectors().real())
+         * (solver.eigenvalues().real().cwiseSqrt().asDiagonal())
+         * sample + mean;
   }
 
   template< class MatT >
