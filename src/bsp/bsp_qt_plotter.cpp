@@ -5,7 +5,7 @@ namespace BSP {
   BSPQtPlotter::BSPQtPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
    QWidget(parent), x_min(x_min), x_max(x_max), y_min(y_min), y_max(y_max), helper(helper) {
     QPalette pal = palette();
-    pal.setColor(backgroundRole(), Qt::white);
+    pal.setColor(backgroundRole(), Qt::black);
     setPalette(pal);
   }
 

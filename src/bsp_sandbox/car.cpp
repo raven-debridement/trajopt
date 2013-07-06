@@ -3,6 +3,7 @@
 #include <deque>
 #include <QApplication>
 #include <QtCore>
+#include <QPolygonF>
 
 using namespace BSP;
 
@@ -33,17 +34,20 @@ namespace CarBSP {
     carlen = 0.5;
     goaleps = 0.1;
 
+    car_camera_depth = 2;
+    car_camera_span_angle = PI / 3;
+
     set_state_dim(7);
     set_sigma_dof(28);
-    set_observe_dim(5);
+    set_observe_dim(4);
     set_control_dim(6);
     robot_state_dim = 3;
-    robot_control_dim = 3;
+    robot_control_dim = 2;
 
     double state_lbs_array[] = {-10, -5, -PI*1.25, -10, -5, -10, -5};
     double state_ubs_array[] = {10, 5, PI*1.25, 10, 5, 10, 5};
-    double control_lbs_array[] = {-PI*0.25, -1, 0, -6, -6, -6, -6};
-    double control_ubs_array[] = {PI*0.25, 1.5, 3, 6, 6, 6, 6};
+    double control_lbs_array[] = {-PI*0.25, 0, -10, -10, -10, -10};
+    double control_ubs_array[] = {PI*0.25, 3, 10, 10, 10, 10};
 
     set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
@@ -81,8 +85,8 @@ namespace CarBSP {
 
       double state_lbs_array[] = {-6, -3, -PI};
       double state_ubs_array[] = {-3, 4, PI};
-      double control_lbs_array[] = {-PI*0.25, -1, 0};
-      double control_ubs_array[] = {PI*0.25, 1, 3};
+      double control_lbs_array[] = {-PI*0.25, 0};
+      double control_ubs_array[] = {PI*0.25, 3};
 
       int numiter = 0;
       while (poserr.squaredNorm() > goaleps*goaleps || numiter < 100) {
@@ -114,7 +118,7 @@ namespace CarBSP {
         }
 
         StateNoiseT zero_state_noise = StateNoiseT::Zero(state_noise_dim);
-        RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) concat(input, Vector4d::Zero()), zero_state_noise).head<4>();
+        RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) concat(input, Vector4d::Zero()), zero_state_noise).head<3>();
 
         bool valid = true;
         for (int xd = 0; xd < robot_state_dim; ++xd) {
@@ -237,14 +241,14 @@ namespace CarBSP {
 
   ObserveT CarObserveFunc::unnoisy_observation(const StateT& x) const {
     ObserveT ret(observe_dim);
-    Vector2d car_pos = x.head<2>(), l1 = x.middleRows<2>(4), l2 = x.tail<2>();
-    double car_angle = x(2), car_velocity = x(3);
-    ret(0) = car_velocity;
+    Vector2d car_pos = x.head<2>(), l1 = x.middleRows<2>(3), l2 = x.middleRows<2>(5);
+    double car_angle = x(2);
+    //ret(0) = car_velocity;
     //ret(1) = car_pos.x() - l1.x();
-    ret(1) = (car_pos - l1).norm();
-    ret(2) = atan2(car_pos.y() - l1.y(), car_pos.x() - l1.x()) - car_angle;
-    ret(3) = (car_pos - l2).norm();
-    ret(4) = atan2(car_pos.y() - l2.y(), car_pos.x() - l2.x()) - car_angle;
+    ret(0) = (car_pos - l1).norm();
+    ret(1) = atan2(car_pos.y() - l1.y(), car_pos.x() - l1.x()) - car_angle;
+    ret(2) = (car_pos - l2).norm();
+    ret(3) = atan2(car_pos.y() - l2.y(), car_pos.x() - l2.x()) - car_angle;
     return ret;
   }
 
@@ -256,9 +260,26 @@ namespace CarBSP {
     return unnoisy_observation(x) + 0.01 * compute_inverse_gamma(x, approx_factor) * n;
   }
 
+  Beam2D robot_fov(double x, double y, double angle, double camera_depth, double camera_span_angle) {
+    Beam2D out;
+    double x0 = x, y0 = y;
+    double skew_depth = camera_depth / cos(camera_span_angle * 0.5);
+    double x1 = x0 + skew_depth * cos(angle - camera_span_angle * 0.5),
+           y1 = y0 + skew_depth * sin(angle - camera_span_angle * 0.5);
+    double x2 = x0 + skew_depth * cos(angle + camera_span_angle * 0.5),
+           y2 = y0 + skew_depth * sin(angle + camera_span_angle * 0.5);
+    out.base = Point(x0, y0);
+    out.a = Point(x1, y1);
+    out.b = Point(x2, y2);
+    return out;
+  }
+
   bool CarObserveFunc::sgndist(const StateT& x, Vector2d* dists) const {
-    (*dists)(0) = (x.head<2>() - x.middleRows<2>(4)).norm() - 1;
-    (*dists)(1) = (x.head<2>() - x.middleRows<2>(6)).norm() - 1;
+    Beam2D fov = robot_fov(x(0), x(1), x(2), car_helper->car_camera_depth, car_helper->car_camera_span_angle);
+    //cout << "fov: " << fov << endl;
+    (*dists)(0) = Geometry2D::sgndist(x.middleRows<2>(3), fov);
+    (*dists)(1) = Geometry2D::sgndist(x.middleRows<2>(5), fov);
+    //cout << "dists: " << dists->transpose() << endl;
     return (*dists)(0) < 0 || (*dists)(1) < 0;
   }
 
@@ -276,11 +297,10 @@ namespace CarBSP {
     }
     ObserveMatT gamma(observe_dim, observe_dim);
 
-    gamma << 1,      0,      0,      0,      0,
-             0, gamma1,      0,      0,      0,
-             0,      0, gamma1,      0,      0,
-             0,      0,      0, gamma2,      0,
-             0,      0,      0,      0, gamma2;
+    gamma << gamma1,      0,      0,      0,
+                  0, gamma1,      0,      0,
+                  0,      0, gamma2,      0,
+                  0,      0,      0, gamma2;
 
     return gamma;
   }
@@ -302,11 +322,10 @@ namespace CarBSP {
     }
 
     ObserveMatT invgamma(observe_dim, observe_dim);
-    invgamma << 1,         0,         0,         0,         0,
-                0, invgamma1,         0,         0,         0,
-                0,         0, invgamma1,         0,         0,
-                0,         0,         0, invgamma2,         0,
-                0,         0,         0,         0, invgamma2;
+    invgamma << invgamma1,         0,         0,         0,
+                        0, invgamma1,         0,         0,
+                        0,         0, invgamma2,         0,
+                        0,         0,         0, invgamma2;
 
     return invgamma;
   }
@@ -337,7 +356,7 @@ namespace CarBSP {
                  y = unscale_y(j);
           Vector2d pos; pos << x, y;
           Vector2d dists;
-          car_helper->belief_func->h->sgndist((StateT) concat(pos, state->tail<6>()), &dists);
+          car_helper->belief_func->h->sgndist((StateT) concat(pos, state->tail<5>()), &dists);
           double grayscale;
           if (approx_factor > 0) {
             grayscale = fmax(1./(1. + exp(approx_factor*dists(0))),
@@ -351,39 +370,60 @@ namespace CarBSP {
     }
   }
 
+  void CarPlotter::draw_beam_2d(const Beam2D& beam, QPainter& painter) {
+    QPolygonF polygon;
+    polygon << QPointF(scale_x(beam.base.x()), scale_y(beam.base.y()));
+    polygon << QPointF(scale_x(beam.a.x()), scale_y(beam.a.y()));
+    polygon << QPointF(scale_x(beam.b.x()), scale_y(beam.b.y()));
+    painter.drawPolygon(polygon);
+  }
+
   CarOptPlotter::CarOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
    CarPlotter(x_min, x_max, y_min, y_max, helper, parent),
    old_approx_factor(-1), cur_approx_factor(-1), distmap(400, 400, QImage::Format_RGB32) {}
 
   void CarOptPlotter::paintEvent(QPaintEvent* ) {
     QPainter painter(this);
-    if (cur_approx_factor != old_approx_factor || distmap.height() != height() || distmap.width() != width()) {
-      // replot distmap
-      distmap = QImage(width(), height(), QImage::Format_RGB32);
-      if (states_opt.size() > 0) {
-        compute_distmap(&distmap, &states_opt[0], car_helper->belief_func->approx_factor);
-      } else {
-        compute_distmap(&distmap, NULL, car_helper->belief_func->approx_factor);
-      }
-    }
-    painter.drawImage(0, 0, distmap);
+    //if (cur_approx_factor != old_approx_factor || distmap.height() != height() || distmap.width() != width()) {
+    //  // replot distmap
+    //  distmap = QImage(width(), height(), QImage::Format_RGB32);
+    //  if (states_opt.size() > 0) {
+    //    compute_distmap(&distmap, &states_opt[0], car_helper->belief_func->approx_factor);
+    //  } else {
+    //    compute_distmap(&distmap, NULL, car_helper->belief_func->approx_factor);
+    //  }
+    //}
+    //painter.drawImage(0, 0, distmap);
     QPen cvx_cov_pen(Qt::red, 3, Qt::SolidLine);
     QPen path_pen(Qt::red, 3, Qt::SolidLine);
     QPen pos_pen(Qt::red, 8, Qt::SolidLine);
+    QPen fov_pen(QColor(255, 255, 255, 30), 1, Qt::SolidLine);
+    QBrush fov_brush(QColor(255, 255, 255, 30));
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::HighQualityAntialiasing);
     painter.setPen(cvx_cov_pen);
     for (int i = 0; i < states_opt.size(); ++i) {
       draw_ellipse(states_opt[i].head<2>(), sigmas_opt[i].topLeftCorner(2,2), painter, 0.5);
     }
+    painter.setPen(fov_pen);
+    QBrush prev_brush = painter.brush();
+    painter.setBrush(fov_brush);
+
+    for (int i = 0; i < states_opt.size(); ++i) {
+      Beam2D fov = robot_fov(states_opt[i](0), states_opt[i](1), states_opt[i](2), car_helper->car_camera_depth, car_helper->car_camera_span_angle);
+      cout << "fov: " << fov << endl;
+      draw_beam_2d(fov, painter);
+    }
+    painter.setBrush(prev_brush);
+
     painter.setPen(path_pen);
     for (int i = 0; i < states_opt.size() - 1; ++i) {
       draw_line(states_opt[i](0), states_opt[i](1), states_opt[i+1](0), states_opt[i+1](1), painter);
     }
-    vector<Vector4d>& edges = car_helper->rrt_edges;
-    for (int i = 0; i < edges.size(); ++i) {
-      draw_line(edges[i](0), edges[i](1), edges[i](2), edges[i](3), painter);
-    }
+    //vector<Vector4d>& edges = car_helper->rrt_edges;
+    //for (int i = 0; i < edges.size(); ++i) {
+    //  draw_line(edges[i](0), edges[i](1), edges[i](2), edges[i](3), painter);
+    //}
     painter.setPen(pos_pen);
     for (int i = 0; i < states_opt.size(); ++i) {
       draw_point(states_opt[i](0), states_opt[i](1), painter);
@@ -394,28 +434,28 @@ namespace CarBSP {
     QPen sensor_pos_pen(Qt::green, 8, Qt::SolidLine);
     painter.setPen(sensor_cov_pen);
     for (int i = 0; i < states_opt.size(); ++i) {
-      draw_ellipse(states_opt[i].middleRows<2>(4), sigmas_opt[i].block<2, 2>(4, 4), painter, 0.5);
+      draw_ellipse(states_opt[i].middleRows<2>(3), sigmas_opt[i].block<2, 2>(3, 3), painter, 0.5);
     }
     painter.setPen(sensor_path_pen);
     for (int i = 0; i < states_opt.size() - 1; ++i) {
-      draw_line(states_opt[i](4), states_opt[i](5), states_opt[i+1](4), states_opt[i+1](5), painter);
+      draw_line(states_opt[i](3), states_opt[i](4), states_opt[i+1](3), states_opt[i+1](4), painter);
     }
     painter.setPen(sensor_pos_pen);
     for (int i = 0; i < states_opt.size(); ++i) {
-      draw_point(states_opt[i](4), states_opt[i](5), painter);
+      draw_point(states_opt[i](3), states_opt[i](4), painter);
     }
 
     painter.setPen(sensor_cov_pen);
     for (int i = 0; i < states_opt.size(); ++i) {
-      draw_ellipse(states_opt[i].middleRows<2>(6), sigmas_opt[i].block<2, 2>(6, 6), painter, 0.5);
+      draw_ellipse(states_opt[i].middleRows<2>(5), sigmas_opt[i].block<2, 2>(5, 5), painter, 0.5);
     }
     painter.setPen(sensor_path_pen);
     for (int i = 0; i < states_opt.size() - 1; ++i) {
-      draw_line(states_opt[i](6), states_opt[i](7), states_opt[i+1](6), states_opt[i+1](7), painter);
+      draw_line(states_opt[i](5), states_opt[i](6), states_opt[i+1](5), states_opt[i+1](6), painter);
     }
     painter.setPen(sensor_pos_pen);
     for (int i = 0; i < states_opt.size(); ++i) {
-      draw_point(states_opt[i](6), states_opt[i](7), painter);
+      draw_point(states_opt[i](5), states_opt[i](6), painter);
     }
 
     // draw beliefs computed using belief dynamics
@@ -438,7 +478,7 @@ namespace CarBSP {
     cur_approx_factor = car_helper->belief_func->approx_factor;
     DblVec* xvec = (DblVec* ) data;
     BeliefT cur_belief_opt, cur_belief_actual;
-    car_helper->belief_func->compose_belief(car_helper->start, car_helper->start_sigma, &cur_belief_actual);
+    car_helper->belief_func->compose_belief(car_helper->start, matrix_sqrt(car_helper->start_sigma), &cur_belief_actual);
     int T = car_helper->get_T();
 
     for (int i = 0; i <= T; ++i) {
@@ -472,14 +512,16 @@ namespace CarBSP {
 
   void CarSimulationPlotter::paintEvent(QPaintEvent* ) {
     QPainter painter(this);
-    distmap = QImage(width(), height(), QImage::Format_RGB32);
-    if (simulated_positions.size() <= 0) {
-      return;
-    }
-    compute_distmap(&distmap, &simulated_positions.back(), -1);
-    painter.drawImage(0, 0, distmap);
+    //distmap = QImage(width(), height(), QImage::Format_RGB32);
+    //if (simulated_positions.size() <= 0) {
+    //  return;
+    //}
+    //compute_distmap(&distmap, &simulated_positions.back(), -1);
+    //painter.drawImage(0, 0, distmap);
     QPen sim_prev_pos_pen(QColor(255, 0, 0, 100), 4, Qt::SolidLine);
     QPen sim_cur_pos_pen(QColor(255, 0, 0, 255), 4, Qt::SolidLine);
+    QPen fov_pen(QColor(255, 255, 255, 30), 1, Qt::SolidLine);
+    QBrush fov_brush(QColor(255, 255, 255, 30));
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::HighQualityAntialiasing);
     painter.setPen(sim_cur_pos_pen);
@@ -487,23 +529,32 @@ namespace CarBSP {
       draw_line(simulated_positions[i](0), simulated_positions[i](1), simulated_positions[i+1](0), simulated_positions[i+1](1), painter);
     }
 
+    QBrush prev_brush = painter.brush();
+    painter.setPen(fov_pen);
+    painter.setBrush(fov_brush);
+    for (int i = 0; i < simulated_positions.size(); ++i) {
+      Beam2D fov = robot_fov(simulated_positions[i](0), simulated_positions[i](1), simulated_positions[i](2), car_helper->car_camera_depth, car_helper->car_camera_span_angle);
+      draw_beam_2d(fov, painter);
+    }
+    painter.setBrush(prev_brush);
+
     QPen sensor_path_pen(Qt::green, 3, Qt::SolidLine);
     QPen sensor_pos_pen(Qt::green, 8, Qt::SolidLine);
     painter.setPen(sensor_path_pen);
     for (int i = 0; i < simulated_positions.size() - 1; ++i) {
-      draw_line(simulated_positions[i](4), simulated_positions[i](5), simulated_positions[i+1](4), simulated_positions[i+1](5), painter);
+      draw_line(simulated_positions[i](3), simulated_positions[i](4), simulated_positions[i+1](3), simulated_positions[i+1](4), painter);
     }
     painter.setPen(sensor_pos_pen);
     for (int i = 0; i < simulated_positions.size(); ++i) {
-      draw_point(simulated_positions[i](4), simulated_positions[i](5), painter);
+      draw_point(simulated_positions[i](3), simulated_positions[i](4), painter);
     }
     painter.setPen(sensor_path_pen);
     for (int i = 0; i < simulated_positions.size() - 1; ++i) {
-      draw_line(simulated_positions[i](6), simulated_positions[i](7), simulated_positions[i+1](6), simulated_positions[i+1](7), painter);
+      draw_line(simulated_positions[i](5), simulated_positions[i](6), simulated_positions[i+1](5), simulated_positions[i+1](6), painter);
     }
     painter.setPen(sensor_pos_pen);
     for (int i = 0; i < simulated_positions.size(); ++i) {
-      draw_point(simulated_positions[i](6), simulated_positions[i](7), painter);
+      draw_point(simulated_positions[i](5), simulated_positions[i](6), painter);
     }
   }
 
@@ -559,8 +610,8 @@ namespace CarBSP {
 
     Vector7d start = toVectorXd(start_vec);
     Vector7d goal = toVectorXd(goal_vec);
-    Matrix7d start_sigma = Matrix8d::Identity()*0.25;
-    start_sigma.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 1;
+    Matrix7d start_sigma = Matrix7d::Identity()*1;
+    start_sigma.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 2;
 
     CarBSPPlannerPtr planner(new CarBSPPlanner());
     planner->start = start;

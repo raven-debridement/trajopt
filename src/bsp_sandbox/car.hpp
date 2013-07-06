@@ -1,11 +1,13 @@
 #pragma once
 
 #include "bsp/bsp.hpp"
+#include "geometry_2d.hpp"
 #include <QtCore>
 #include <QImage>
 #include <qevent.h>
 
 using namespace BSP;
+using namespace Geometry2D;
 
 namespace CarBSP {
 
@@ -21,7 +23,7 @@ namespace CarBSP {
   );
 
   typedef Matrix<double, 7, 1> Vector7d;
-  typedef Matrix<double, 7, 8> Matrix7d;
+  typedef Matrix<double, 7, 7> Matrix7d;
 
   // state: { x, y, angle, landmark1_x, landmark1_y, landmark2_x, landmark2_y }
   // control: { theta, velocity, landmark1_dx, landmark1_dy, landmark2_dx, landmark2_dy }
@@ -63,7 +65,7 @@ namespace CarBSP {
     CarBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h);
   };
 
-  typedef Vector4d RobotStateT;
+  typedef Vector3d RobotStateT;
   typedef Vector2d RobotControlT;
 
   class CarBSPProblemHelper : public BSPProblemHelper<CarBeliefFunc> {
@@ -78,6 +80,9 @@ namespace CarBSP {
     double input_dt;
     double carlen;
     double goaleps;
+
+    double car_camera_depth;
+    double car_camera_span_angle;
 
     double robot_state_dim;
     double robot_control_dim;
@@ -94,6 +99,7 @@ namespace CarBSP {
     CarBSPProblemHelperPtr car_helper;
     CarPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
     void compute_distmap(QImage* distmap, StateT* state, double approx_factor);
+    void draw_beam_2d(const Beam2D& beam, QPainter& painter);
   };
 
   class CarOptPlotter : public CarPlotter {

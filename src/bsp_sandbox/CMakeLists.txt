@@ -27,5 +27,5 @@ target_link_libraries(geometry_2d_test bsp trajopt)
 
 SET(car_qt_headers car.hpp)
 QT4_WRAP_CPP(car_qt_headers_moc ${car_qt_headers})
-add_executable(car car.cpp ${car_qt_headers_moc})
+add_executable(car car.cpp geometry_2d.cpp ${car_qt_headers_moc})
 target_link_libraries(car bsp trajopt ${QT_LIBRARIES})
