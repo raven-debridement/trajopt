@@ -11,20 +11,21 @@ namespace CarBSP {
 
   // This will generate a bunch of types like StateT, ControlT, etc.
   BSP_TYPEDEFS(
-      8, // state_dim
-      8, // state_noise_dim
+      7, // state_dim
+      7, // state_noise_dim
       6, // control_dim
-      5, // observe_dim
-      5, // observe_noise_dim
-      36, // sigma_dof
-      44 // belief_dim
+      4, // observe_dim
+      4, // observe_noise_dim
+      28, // sigma_dof
+      35 // belief_dim
   );
 
-  typedef Matrix<double, 8, 1> Vector8d;
-  typedef Matrix<double, 8, 8> Matrix8d;
+  typedef Matrix<double, 7, 1> Vector7d;
+  typedef Matrix<double, 7, 8> Matrix7d;
 
-  // state: { x, y, angle, velocity, landmark1_x, landmark1_y, landmark2_x, landmark2_y }
-  // control: { theta, acceleration, landmark1_dx, landmark1_dy, landmark2_dx, landmark2_dy }
+  // state: { x, y, angle, landmark1_x, landmark1_y, landmark2_x, landmark2_y }
+  // control: { theta, velocity, landmark1_dx, landmark1_dy, landmark2_dx, landmark2_dy }
+  // observation: { rel_landmark1_dis, rel_landmark1_angle, rel_landmark2_dis, rel_landmark2_angle }
 
   class CarBSPProblemHelper;
   typedef boost::shared_ptr<CarBSPProblemHelper> CarBSPProblemHelperPtr;

@@ -17,7 +17,7 @@ namespace CarBSP {
     helper->goal = goal;
     helper->start_sigma = start_sigma;
     helper->initialize();
-    helper->RRTplan(false);
+    helper->RRTplan(true);
     helper->T = (int) helper->initial_controls.size();
     state_noise_mean = StateNoiseT::Zero(helper->state_noise_dim);
     state_noise_cov = StateNoiseCovT::Identity(helper->state_noise_dim, helper->state_noise_dim);
@@ -33,19 +33,17 @@ namespace CarBSP {
     carlen = 0.5;
     goaleps = 0.1;
 
-    set_state_dim(8);
-    set_sigma_dof(36);
+    set_state_dim(7);
+    set_sigma_dof(28);
     set_observe_dim(5);
     set_control_dim(6);
-    robot_state_dim = 4;
-    robot_control_dim = 2;
+    robot_state_dim = 3;
+    robot_control_dim = 3;
 
-    double state_lbs_array[] = {-10, -5, -PI*1.25, 0, -10, -5, -10, -5};
-    double state_ubs_array[] = {10, 5, PI*1.25, 3, 10, 5, 10, 5};
-    double control_lbs_array[] = {-PI*0.25, -1, -6, -6, -6, -6};
-    double control_ubs_array[] = {PI*0.25, 1.5, 6, 6, 6, 6};
-    //double control_lbs_array[] = {-PI*0.25, -1, 0, 0, 0, 0};
-    //double control_ubs_array[] = {PI*0.25, 1.5, 0, 0, 0, 0};
+    double state_lbs_array[] = {-10, -5, -PI*1.25, -10, -5, -10, -5};
+    double state_ubs_array[] = {10, 5, PI*1.25, 10, 5, 10, 5};
+    double control_lbs_array[] = {-PI*0.25, -1, 0, -6, -6, -6, -6};
+    double control_ubs_array[] = {PI*0.25, 1.5, 3, 6, 6, 6, 6};
 
     set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
@@ -76,15 +74,15 @@ namespace CarBSP {
 
       vector<RRTNode> rrtTree;
       RRTNode startNode;
-      startNode.x = start.head<4>();
+      startNode.x = start.head<3>();
       rrtTree.push_back(startNode);
 
       Vector2d poserr = (startNode.x.head<2>() - goal.head<2>());
 
-      double state_lbs_array[] = {-6, -3, -PI, 0};
-      double state_ubs_array[] = {-3, 4, PI, 1};
-      double control_lbs_array[] = {-PI*0.25, -1};
-      double control_ubs_array[] = {PI*0.25, 1};
+      double state_lbs_array[] = {-6, -3, -PI};
+      double state_ubs_array[] = {-3, 4, PI};
+      double control_lbs_array[] = {-PI*0.25, -1, 0};
+      double control_ubs_array[] = {PI*0.25, 1, 3};
 
       int numiter = 0;
       while (poserr.squaredNorm() > goaleps*goaleps || numiter < 100) {
@@ -206,29 +204,25 @@ namespace CarBSP {
     /* RK4 integration */
     StateT xtmp(state_dim), x1(state_dim), x2(state_dim), x3(state_dim), x4(state_dim);
     xtmp = x;
-    x1(0) = xtmp(3) * cos(xtmp(2));
-    x1(1) = xtmp(3) * sin(xtmp(2));
-    x1(2) = xtmp(3) * tan(u(0)) / car_helper->carlen;
-    x1(3) = u(1);
+    x1(0) = u(1) * cos(xtmp(2));
+    x1(1) = u(1) * sin(xtmp(2));
+    x1(2) = u(1) * tan(u(0)) / car_helper->carlen;
     xtmp = x + 0.5*car_helper->input_dt*x1;
-    x2(0) = xtmp(3) * cos(xtmp(2));
-    x2(1) = xtmp(3) * sin(xtmp(2));
-    x2(2) = xtmp(3) * tan(u(0)) / car_helper->carlen;
-    x2(3) = u(1);
+    x2(0) = u(1) * cos(xtmp(2));
+    x2(1) = u(1) * sin(xtmp(2));
+    x2(2) = u(1) * tan(u(0)) / car_helper->carlen;
     xtmp = x + 0.5*car_helper->input_dt*x2;
-    x3(0) = xtmp(3) * cos(xtmp(2));
-    x3(1) = xtmp(3) * sin(xtmp(2));
-    x3(2) = xtmp(3) * tan(u(0)) / car_helper->carlen;
-    x3(3) = u(1);
+    x3(0) = u(1) * cos(xtmp(2));
+    x3(1) = u(1) * sin(xtmp(2));
+    x3(2) = u(1) * tan(u(0)) / car_helper->carlen;
     xtmp = x + car_helper->input_dt*x3;
-    x4(0) = xtmp(3) * cos(xtmp(2));
-    x4(1) = xtmp(3) * sin(xtmp(2));
-    x4(2) = xtmp(3) * tan(u(0)) / car_helper->carlen;
-    x4(3) = u(1);
+    x4(0) = u(1) * cos(xtmp(2));
+    x4(1) = u(1) * sin(xtmp(2));
+    x4(2) = u(1) * tan(u(0)) / car_helper->carlen;
 
     new_x = x + car_helper->input_dt/6.0*(x1+2.0*(x2+x3)+x4);
     new_x.tail<4>() = x.tail<4>() + u.tail<4>() * car_helper->input_dt;
-    new_x.head<4>() += 0.01 * m.head<4>();
+    new_x.head<3>() += 0.01 * m.head<3>();
     new_x.tail<4>() += 0.01 * m.tail<4>();
 
     double umag = u.squaredNorm();
@@ -548,8 +542,8 @@ namespace CarBSP {
   void CarOptimizerTask::run() {
     bool plotting = true;
 
-    double start_vec_array[] = {-5, 2, -PI*0.5, 0.2, 0, 2, 0, -2};
-    double goal_vec_array[] = {-5, -2, 0, 0, 0, 0, 0, 0};
+    double start_vec_array[] = {-5, 2, -PI*0.5, 0, 2, 0, -2};
+    double goal_vec_array[] = {-5, -2, 0, 0, 0, 0, 0};
 
     vector<double> start_vec(start_vec_array, end(start_vec_array));
     vector<double> goal_vec(goal_vec_array, end(goal_vec_array));
@@ -563,9 +557,9 @@ namespace CarBSP {
       parser.read(argc, argv, true);
     }
 
-    Vector8d start = toVectorXd(start_vec);
-    Vector8d goal = toVectorXd(goal_vec);
-    Matrix8d start_sigma = Matrix8d::Identity()*0.25;
+    Vector7d start = toVectorXd(start_vec);
+    Vector7d goal = toVectorXd(goal_vec);
+    Matrix7d start_sigma = Matrix8d::Identity()*0.25;
     start_sigma.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 1;
 
     CarBSPPlannerPtr planner(new CarBSPPlanner());
