@@ -44,21 +44,25 @@ namespace CarBSP {
     robot_state_dim = 3;
     robot_control_dim = 2;
 
-    double state_lbs_array[] = {-10, -5, -PI*1.25, -10, -5, -10, -5};
-    double state_ubs_array[] = {10, 5, PI*1.25, 10, 5, 10, 5};
+    double state_lbs_array[] = {-10, -10, -PI*1.25, -10, -10, -10, -10};
+    double state_ubs_array[] = {10, 10, PI*1.25, 10, 10, 10, 10};
     double control_lbs_array[] = {-PI*0.25, 0, -10, -10, -10, -10};
     double control_ubs_array[] = {PI*0.25, 3, 10, 10, 10, 10};
+
+    // static controls:
+    //double control_lbs_array[] = {-PI*0.25, 0, 0, 0, 0, 0};
+    //double control_ubs_array[] = {PI*0.25, 3, 0, 0, 0, 0};
 
     set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
 
     VarianceT variance_cost = VarianceT::Identity(state_dim, state_dim);
-    variance_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0.01;
+    //variance_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0.01;
     set_variance_cost(variance_cost);//VarianceT::Identity(state_dim, state_dim));
     set_final_variance_cost(variance_cost * 100);//VarianceT::Identity(state_dim, state_dim)*100);
 
     ControlCostT control_cost = ControlCostT::Identity(control_dim, control_dim);
-    control_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0.1;//Zero();
+    //control_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0.1;//Zero();
     set_control_cost(control_cost * 0.1);//ControlCostT::Identity(control_dim, control_dim)*0.1);
   }
 
@@ -83,8 +87,8 @@ namespace CarBSP {
 
       Vector2d poserr = (startNode.x.head<2>() - goal.head<2>());
 
-      double state_lbs_array[] = {-6, -3, -PI};
-      double state_ubs_array[] = {-3, 4, PI};
+      double state_lbs_array[] = {-6, -6, -PI};
+      double state_ubs_array[] = {6, 6, PI};
       double control_lbs_array[] = {-PI*0.25, 0};
       double control_ubs_array[] = {PI*0.25, 3};
 
@@ -623,7 +627,7 @@ namespace CarBSP {
     boost::shared_ptr<CarOptPlotter> opt_plotter;
 
     if (plotting) {
-      double x_min = -7, x_max = 7, y_min = -5, y_max = 5;
+      double x_min = -7, x_max = 7, y_min = -7, y_max = 7;
       sim_plotter.reset(create_plotter<CarSimulationPlotter>(x_min, x_max, y_min, y_max, planner->helper));
       sim_plotter->show();
       opt_plotter.reset(create_plotter<CarOptPlotter>(x_min, x_max, y_min, y_max, planner->helper));
