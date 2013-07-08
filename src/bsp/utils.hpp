@@ -102,16 +102,18 @@ namespace BSP {
 
   void AddVarArray(OptProb& prob, int rows, int cols, const string& name_prefix, VarArray& newvars);
 
-  
+  inline double rndnum() {
+	  return ((double) random()) / RAND_MAX;
+  }
 
   inline double normal() {
     double u_1 = 0;
     while (u_1 == 0) {
-      u_1 = random();
+      u_1 = rndnum();
     }
     double u_2 = 0;
     while (u_2 == 0) {
-      u_2 = random();
+      u_2 = rndnum();
     }
     return sqrt(-2*log(u_1)) * sin(2*PI*u_2);
   }
@@ -119,14 +121,16 @@ namespace BSP {
   template<class MeanT, class VarianceT>
   MeanT sample_gaussian(const MeanT& mean, const VarianceT& cov) {
     static boost::normal_distribution<> standard_normal;
-    static boost::mt19937 rng;
+    static boost::mt19937 rng(static_cast<unsigned int>(std::time(0)));
     static boost::variate_generator<boost::mt19937&, 
                                     boost::normal_distribution<> > gen(rng, standard_normal);
     MeanT sample(mean.size());
     for (int i = 0; i < mean.size(); ++i) {
-      sample(i) = gen();
+      //sample(i) = gen();
+    	sample(i) = normal();
     }
-    SelfAdjointEigenSolver<VarianceT> solver(cov);
+    double scaling = 1.0/9.0;
+    SelfAdjointEigenSolver<VarianceT> solver(cov*scaling);
     return (solver.eigenvectors().real())
          * (solver.eigenvalues().real().cwiseSqrt().asDiagonal())
          * sample + mean;

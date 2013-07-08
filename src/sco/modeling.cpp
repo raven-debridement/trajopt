@@ -221,8 +221,8 @@ vector<double> OptProb::getClosestFeasiblePoint(const vector<double>& x) {
   model_->setObjective(obj);
   CvxOptStatus status = model_->optimize();
   if(status != CVX_SOLVED) {
-    model_->writeToFile("/tmp/fail.lp");
-    PRINT_AND_THROW("couldn't find a feasible point. there's probably a problem with variable bounds (e.g. joint limits). wrote to /tmp/fail.lp");
+    model_->writeToFile("/tmp/fail2.lp");
+    PRINT_AND_THROW("couldn't find a feasible point. there's probably a problem with variable bounds (e.g. joint limits). wrote to /tmp/fail2.lp");
   }
   return model_->getVarValues(vars_);
 }
