@@ -32,6 +32,7 @@ namespace BSP {
     for (int merit_increases=0; merit_increases < max_merit_coeff_increases_; ++merit_increases) { // merit adjustment loop
 
       // Solving a constrained minimization problem without the nonconvex constraints
+    	cout << "Solving for closest feasible point" << endl;
       x_ = prob_->getClosestFeasiblePoint(x_);
       assert(x_.size() == prob_->getVars().size());
       assert(prob_->getCosts().size() > 0 || constraints.size() > 0);
@@ -97,8 +98,8 @@ namespace BSP {
           CvxOptStatus status = model_->optimize();
           ++results_.n_qp_solves;
           if (status != CVX_SOLVED) {
-            LOG_ERROR("convex solver failed! set TRAJOPT_LOG_THRESH=DEBUG to see solver output. saving model to /tmp/fail.lp");
-            model_->writeToFile("/tmp/fail.lp");
+            LOG_ERROR("convex solver failed! set TRAJOPT_LOG_THRESH=DEBUG to see solver output. saving model to /tmp/fail2.lp");
+            model_->writeToFile("/tmp/fail2.lp");
             retval = OPT_FAILED;
             goto cleanup;
           }

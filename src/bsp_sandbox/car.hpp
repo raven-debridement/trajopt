@@ -111,7 +111,8 @@ namespace CarBSP {
   protected:
     double old_approx_factor, cur_approx_factor;
     QImage distmap;
-    vector<StateT> states_opt, states_actual;
+    vector<StateT> states_opt, states_actual, states_waypoints;
+    vector<StateT> samples;
     vector<VarianceT> sigmas_opt, sigmas_actual;
     virtual void paintEvent(QPaintEvent*);
   };
@@ -125,6 +126,7 @@ namespace CarBSP {
     QImage distmap;
     vector<StateT> states;
     vector<VarianceT> sigmas;
+    vector<StateT> waypoints;
     vector<StateT> simulated_positions;
     virtual void paintEvent(QPaintEvent*);
   };
@@ -142,6 +144,7 @@ namespace CarBSP {
   public:
     virtual void initialize();
     CarBSPPlanner();
+    virtual void custom_simulation_update(StateT* state, VarianceT* sigma);
   };
 
   typedef boost::shared_ptr<CarBSPPlanner> CarBSPPlannerPtr;
