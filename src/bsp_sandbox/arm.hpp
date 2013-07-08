@@ -147,7 +147,7 @@ namespace ArmBSP {
     Beam2D camera;
     int n_fov_parts;
     virtual void initialize();
-    virtual void custom_simulation_update(StateT* state, VarianceT* sigma);
+    virtual void custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state);
     ArmBSPPlanner();
   };
 

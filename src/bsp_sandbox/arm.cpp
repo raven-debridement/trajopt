@@ -28,7 +28,7 @@ namespace ArmBSP {
     return out;
   }
 
-  void ArmBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma) {
+  void ArmBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state) {
     assert (state != NULL);
     assert (sigma != NULL);
     vector<Beam2D> cur_fov;
@@ -170,7 +170,7 @@ namespace ArmBSP {
     vector<Beam2D> cur_fov;
     truncate_beams(arm_helper->partitioned_fov, arm_helper->angle_to_segments(x.head<3>()), &cur_fov);
     if (inside(arm_helper->real_object_pos, cur_fov)) {
-      ret.tail<2>() = arm_helper->real_object_pos + + 0.01 * n.tail<2>();
+      ret.tail<2>() = arm_helper->real_object_pos + 0.01 * n.tail<2>();
     } else {
       ret.tail<2>() = x.tail<2>() + 1000 * n.tail<2>();
     }
@@ -368,14 +368,15 @@ namespace ArmBSP {
   ArmOptimizerTask::ArmOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
   void ArmOptimizerTask::stage_plot_callback(boost::shared_ptr<ArmOptPlotter> plotter, OptProb*, DblVec& x) {
-    wait_to_proceed(boost::bind(&ArmOptPlotter::update_plot_data, plotter, &x));
+    plotter->update_plot_data(&x);
+    //wait_to_proceed(boost::bind(&ArmOptPlotter::update_plot_data, plotter, &x));
   }
 
   void ArmOptimizerTask::run() {
     int T = 30;
     bool plotting = false;
     double base_vec_array[] = {0, -1, 0};
-    double start_vec_array[] = {PI/4+PI/16, PI/2, PI/4+PI/16, -4, 9};
+    double start_vec_array[] = {PI/4+PI/16, PI/2, PI/4+PI/16, -1, 9};
     vector<double> base_vec(base_vec_array, end(base_vec_array));
     vector<double> start_vec(start_vec_array, end(start_vec_array));
     {
@@ -388,7 +389,7 @@ namespace ArmBSP {
     Vector5d start = toVectorXd(start_vec);
     Vector3d base_config = toVectorXd(base_vec);
     Matrix5d start_sigma = Matrix5d::Identity() * 0.1;
-    start_sigma.bottomRightCorner<2, 2>() = Matrix2d::Identity() * 200;
+    start_sigma.bottomRightCorner<2, 2>() = Matrix2d::Identity() * 25;
 
     deque<Vector3d> initial_controls;
     for (int i = 0; i < T; ++i) {

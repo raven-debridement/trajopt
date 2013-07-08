@@ -124,7 +124,7 @@ namespace BSP {
       control_ubs = ubs;
     }
 
-    void configure_problem(OptProb& prob) {
+    virtual void configure_problem(OptProb& prob) {
       create_variables(prob);
       add_variance_cost(prob);
       add_control_cost(prob);

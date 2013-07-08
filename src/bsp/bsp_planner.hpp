@@ -66,7 +66,7 @@ namespace BSP {
 
     virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
       opt.max_iter_                   = 100;
-      opt.merit_error_coeff_          = 1000;
+      opt.merit_error_coeff_          = 10;
       opt.merit_coeff_increase_ratio_ = 10;
       opt.max_merit_coeff_increases_  = 3;
       opt.trust_shrink_ratio_         = 0.1;
@@ -127,7 +127,7 @@ namespace BSP {
       
     }
 
-    virtual void custom_simulation_update(StateT* state, VarianceT* sigma) {}
+    virtual void custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state) {}
     
     void simulate_executions(int nsteps) {
       assert (initialized);
@@ -156,7 +156,7 @@ namespace BSP {
         }
         belief_func->extract_state(belief, &start);
         belief_func->extract_sigma(belief, &start_sigma);
-        custom_simulation_update(&start, &start_sigma);
+        custom_simulation_update(&start, &start_sigma, current_position);
         controls.pop_front();
       }
       helper->initial_controls = controls;
