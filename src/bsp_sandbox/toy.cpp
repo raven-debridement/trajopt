@@ -326,8 +326,8 @@ namespace ToyBSP {
   void ToyOptimizerTask::run() {
     bool plotting = true;
 
-    int method = 2;
-    int noise_level = 0.1;
+    int method = 1;
+    double noise_level = 2;
 
     double start_vec_array[] = {-5, 2};
     double goal_vec_array[] = {-5, -2};
@@ -346,7 +346,7 @@ namespace ToyBSP {
 
     Vector2d start = toVectorXd(start_vec);
     Vector2d goal = toVectorXd(goal_vec);
-    Matrix2d start_sigma = Matrix2d::Identity()*1;
+    Matrix2d start_sigma = Matrix2d::Identity()*4;
 
     int T = 20;
     deque<Vector2d> initial_controls;
@@ -408,6 +408,7 @@ namespace ToyBSP {
 using namespace ToyBSP;
 
 int main(int argc, char *argv[]) {
+    srand(static_cast<unsigned int>(std::time(0)));
   bool plotting = true;
   {
     Config config;

@@ -72,7 +72,7 @@ public:
     opt.max_iter_                   = 100;
     opt.merit_error_coeff_          = 100;
     opt.merit_coeff_increase_ratio_ = 10;
-    opt.max_merit_coeff_increases_  = 2;
+    opt.max_merit_coeff_increases_  = 1;
     opt.trust_shrink_ratio_         = 0.1;
     opt.trust_expand_ratio_         = 1.5;
     opt.min_trust_box_size_         = 0.001;
@@ -97,7 +97,7 @@ public:
     state_noise_cov = StateNoiseCovT::Identity(helper->state_noise_dim, helper->state_noise_dim);
     observe_noise_mean = ObserveNoiseT::Zero(helper->observe_noise_dim);
     observe_noise_cov = ObserveNoiseCovT::Identity(helper->observe_noise_dim, helper->observe_noise_dim);
-    current_position = start;//sample_gaussian(start, start_sigma, noise_level);
+    current_position = sample_gaussian(start, start_sigma, noise_level);
     simulated_positions.push_back(current_position);
     initialized = true;
   }
