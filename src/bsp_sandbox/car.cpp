@@ -22,6 +22,21 @@ namespace CarBSP {
     }
   }
 
+  void CarBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
+    opt.max_iter_                   = 250;
+    opt.merit_error_coeff_          = 100;
+    opt.merit_coeff_increase_ratio_ = 10;
+    opt.max_merit_coeff_increases_  = 2;
+    opt.trust_shrink_ratio_         = 0.8;
+    opt.trust_expand_ratio_         = 1.2;
+    opt.min_trust_box_size_         = 0.001;
+    opt.min_approx_improve_         = 1e-2;
+    opt.min_approx_improve_frac_    = 1e-4;
+    opt.improve_ratio_threshold_    = 0.1;
+    opt.trust_box_size_             = 1;
+    opt.cnt_tolerance_              = 1e-06;
+  }
+
   void CarBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma) {
     assert (state != NULL);
     assert (sigma != NULL);
@@ -54,8 +69,8 @@ namespace CarBSP {
     double control_ubs_array[] = {PI*0.25, 3, 0.5, 0.5, 0.5, 0.5};
 
     // static controls:
-    //double control_lbs_array[] = {-PI*0.25, 0, 0, 0, 0, 0};
-    //double control_ubs_array[] = {PI*0.25, 3, 0, 0, 0, 0};
+    // double control_lbs_array[] = {-PI*0.25, 0, 0, 0, 0, 0};
+    // double control_ubs_array[] = {PI*0.25, 5, 0.00001, 0.00001, 0.00001, 0.00001};
 
     set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
@@ -66,7 +81,7 @@ namespace CarBSP {
     set_final_variance_cost(variance_cost * 100);//VarianceT::Identity(state_dim, state_dim)*100);
 
     ControlCostT control_cost = ControlCostT::Identity(control_dim, control_dim);
-    control_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0.1;//Zero();
+    control_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0;//.1;//Zero();
     set_control_cost(control_cost * 0.1);//ControlCostT::Identity(control_dim, control_dim)*0.1);
   }
 
@@ -255,7 +270,7 @@ namespace CarBSP {
     new_x.tail<4>() = x.tail<4>() + u.tail<4>() * car_helper->input_dt;
     new_x.head<3>() += 0.01 * m.head<3>();
 
-    //new_x.tail<4>() += 0.01 * m.tail<4>();
+    new_x.tail<4>() += 0.01 * m.tail<4>();
 
     double umag = u.squaredNorm();
     //return new_x + 0.1*umag*m;
@@ -325,7 +340,7 @@ namespace CarBSP {
   ObserveMatT CarObserveFunc::compute_gamma(const StateT& x, double approx_factor) const {
     Vector2d dists;
     sgndist(x, &dists);
-    double tol = 0.25;
+    double tol = 0;//0.25;
     double gamma1, gamma2;
     if (approx_factor < 0) {
       gamma1 = dists(0) <= 0 ? 1 : 0;
@@ -348,7 +363,7 @@ namespace CarBSP {
     Vector2d dists;
     sgndist(x, &dists);
     double minval = 1e-4;
-    double tol = 0.25;
+    double tol = 0;//0.25;
     double invgamma1, invgamma2;
     if (approx_factor < 0) {
       invgamma1 = dists(0) <= 0 ? 1 : 1/minval;

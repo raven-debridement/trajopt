@@ -145,6 +145,7 @@ namespace CarBSP {
     virtual void initialize();
     CarBSPPlanner();
     virtual void custom_simulation_update(StateT* state, VarianceT* sigma);
+    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt);
   };
 
   typedef boost::shared_ptr<CarBSPPlanner> CarBSPPlannerPtr;
