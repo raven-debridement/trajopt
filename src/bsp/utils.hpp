@@ -146,4 +146,6 @@ namespace BSP {
     }
     return out;
   }
+
+  void seed_random();
 }

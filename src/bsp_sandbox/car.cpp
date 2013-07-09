@@ -15,24 +15,11 @@ namespace CarBSP {
   CarBSPPlanner::CarBSPPlanner() : BSPPlanner<CarBSPProblemHelper>() {}
 
   void CarBSPPlanner::initialize() {
-    srand(static_cast<unsigned int>(std::time(0)));
-    assert(!initialized);
-    helper.reset(new CarBSPProblemHelper());
-    helper->start = start;
-    helper->goal = goal;
-    helper->start_sigma = start_sigma;
-    helper->initialize();
-    helper->RRTplan(false);
-    helper->T = (int) helper->initial_controls.size();
-    helper->noise_level = noise_level;
-    controls = helper->initial_controls;
-    state_noise_mean = StateNoiseT::Zero(helper->state_noise_dim);
-    state_noise_cov = StateNoiseCovT::Identity(helper->state_noise_dim, helper->state_noise_dim);
-    observe_noise_mean = ObserveNoiseT::Zero(helper->observe_noise_dim);
-    observe_noise_cov = ObserveNoiseCovT::Identity(helper->observe_noise_dim, helper->observe_noise_dim);
-    current_position = sample_gaussian(start, start_sigma, noise_level); //start;
-    simulated_positions.push_back(current_position);
-    initialized = true;
+    BSPPlanner<CarBSPProblemHelper>::initialize();
+    for (int i = 0; i < T; ++i) {
+      controls[i].tail<4>() = Vector4d::Zero();
+      helper->initial_controls[i].tail<4>() = Vector4d::Zero();
+    }
   }
 
   void CarBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma) {
@@ -57,18 +44,18 @@ namespace CarBSP {
     set_state_dim(7);
     set_sigma_dof(28);
     set_observe_dim(4);
-    set_control_dim(2);
+    set_control_dim(6);
     robot_state_dim = 3;
     robot_control_dim = 2;
 
     double state_lbs_array[] = {-10, -10, -PI*2, -10, -10, -10, -10};
     double state_ubs_array[] = {10, 10, PI*2, 10, 10, 10, 10};
-    //double control_lbs_array[] = {-PI*0.25, 0, -10, -10, -10, -10};
-    //double control_ubs_array[] = {PI*0.25, 3, 10, 10, 10, 10};
+    double control_lbs_array[] = {-PI*0.25, 0, -0.5, -0.5, -0.5, -0.5};
+    double control_ubs_array[] = {PI*0.25, 3, 0.5, 0.5, 0.5, 0.5};
 
     // static controls:
-    double control_lbs_array[] = {-PI*0.25, 0};//, 0, 0, 0, 0};
-    double control_ubs_array[] = {PI*0.25, 3};//, 0, 0, 0, 0};
+    //double control_lbs_array[] = {-PI*0.25, 0, 0, 0, 0, 0};
+    //double control_ubs_array[] = {PI*0.25, 3, 0, 0, 0, 0};
 
     set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
@@ -79,7 +66,7 @@ namespace CarBSP {
     set_final_variance_cost(variance_cost * 100);//VarianceT::Identity(state_dim, state_dim)*100);
 
     ControlCostT control_cost = ControlCostT::Identity(control_dim, control_dim);
-    //control_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0.1;//Zero();
+    control_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0.1;//Zero();
     set_control_cost(control_cost * 0.1);//ControlCostT::Identity(control_dim, control_dim)*0.1);
   }
 
@@ -93,145 +80,145 @@ namespace CarBSP {
     }
   }
 
-  void CarBSPProblemHelper::RRTplan(bool compute) {
-    if (compute) {
+  //void CarBSPProblemHelper::RRTplan(bool compute) {
+  //  if (compute) {
 
-      srand(time(0));
+  //    srand(time(0));
 
-      vector<RRTNode> rrtTree;
-      RRTNode startNode;
-      startNode.x = start.head<3>();
-      rrtTree.push_back(startNode);
+  //    vector<RRTNode> rrtTree;
+  //    RRTNode startNode;
+  //    startNode.x = start.head<3>();
+  //    rrtTree.push_back(startNode);
 
-      Vector2d poserr = (startNode.x.head<2>() - goal.head<2>());
+  //    Vector2d poserr = (startNode.x.head<2>() - goal.head<2>());
 
-      double state_lbs_array[] = {-6, -6, -PI};
-      double state_ubs_array[] = {6, 6, PI};
-      double control_lbs_array[] = {-PI*0.25, 0.5};
-      double control_ubs_array[] = {PI*0.25, 1};
+  //    double state_lbs_array[] = {-6, -6, -PI};
+  //    double state_ubs_array[] = {6, 6, PI};
+  //    double control_lbs_array[] = {-PI*0.25, 0.5};
+  //    double control_ubs_array[] = {PI*0.25, 1};
 
-      int numiter = 0;
-      while (poserr.squaredNorm() > goaleps*goaleps || numiter < 100) {
+  //    int numiter = 0;
+  //    while (poserr.squaredNorm() > goaleps*goaleps || numiter < 100) {
 
-        cout << ".";
-        RobotStateT sample;
-        for (int xd = 0; xd < robot_state_dim; ++xd) {
-          sample(xd) = (((double) rand()) / RAND_MAX) * (state_ubs_array[xd] - state_lbs_array[xd]) + state_lbs_array[xd];
-        }
+  //      cout << ".";
+  //      RobotStateT sample;
+  //      for (int xd = 0; xd < robot_state_dim; ++xd) {
+  //        sample(xd) = (((double) rand()) / RAND_MAX) * (state_ubs_array[xd] - state_lbs_array[xd]) + state_lbs_array[xd];
+  //      }
 
-        // Check sample for collisions, turned off for now
+  //      // Check sample for collisions, turned off for now
 
-        int node = -1;
-        double mindist = 9e99;
-        for (int j = 0; j < (int) rrtTree.size(); ++j) {
-          double ddist = (rrtTree[j].x - sample).squaredNorm();
-          if (ddist < mindist) {
-            mindist = ddist;
-            node = j;
-          }
-        }
-        if (node == -1) {
-          continue;
-        }
+  //      int node = -1;
+  //      double mindist = 9e99;
+  //      for (int j = 0; j < (int) rrtTree.size(); ++j) {
+  //        double ddist = (rrtTree[j].x - sample).squaredNorm();
+  //        if (ddist < mindist) {
+  //          mindist = ddist;
+  //          node = j;
+  //        }
+  //      }
+  //      if (node == -1) {
+  //        continue;
+  //      }
 
-        RobotControlT input;
-        for (int ud = 0; ud < robot_control_dim; ++ud) {
-          input(ud) = (((double) rand()) / RAND_MAX) * (control_ubs_array[ud] - control_lbs_array[ud]) + control_lbs_array[ud];
-        }
+  //      RobotControlT input;
+  //      for (int ud = 0; ud < robot_control_dim; ++ud) {
+  //        input(ud) = (((double) rand()) / RAND_MAX) * (control_ubs_array[ud] - control_lbs_array[ud]) + control_lbs_array[ud];
+  //      }
 
-        StateNoiseT zero_state_noise = StateNoiseT::Zero(state_noise_dim);
-        //RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) concat(input, Vector4d::Zero()), zero_state_noise).head<3>();
-        RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) input, zero_state_noise).head<3>();
+  //      StateNoiseT zero_state_noise = StateNoiseT::Zero(state_noise_dim);
+  //      //RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) concat(input, Vector4d::Zero()), zero_state_noise).head<3>();
+  //      RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) input, zero_state_noise).head<3>();
 
-        bool valid = true;
-        for (int xd = 0; xd < robot_state_dim; ++xd) {
-          if (new_x(xd) < state_lbs[xd] || new_x(xd) > state_ubs[xd]) {
-            valid = false;
-            break;
-          }
-        }
-        if (!valid) {
-          continue;
-        }
+  //      bool valid = true;
+  //      for (int xd = 0; xd < robot_state_dim; ++xd) {
+  //        if (new_x(xd) < state_lbs[xd] || new_x(xd) > state_ubs[xd]) {
+  //          valid = false;
+  //          break;
+  //        }
+  //      }
+  //      if (!valid) {
+  //        continue;
+  //      }
 
-        // Check edge for collisions here, turned off for now
+  //      // Check edge for collisions here, turned off for now
 
-        RRTNode newnode;
-        newnode.x = new_x;
-        newnode.u = input;
-        newnode.bp = node;
+  //      RRTNode newnode;
+  //      newnode.x = new_x;
+  //      newnode.u = input;
+  //      newnode.bp = node;
 
-        rrtTree.push_back(newnode);
-        Vector4d edge;
-        edge << rrtTree[node].x(0), rrtTree[node].x(1), newnode.x(0), newnode.x(1);
-        rrt_edges.push_back(edge);
+  //      rrtTree.push_back(newnode);
+  //      Vector4d edge;
+  //      edge << rrtTree[node].x(0), rrtTree[node].x(1), newnode.x(0), newnode.x(1);
+  //      rrt_edges.push_back(edge);
 
-        poserr = (newnode.x.head<2>() - goal.head<2>());
-        ++numiter;
-      }
-      cout << endl;
+  //      poserr = (newnode.x.head<2>() - goal.head<2>());
+  //      ++numiter;
+  //    }
+  //    cout << endl;
 
-      deque<RRTNode> path;
+  //    deque<RRTNode> path;
 
-      int i = (int)rrtTree.size() - 1;
-      RRTNode node;
-      node.x = rrtTree[i].x;
-      node.u = RobotControlT::Zero(robot_control_dim);
-      path.push_front(node);
+  //    int i = (int)rrtTree.size() - 1;
+  //    RRTNode node;
+  //    node.x = rrtTree[i].x;
+  //    node.u = RobotControlT::Zero(robot_control_dim);
+  //    path.push_front(node);
 
-      while (i != 0) {
-        node.u = rrtTree[i].u;
-        i = rrtTree[i].bp;
-        node.x = rrtTree[i].x;
-        node.bp = -1;
+  //    while (i != 0) {
+  //      node.u = rrtTree[i].u;
+  //      i = rrtTree[i].bp;
+  //      node.x = rrtTree[i].x;
+  //      node.bp = -1;
 
-        path.push_front(node);
-      }
+  //      path.push_front(node);
+  //    }
 
-      initial_controls.clear();
-      for (int i = 0; i < (int)path.size()-1; ++i) {
-        initial_controls.push_back((ControlT) path[i].u);
-        cout << path[i].u(0) << " " << path[i].u(1) << endl;
-      }
+  //    initial_controls.clear();
+  //    for (int i = 0; i < (int)path.size()-1; ++i) {
+  //      initial_controls.push_back((ControlT) path[i].u);
+  //      cout << path[i].u(0) << " " << path[i].u(1) << endl;
+  //    }
 
-      ofstream fptr(car_rrt_filename, ios::out);
-      if (!fptr.is_open()) {
-        cerr << "Could not open file, check location" << endl;
-        std::exit(-1);
-      }
-      fptr << initial_controls.size() << endl;
-      for (int i = 0; i < initial_controls.size(); ++i) {
-        fptr << initial_controls[i](0) << " " << initial_controls[i](1) << endl;
-      }
-      if (fptr.is_open()) fptr.close();
-          
-      cout << "T: " << initial_controls.size() << endl;
+  //    ofstream fptr(car_rrt_filename, ios::out);
+  //    if (!fptr.is_open()) {
+  //      cerr << "Could not open file, check location" << endl;
+  //      std::exit(-1);
+  //    }
+  //    fptr << initial_controls.size() << endl;
+  //    for (int i = 0; i < initial_controls.size(); ++i) {
+  //      fptr << initial_controls[i](0) << " " << initial_controls[i](1) << endl;
+  //    }
+  //    if (fptr.is_open()) fptr.close();
+  //        
+  //    cout << "T: " << initial_controls.size() << endl;
 
-      //cout << "PAUSED INSIDE RRT BUILD" << endl;
-      //int num;
-      //cin >> num;
+  //    //cout << "PAUSED INSIDE RRT BUILD" << endl;
+  //    //int num;
+  //    //cin >> num;
 
-    } else {
+  //  } else {
 
-      ifstream fptr(car_rrt_filename, ios::in);
-      if (!fptr.is_open()) {
-        cerr << "Could not open file, check location" << endl;
-        std::exit(-1);
-      }
-      int nu;
-      fptr >> nu;
-      //cout << "nu: " << nu << endl;
-      initial_controls.clear();
-      ControlT u = ControlT::Zero(control_dim);
-      for (int i = 0; i < nu; ++i) {
-        fptr >> u(0) >> u(1);
-        initial_controls.push_back(u);
-        //cout << u(0) << " " << u(1) << endl;
-      }
-      if (fptr.is_open()) fptr.close();
-    }
+  //    ifstream fptr(car_rrt_filename, ios::in);
+  //    if (!fptr.is_open()) {
+  //      cerr << "Could not open file, check location" << endl;
+  //      std::exit(-1);
+  //    }
+  //    int nu;
+  //    fptr >> nu;
+  //    //cout << "nu: " << nu << endl;
+  //    initial_controls.clear();
+  //    ControlT u = ControlT::Zero(control_dim);
+  //    for (int i = 0; i < nu; ++i) {
+  //      fptr >> u(0) >> u(1);
+  //      initial_controls.push_back(u);
+  //      //cout << u(0) << " " << u(1) << endl;
+  //    }
+  //    if (fptr.is_open()) fptr.close();
+  //  }
 
-  }
+  //}
 
   CarStateFunc::CarStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
 
@@ -265,7 +252,7 @@ namespace CarBSP {
     x4(2) = u(1) * tan((double)u(0)) / car_helper->carlen;
 
     new_x = x + car_helper->input_dt/6.0*(x1+2.0*(x2+x3)+x4);
-    new_x.tail<4>() = x.tail<4>();// + u.tail<4>() * car_helper->input_dt;
+    new_x.tail<4>() = x.tail<4>() + u.tail<4>() * car_helper->input_dt;
     new_x.head<3>() += 0.01 * m.head<3>();
 
     //new_x.tail<4>() += 0.01 * m.tail<4>();
@@ -287,15 +274,15 @@ namespace CarBSP {
     //ret(0) = car_velocity;
     //ret(1) = car_pos.x() - l1.x();
 
-    //ret(0) = (car_pos - l1).norm();
-    //ret(1) = atan2(car_pos.y() - l1.y(), car_pos.x() - l1.x()) - car_angle;
-    //ret(2) = (car_pos - l2).norm();
-    //ret(3) = atan2(car_pos.y() - l2.y(), car_pos.x() - l2.x()) - car_angle;
+    ret(0) = (car_pos - l1).norm();
+    ret(1) = atan2(car_pos.y() - l1.y(), car_pos.x() - l1.x()) - car_angle;
+    ret(2) = (car_pos - l2).norm();
+    ret(3) = atan2(car_pos.y() - l2.y(), car_pos.x() - l2.x()) - car_angle;
 
-    ret(0) = (car_pos(0) - l1(0));
-    ret(1) = (car_pos(1) - l1(1));
-    ret(2) = (car_pos(0) - l2(0));
-    ret(3) = (car_pos(1) - l2(1));
+    //ret(0) = (car_pos(0) - l1(0));
+    //ret(1) = (car_pos(1) - l1(1));
+    //ret(2) = (car_pos(0) - l2(0));
+    //ret(3) = (car_pos(1) - l2(1));
 
     return ret;
   }
@@ -450,36 +437,26 @@ namespace CarBSP {
     //QPen path_pen(Qt::blue, 3, Qt::SolidLine);
     QPen path_pen(Qt::red, 3, Qt::SolidLine);
     QPen pos_pen(Qt::blue, 4, Qt::SolidLine);
-    QPen fov_pen(QColor(255, 255, 255, 30), 1, Qt::SolidLine);
+    QPen fov_pen(QColor(255, 255, 255, 10), 1, Qt::SolidLine);
     QBrush fov_brush(QColor(255, 255, 255, 30));
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::HighQualityAntialiasing);
-    painter.setPen(cvx_cov_pen);
-    for (int i = 0; i < states_opt.size(); ++i) {
-      draw_ellipse(states_opt[i].head<2>(), sigmas_opt[i].topLeftCorner(2,2), painter, 0.5);
-    }
+    //painter.setPen(cvx_cov_pen);
+    //for (int i = 0; i < states_opt.size(); ++i) {
+    //  draw_ellipse(states_opt[i].head<2>(), sigmas_opt[i].topLeftCorner(2,2), painter, 0.5);
+    //}
     painter.setPen(fov_pen);
-    QBrush prev_brush = painter.brush();
-    painter.setBrush(fov_brush);
-
-    Beam2D fov;
-    /*
-      fov = robot_fov(states_opt[0](0), states_opt[0](1), states_opt[0](2), car_helper->car_camera_depth, car_helper->car_camera_span_angle);
-      draw_beam_2d(fov, painter);
-      for (int i = 3; i < states_opt.size()-1; i+=3) {
+    {
+      QBrush prev_brush = painter.brush();
+      painter.setBrush(fov_brush);
+      Beam2D fov;
+      for (int i = 0; i < (int)states_opt.size()-1; ++i) {
         fov = robot_fov(states_opt[i](0), states_opt[i](1), states_opt[i](2), car_helper->car_camera_depth, car_helper->car_camera_span_angle);
         //cout << "fov: " << fov << endl;
         draw_beam_2d(fov, painter);
       }
-      fov = robot_fov(states_opt[states_opt.size()-1](0), states_opt[states_opt.size()-1](1), states_opt[states_opt.size()-1](2), car_helper->car_camera_depth, car_helper->car_camera_span_angle);
-      draw_beam_2d(fov, painter);
-     */
-    for (int i = 0; i < (int)states_opt.size()-1; ++i) {
-      fov = robot_fov(states_opt[i](0), states_opt[i](1), states_opt[i](2), car_helper->car_camera_depth, car_helper->car_camera_span_angle);
-      //cout << "fov: " << fov << endl;
-      draw_beam_2d(fov, painter);
+      painter.setBrush(prev_brush);
     }
-    painter.setBrush(prev_brush);
 
     painter.setPen(path_pen);
     //for (int i = 0; i < states_opt.size() - 1; ++i) {
@@ -494,48 +471,50 @@ namespace CarBSP {
     //for (int i = 0; i < edges.size(); ++i) {
     //  draw_line(edges[i](0), edges[i](1), edges[i](2), edges[i](3), painter);
     //}
-    painter.setPen(pos_pen);
-    for (int i = 0; i < states_opt.size(); ++i) {
-      draw_point(states_opt[i](0), states_opt[i](1), painter);
-    //for (int i = 0; i < samples.size(); ++i) {
-    //	draw_point(samples[i](0), samples[i](1), painter);
-    }
+    //painter.setPen(pos_pen);
+    //for (int i = 0; i < states_opt.size(); ++i) {
+    //  draw_point(states_opt[i](0), states_opt[i](1), painter);
+    ////for (int i = 0; i < samples.size(); ++i) {
+    ////	draw_point(samples[i](0), samples[i](1), painter);
+    //}
 
     QPen sensor_cov_pen(Qt::green, 3, Qt::SolidLine);
     QPen sensor_path_pen(Qt::green, 3, Qt::SolidLine);
     QPen sensor_pos_pen(Qt::green, 8, Qt::SolidLine);
-    painter.setPen(sensor_cov_pen);
-    for (int i = 0; i < states_opt.size(); ++i) {
-      draw_ellipse(states_opt[i].middleRows<2>(3), sigmas_opt[i].block<2, 2>(3, 3), painter, 0.5);
-    }
+    //painter.setPen(sensor_cov_pen);
+    //for (int i = 0; i < states_opt.size(); ++i) {
+    //  draw_ellipse(states_opt[i].middleRows<2>(3), sigmas_opt[i].block<2, 2>(3, 3), painter, 0.5);
+    //}
     painter.setPen(sensor_path_pen);
-    for (int i = 0; i < (int) states_opt.size() - 1; ++i) {
-      draw_line(states_opt[i](3), states_opt[i](4), states_opt[i+1](3), states_opt[i+1](4), painter);
+    for (int i = 0; i < (int) states_actual.size() - 1; ++i) {
+      draw_line(states_actual[i](3), states_actual[i](4), states_actual[i+1](3), states_actual[i+1](4), painter);
     }
     painter.setPen(sensor_pos_pen);
-    for (int i = 0; i < states_opt.size(); ++i) {
-      draw_point(states_opt[i](3), states_opt[i](4), painter);
+    for (int i = 0; i < states_actual.size(); ++i) {
+      draw_point(states_actual[i](3), states_actual[i](4), painter);
     }
 
     painter.setPen(sensor_cov_pen);
-    for (int i = 0; i < states_opt.size(); ++i) {
-      draw_ellipse(states_opt[i].middleRows<2>(5), sigmas_opt[i].block<2, 2>(5, 5), painter, 0.5);
-    }
+    //for (int i = 0; i < states_opt.size(); ++i) {
+    //  draw_ellipse(states_opt[i].middleRows<2>(5), sigmas_opt[i].block<2, 2>(5, 5), painter, 0.5);
+    //}
     painter.setPen(sensor_path_pen);
-    for (int i = 0; i < (int) states_opt.size() - 1; ++i) {
-      draw_line(states_opt[i](5), states_opt[i](6), states_opt[i+1](5), states_opt[i+1](6), painter);
+    for (int i = 0; i < (int) states_actual.size() - 1; ++i) {
+      draw_line(states_actual[i](5), states_actual[i](6), states_actual[i+1](5), states_actual[i+1](6), painter);
     }
     painter.setPen(sensor_pos_pen);
-    for (int i = 0; i < states_opt.size(); ++i) {
-      draw_point(states_opt[i](5), states_opt[i](6), painter);
+    for (int i = 0; i < states_actual.size(); ++i) {
+      draw_point(states_actual[i](5), states_actual[i](6), painter);
     }
 
     // draw beliefs computed using belief dynamics
     QPen cvx_cov_pen2(QColor(255,215,0), 3, Qt::SolidLine);
     painter.setPen(cvx_cov_pen2);
-    for (int i = 0; i < states_actual.size(); ++i) {
-      draw_ellipse(states_actual[i].head<2>(), sigmas_actual[i].topLeftCorner(2,2), painter, 0.5);
-    }
+    draw_ellipse(states_actual[0].head<2>(), sigmas_actual[0].topLeftCorner(2,2), painter, 0.5);
+    draw_ellipse(states_actual.back().head<2>(), sigmas_actual.back().topLeftCorner(2,2), painter, 0.5);
+    //for (int i = 0; i < states_actual.size(); ++i) {
+    //  draw_ellipse(states_actual[i].head<2>(), sigmas_actual[i].topLeftCorner(2,2), painter, 0.5);
+    //}
     //QPen pos_pen2(Qt::red, 8, Qt::SolidLine);
     QPen pos_pen2(QColor(255,215,0), 8, Qt::SolidLine);
     painter.setPen(pos_pen2);
@@ -544,10 +523,14 @@ namespace CarBSP {
     }
 
     // draw goal
-    QPen goal_pen(QColor(255,0,0,200), 16, Qt::SolidLine);
+    QPen goal_pen(QColor(192,192,192,100), 2, Qt::SolidLine);
     painter.setPen(goal_pen);
+    QBrush goal_brush(QColor(192, 192, 192, 100));
+    QBrush prev_brush = painter.brush();
+    painter.setBrush(goal_brush);
     Vector2d g = car_helper->goal.head<2>();
-    draw_ellipse(g, Matrix2d::Identity()*car_helper->goaleps, painter, 0.5);
+    draw_ellipse(g, Matrix2d::Identity()*car_helper->goaleps, painter, 1);
+    painter.setBrush(prev_brush);
   }
 
   void CarOptPlotter::update_plot_data(void* data) {
@@ -641,14 +624,16 @@ namespace CarBSP {
       //draw_line(waypoints[i](0), waypoints[i](1), waypoints[i+1](0), waypoints[i+1](1), painter);
     }
 
-    QBrush prev_brush = painter.brush();
-    painter.setPen(fov_pen);
-    painter.setBrush(fov_brush);
-    for (int i = 0; i < (int)simulated_positions.size(); ++i) {
-      Beam2D fov = robot_fov(simulated_positions[i](0), simulated_positions[i](1), simulated_positions[i](2), car_helper->car_camera_depth, car_helper->car_camera_span_angle);
-      draw_beam_2d(fov, painter);
+    {
+      QBrush prev_brush = painter.brush();
+      painter.setPen(fov_pen);
+      painter.setBrush(fov_brush);
+      for (int i = 0; i < (int)simulated_positions.size(); ++i) {
+        Beam2D fov = robot_fov(simulated_positions[i](0), simulated_positions[i](1), simulated_positions[i](2), car_helper->car_camera_depth, car_helper->car_camera_span_angle);
+        draw_beam_2d(fov, painter);
+      }
+      painter.setBrush(prev_brush);
     }
-    painter.setBrush(prev_brush);
 
     QPen sensor_path_pen(Qt::green, 3, Qt::SolidLine);
     QPen sensor_pos_pen(Qt::green, 8, Qt::SolidLine);
@@ -768,8 +753,10 @@ namespace CarBSP {
     planner->goal = goal;
     planner->start_sigma = start_sigma;
     planner->method = method;
+    planner->T = 30;
     planner->noise_level = noise_level;
     planner->initialize();
+    
 
     boost::shared_ptr<CarSimulationPlotter> sim_plotter;
     boost::shared_ptr<CarOptPlotter> opt_plotter;
@@ -793,11 +780,12 @@ namespace CarBSP {
 
     while (!planner->finished()) {
       planner->solve(opt_callback);
-      planner->simulate_executions(planner->helper->T);
-      //planner->simulate_executions(1);
+      //planner->simulate_executions(planner->helper->T);
+      planner->simulate_executions(1);
       if (plotting) {
-        //emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
-        sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
+        cout << "plotting now" << endl;
+        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
+        //sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
       }
     }
 
@@ -815,6 +803,8 @@ namespace CarBSP {
 using namespace CarBSP;
 
 int main(int argc, char *argv[]) {
+  seed_random();
+  //srand(static_cast<unsigned int>(std::time(0)));
   bool plotting = true;
   {
     Config config;

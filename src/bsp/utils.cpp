@@ -58,4 +58,13 @@ namespace BSP {
     AddVarArray(prob, rows, cols, -INFINITY, INFINITY, name_prefix, newvars);
   }
 
+  void seed_random() {
+    unsigned int randval;
+    FILE *f;
+    f = fopen("/dev/random", "r");
+    fread(&randval, sizeof(randval), 1, f);
+    fclose(f);
+    srand(randval);
+  }
+
 }

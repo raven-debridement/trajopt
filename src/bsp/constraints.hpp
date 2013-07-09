@@ -58,4 +58,30 @@ namespace BSP {
     int belief_dim;
     int control_dim;
   };
+
+  template< class StateFuncT >
+  class StateError : public VectorOfVector {
+  public:
+    typedef typename StateFuncT::Ptr StateFuncPtr;
+    typedef typename StateFuncT::StateT StateT;
+    typedef typename StateFuncT::ControlT ControlT;
+    typedef typename StateFuncT::StateNoiseT StateNoiseT;
+
+    StateError(StateFuncPtr f, int state_dim, int control_dim, int state_noise_dim) : f(f), state_dim(state_dim), control_dim(control_dim), state_noise_dim(state_noise_dim) {}
+
+    VectorXd operator()(const VectorXd& a) const {
+      StateT cur_state = a.topRows(state_dim);
+      ControlT cur_control = a.middleRows(state_dim, control_dim);
+      StateT next_state = a.middleRows(state_dim + control_dim, state_dim);
+      StateNoiseT zero_state_noise = StateNoiseT::Zero(state_noise_dim);
+      return next_state - f->call(cur_state, cur_control, zero_state_noise);
+    }
+
+  protected:
+    StateFuncPtr f;
+    int state_dim;
+    int control_dim;
+    int state_noise_dim;
+  };
+
 }

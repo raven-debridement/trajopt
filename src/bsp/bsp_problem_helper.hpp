@@ -126,18 +126,43 @@ namespace BSP {
     }
 
     virtual void configure_problem(OptProb& prob) {
-      create_variables(prob);
+      create_state_variables(prob);
+      create_sigma_variables(prob);
+      create_control_variables(prob);
+      create_belief_variables(prob);
       add_variance_cost(prob);
       add_control_cost(prob);
-      add_start_constraint(prob);
+      add_start_state_constraint(prob);
+      add_start_sigma_constraint(prob);
       add_goal_constraint(prob);
       add_belief_constraint(prob);
     }
 
-    virtual void create_variables(OptProb& prob) {
+    virtual void create_state_variables(OptProb& prob) {
       BSP::AddVarArray(prob, T+1, state_dim, "state", state_vars);
+      for (int i = 0; i <= T; ++i) {
+        for (int j = 0; j < state_dim; ++j) {
+          prob.setLowerBounds(vector<double>(1, state_lbs[j]), vector<Var>(1, state_vars.at(i, j)));
+          prob.setUpperBounds(vector<double>(1, state_ubs[j]), vector<Var>(1, state_vars.at(i, j)));
+        }
+      }
+    }
+
+    virtual void create_sigma_variables(OptProb& prob) {
       BSP::AddVarArray(prob, T+1, sigma_dof, "sigma", sqrt_sigma_vars);
+    }
+
+    virtual void create_control_variables(OptProb& prob) {
       BSP::AddVarArray(prob, T, control_dim, "control", control_vars);
+      for (int i = 0; i < T; ++i) {
+        for (int j = 0; j < control_dim; ++j) {
+          prob.setLowerBounds(vector<double>(1, control_lbs[j]), vector<Var>(1, control_vars.at(i, j)));
+          prob.setUpperBounds(vector<double>(1, control_ubs[j]), vector<Var>(1, control_vars.at(i, j)));
+        }
+      }
+    }
+
+    virtual void create_belief_variables(OptProb& prob) {
       belief_vars.resize(T+1, belief_dim);
       for (int i = 0; i <= T; ++i) {
         for (int j = 0; j < state_dim; ++j) {
@@ -147,18 +172,6 @@ namespace BSP {
       for (int i = 0; i <= T; ++i) {
         for (int j = 0; j < sigma_dof; ++j) {
           belief_vars(i, state_dim+j) = sqrt_sigma_vars(i, j);
-        }
-      }
-      for (int i = 0; i <= T; ++i) {
-        for (int j = 0; j < state_dim; ++j) {
-          prob.setLowerBounds(vector<double>(1, state_lbs[j]), vector<Var>(1, state_vars.at(i, j)));
-          prob.setUpperBounds(vector<double>(1, state_ubs[j]), vector<Var>(1, state_vars.at(i, j)));
-        }
-      }
-      for (int i = 0; i < T; ++i) {
-        for (int j = 0; j < control_dim; ++j) {
-          prob.setLowerBounds(vector<double>(1, control_lbs[j]), vector<Var>(1, control_vars.at(i, j)));
-          prob.setUpperBounds(vector<double>(1, control_ubs[j]), vector<Var>(1, control_vars.at(i, j)));
         }
       }
     }
@@ -176,16 +189,25 @@ namespace BSP {
       }
     }
 
-    virtual void add_start_constraint(OptProb& prob) {
+    virtual void add_start_state_constraint(OptProb& prob) {
       for (int i = 0; i < state_dim; ++i) {
         prob.addLinearConstraint(exprSub(AffExpr(state_vars.at(0, i)), start(i)), EQ);
       }
+      
+    }
+
+    virtual void add_start_sigma_constraint(OptProb& prob) {
       VarianceT sqrt_start_sigma = matrix_sqrt(start_sigma);
       for (int index = 0, i = 0; i < state_dim; ++i) {
         for (int j = i; j < state_dim; ++j) {
           prob.addLinearConstraint(exprSub(AffExpr(sqrt_sigma_vars.at(0, index++)), sqrt_start_sigma(i, j)), EQ);
         }
       }
+    }
+
+    virtual void add_start_constraint(OptProb& prob) {
+      add_start_state_constraint(prob);
+      add_start_sigma_constraint(prob);
     }
 
     virtual void add_goal_constraint(OptProb& prob) {
@@ -195,9 +217,9 @@ namespace BSP {
     }
 
     virtual void add_belief_constraint(OptProb& prob) {
-      state_func.reset(new StateFuncT(this->shared_from_this()));
-      observe_func.reset(new ObserveFuncT(this->shared_from_this()));
-      belief_func.reset(new BeliefFuncT(this->shared_from_this(), state_func, observe_func));
+      //state_func.reset(new StateFuncT(this->shared_from_this()));
+      //observe_func.reset(new ObserveFuncT(this->shared_from_this()));
+      //belief_func.reset(new BeliefFuncT(this->shared_from_this(), state_func, observe_func));
 
       for (int i = 0; i < T; ++i) {
         belief_constraints.push_back(BeliefConstraintPtr(new BeliefConstraint<BeliefFuncT>(belief_vars.row(i), control_vars.row(i), belief_vars.row(i+1), belief_func)));
@@ -269,5 +291,48 @@ namespace BSP {
       R = cost;
     }
 
+    virtual void add_state_constraint(OptProb& prob) {
+      for (int i = 0; i < T; ++i) {
+        VarVector vars = concat(concat(state_vars.row(i), control_vars.row(i)), state_vars.row(i+1));
+        VectorOfVectorPtr f(new StateError<StateFuncT>(state_func, state_dim, control_dim, state_noise_dim));
+        VectorXd coeffs = VectorXd::Ones(state_dim);
+        prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("state_%i")%i).str())));
+      }
+    }
+
+    void initialize_controls_in_state_space() {
+      cout << "initialize controls in state space..." << endl;
+      OptProbPtr prob(new OptProb());
+      create_state_variables(*prob);
+      create_control_variables(*prob);
+      add_start_state_constraint(*prob);
+      add_goal_constraint(*prob);
+      add_state_constraint(*prob);
+      BasicTrustRegionSQP opt(prob);
+      DblVec x(prob->getNumVars(), 0); 
+      opt.initialize(x);
+      opt.improve_ratio_threshold_ = .25;
+      opt.min_trust_box_size_ = 1e-4;
+      opt.min_approx_improve_= 1e-4;
+      opt.min_approx_improve_frac_ = -INFINITY;
+      opt.max_iter_ = 200;
+      opt.trust_shrink_ratio_=.1;
+      opt.trust_expand_ratio_ = 1.5;
+      opt.cnt_tolerance_ = 1e-4;
+      opt.max_merit_coeff_increases_ = 10;
+      opt.merit_coeff_increase_ratio_ = 10;
+      opt.max_time_ = INFINITY;
+      opt.merit_error_coeff_ = 10;
+      opt.trust_box_size_ = 1e-1;
+
+      opt.optimize();
+      cout << "optimized" << endl;
+      DblVec result = opt.x();
+      initial_controls.clear();
+      for (int i = 0; i < get_T(); ++i) {
+        ControlT uvec = (ControlT) getVec(result, control_vars.row(i));
+        initial_controls.push_back(uvec);
+      }
+    }
   };
 }

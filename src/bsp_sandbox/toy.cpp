@@ -318,15 +318,15 @@ namespace ToyBSP {
   ToyOptimizerTask::ToyOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
   void ToyOptimizerTask::stage_plot_callback(boost::shared_ptr<ToyOptPlotter> plotter, OptProb*, DblVec& x) {
-    plotter->update_plot_data(&x);
-    //wait_to_proceed(boost::bind(&ToyOptPlotter::update_plot_data, plotter, &x));
+    //plotter->update_plot_data(&x);
+    wait_to_proceed(boost::bind(&ToyOptPlotter::update_plot_data, plotter, &x));
   }
 
 
   void ToyOptimizerTask::run() {
-    bool plotting = true;
+    bool plotting = false;
 
-    int method = 1;
+    int method = 2;
     double noise_level = 2;
 
     double start_vec_array[] = {-5, 2};
@@ -349,10 +349,10 @@ namespace ToyBSP {
     Matrix2d start_sigma = Matrix2d::Identity()*4;
 
     int T = 20;
-    deque<Vector2d> initial_controls;
-    for (int i = 0; i < T; ++i) {
-      initial_controls.push_back(Vector2d::Zero());
-    }
+    //deque<Vector2d> initial_controls;
+    //for (int i = 0; i < T; ++i) {
+    //  initial_controls.push_back(Vector2d::Zero());
+    //}
 
     ToyBSPPlannerPtr planner(new ToyBSPPlanner());
     planner->start = start;
@@ -360,7 +360,7 @@ namespace ToyBSP {
     planner->start_sigma = start_sigma;
     planner->method = method;
     planner->T = T;
-    planner->controls = initial_controls;
+    //planner->controls = initial_controls;
     planner->noise_level = noise_level;
     planner->initialize();
 
@@ -408,8 +408,8 @@ namespace ToyBSP {
 using namespace ToyBSP;
 
 int main(int argc, char *argv[]) {
-    srand(static_cast<unsigned int>(std::time(0)));
-  bool plotting = true;
+  seed_random();//srand(static_cast<unsigned int>(std::time(0)));
+  bool plotting = false;
   {
     Config config;
     config.add(new Parameter<bool>("plotting", &plotting, "plotting"));

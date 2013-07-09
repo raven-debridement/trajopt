@@ -69,16 +69,16 @@ public:
   }
 
   virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
-    opt.max_iter_                   = 100;
+    opt.max_iter_                   = 250;
     opt.merit_error_coeff_          = 100;
     opt.merit_coeff_increase_ratio_ = 10;
-    opt.max_merit_coeff_increases_  = 1;
-    opt.trust_shrink_ratio_         = 0.1;
-    opt.trust_expand_ratio_         = 1.5;
+    opt.max_merit_coeff_increases_  = 2;
+    opt.trust_shrink_ratio_         = 0.8;
+    opt.trust_expand_ratio_         = 1.2;
     opt.min_trust_box_size_         = 0.001;
     opt.min_approx_improve_         = 1e-2;
     opt.min_approx_improve_frac_    = 1e-4;
-    opt.improve_ratio_threshold_    = 0.25;
+    opt.improve_ratio_threshold_    = 0.1;
     opt.trust_box_size_             = 1;
     opt.cnt_tolerance_              = 1e-06;
   }
@@ -90,9 +90,14 @@ public:
     helper->goal = goal;
     helper->start_sigma = start_sigma;
     helper->T = T;
-    helper->initial_controls = controls;
-    helper->noise_level = noise_level;
     helper->initialize();
+    if (controls.size() == 0) {
+      helper->initialize_controls_in_state_space();
+      controls = helper->initial_controls;
+    } else {
+      helper->initial_controls = controls;
+    }
+    helper->noise_level = noise_level;
     state_noise_mean = StateNoiseT::Zero(helper->state_noise_dim);
     state_noise_cov = StateNoiseCovT::Identity(helper->state_noise_dim, helper->state_noise_dim);
     observe_noise_mean = ObserveNoiseT::Zero(helper->observe_noise_dim);

@@ -15,7 +15,7 @@ namespace CarBSP {
   BSP_TYPEDEFS(
       7, // state_dim
       7, // state_noise_dim
-      2, // control_dim
+      6, // control_dim
       4, // observe_dim
       4, // observe_noise_dim
       28, // sigma_dof
@@ -70,11 +70,11 @@ namespace CarBSP {
 
   class CarBSPProblemHelper : public BSPProblemHelper<CarBeliefFunc> {
   public:
-    struct RRTNode {
-      RobotStateT x;
-      RobotControlT u;
-      int bp;
-    };
+    //struct RRTNode {
+    //  RobotStateT x;
+    //  RobotControlT u;
+    //  int bp;
+    //};
 
     typedef typename BeliefConstraint<CarBeliefFunc>::Ptr BeliefConstraintPtr;
     double input_dt;
@@ -89,7 +89,7 @@ namespace CarBSP {
 
     vector<Vector4d> rrt_edges;
 
-    virtual void RRTplan(bool);
+    //virtual void RRTplan(bool);
     virtual void add_goal_constraint(OptProb& prob);
     CarBSPProblemHelper();
   };
