@@ -42,6 +42,7 @@ namespace BSP {
     typedef typename BeliefFuncT::Ptr BeliefFuncPtr;
     /** end typedefs */
 
+    double noise_level;
     int state_dim;
     int control_dim;
     int observe_dim;

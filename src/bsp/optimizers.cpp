@@ -32,7 +32,7 @@ namespace BSP {
     for (int merit_increases=0; merit_increases < max_merit_coeff_increases_; ++merit_increases) { // merit adjustment loop
 
       // Solving a constrained minimization problem without the nonconvex constraints
-    	cout << "Solving for closest feasible point" << endl;
+    	//cout << "Solving for closest feasible point" << endl;
       x_ = prob_->getClosestFeasiblePoint(x_);
       assert(x_.size() == prob_->getVars().size());
       assert(prob_->getCosts().size() > 0 || constraints.size() > 0);

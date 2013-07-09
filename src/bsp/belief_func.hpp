@@ -133,20 +133,20 @@ namespace BSP {
       K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose()));
 
       if (update_from_observe) {
-        //new_x = new_x + K * (z - h->call(new_x, zero_observe_noise));
-        StateT test_x = new_x + K * (z - h->call(new_x, zero_observe_noise));
-        bool valid = true;
-
-        // car hack
-        if (state_dim == 7) {
-        	double tol = 1;
-        	for (int i=0; i < state_dim && valid; ++i) {
-        		if ( fabs(test_x(i) - new_x(i)) > tol)	valid = false;
-        	}
+        ObserveT obs_diff = z - h->call(new_x, zero_observe_noise);
+        if (obs_diff.array().abs().maxCoeff() < ((ObserveT) (N*N.transpose()).diagonal()).array().abs().maxCoeff() * 3) {
+          new_x = new_x + K * obs_diff;
         }
-        if (valid){
-        	new_x = test_x;
-        }
+        
+        //if (state_dim == 7) {
+        //	double tol = 1;
+        //	for (int i=0; i < state_dim && valid; ++i) {
+        //		if ( fabs(test_x(i) - new_x(i)) > tol)	valid = false;
+        //	}
+        //}
+        //if (valid){
+        //	new_x = test_x;
+        //}
 
         //cout << "A: " << A << endl;
         //cout << "M: " << M << endl;

@@ -15,7 +15,7 @@ namespace CarBSP {
   BSP_TYPEDEFS(
       7, // state_dim
       7, // state_noise_dim
-      6, // control_dim
+      2, // control_dim
       4, // observe_dim
       4, // observe_noise_dim
       28, // sigma_dof

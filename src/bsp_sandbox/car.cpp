@@ -5,9 +5,12 @@
 #include <QtCore>
 #include <QPolygonF>
 
+
 using namespace BSP;
 
 namespace CarBSP {
+
+  const static char car_rrt_filename[] = "car-rrt-seq.txt";
 
   CarBSPPlanner::CarBSPPlanner() : BSPPlanner<CarBSPProblemHelper>() {}
 
@@ -21,11 +24,13 @@ namespace CarBSP {
     helper->initialize();
     helper->RRTplan(false);
     helper->T = (int) helper->initial_controls.size();
+    helper->noise_level = noise_level;
+    controls = helper->initial_controls;
     state_noise_mean = StateNoiseT::Zero(helper->state_noise_dim);
     state_noise_cov = StateNoiseCovT::Identity(helper->state_noise_dim, helper->state_noise_dim);
     observe_noise_mean = ObserveNoiseT::Zero(helper->observe_noise_dim);
     observe_noise_cov = ObserveNoiseCovT::Identity(helper->observe_noise_dim, helper->observe_noise_dim);
-    current_position = sample_gaussian(start, start_sigma); //start;
+    current_position = sample_gaussian(start, start_sigma, noise_level); //start;
     simulated_positions.push_back(current_position);
     initialized = true;
   }
@@ -52,7 +57,7 @@ namespace CarBSP {
     set_state_dim(7);
     set_sigma_dof(28);
     set_observe_dim(4);
-    set_control_dim(6);
+    set_control_dim(2);
     robot_state_dim = 3;
     robot_control_dim = 2;
 
@@ -62,8 +67,8 @@ namespace CarBSP {
     //double control_ubs_array[] = {PI*0.25, 3, 10, 10, 10, 10};
 
     // static controls:
-    double control_lbs_array[] = {-PI*0.25, 0, 0, 0, 0, 0};
-    double control_ubs_array[] = {PI*0.25, 3, 0, 0, 0, 0};
+    double control_lbs_array[] = {-PI*0.25, 0};//, 0, 0, 0, 0};
+    double control_ubs_array[] = {PI*0.25, 3};//, 0, 0, 0, 0};
 
     set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
@@ -135,7 +140,8 @@ namespace CarBSP {
         }
 
         StateNoiseT zero_state_noise = StateNoiseT::Zero(state_noise_dim);
-        RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) concat(input, Vector4d::Zero()), zero_state_noise).head<3>();
+        //RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) concat(input, Vector4d::Zero()), zero_state_noise).head<3>();
+        RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) input, zero_state_noise).head<3>();
 
         bool valid = true;
         for (int xd = 0; xd < robot_state_dim; ++xd) {
@@ -184,9 +190,21 @@ namespace CarBSP {
 
       initial_controls.clear();
       for (int i = 0; i < (int)path.size()-1; ++i) {
-        initial_controls.push_back((ControlT) concat(path[i].u, Vector4d::Zero()));
+        initial_controls.push_back((ControlT) path[i].u);
         cout << path[i].u(0) << " " << path[i].u(1) << endl;
       }
+
+      ofstream fptr(car_rrt_filename, ios::out);
+      if (!fptr.is_open()) {
+        cerr << "Could not open file, check location" << endl;
+        std::exit(-1);
+      }
+      fptr << initial_controls.size() << endl;
+      for (int i = 0; i < initial_controls.size(); ++i) {
+        fptr << initial_controls[i](0) << " " << initial_controls[i](1) << endl;
+      }
+      if (fptr.is_open()) fptr.close();
+          
       cout << "T: " << initial_controls.size() << endl;
 
       //cout << "PAUSED INSIDE RRT BUILD" << endl;
@@ -195,7 +213,7 @@ namespace CarBSP {
 
     } else {
 
-      ifstream fptr("car-rrt-seq.txt", ios::in);
+      ifstream fptr(car_rrt_filename, ios::in);
       if (!fptr.is_open()) {
         cerr << "Could not open file, check location" << endl;
         std::exit(-1);
@@ -247,10 +265,10 @@ namespace CarBSP {
     x4(2) = u(1) * tan((double)u(0)) / car_helper->carlen;
 
     new_x = x + car_helper->input_dt/6.0*(x1+2.0*(x2+x3)+x4);
-    new_x.tail<4>() = x.tail<4>() + u.tail<4>() * car_helper->input_dt;
+    new_x.tail<4>() = x.tail<4>();// + u.tail<4>() * car_helper->input_dt;
     new_x.head<3>() += 0.01 * m.head<3>();
 
-    new_x.tail<4>() += 0.01 * m.tail<4>();
+    //new_x.tail<4>() += 0.01 * m.tail<4>();
 
     double umag = u.squaredNorm();
     //return new_x + 0.1*umag*m;
@@ -491,7 +509,7 @@ namespace CarBSP {
       draw_ellipse(states_opt[i].middleRows<2>(3), sigmas_opt[i].block<2, 2>(3, 3), painter, 0.5);
     }
     painter.setPen(sensor_path_pen);
-    for (int i = 0; i < states_opt.size() - 1; ++i) {
+    for (int i = 0; i < (int) states_opt.size() - 1; ++i) {
       draw_line(states_opt[i](3), states_opt[i](4), states_opt[i+1](3), states_opt[i+1](4), painter);
     }
     painter.setPen(sensor_pos_pen);
@@ -504,7 +522,7 @@ namespace CarBSP {
       draw_ellipse(states_opt[i].middleRows<2>(5), sigmas_opt[i].block<2, 2>(5, 5), painter, 0.5);
     }
     painter.setPen(sensor_path_pen);
-    for (int i = 0; i < states_opt.size() - 1; ++i) {
+    for (int i = 0; i < (int) states_opt.size() - 1; ++i) {
       draw_line(states_opt[i](5), states_opt[i](6), states_opt[i+1](5), states_opt[i+1](6), painter);
     }
     painter.setPen(sensor_pos_pen);
@@ -591,7 +609,7 @@ namespace CarBSP {
     sigmas_opt = new_sigmas_opt; sigmas_actual = new_sigmas_actual;
 
     for(int i = 0; i < 1000; ++i) {
-      samples.push_back(sample_gaussian(car_helper->start, car_helper->start_sigma));
+      samples.push_back(sample_gaussian(car_helper->start, car_helper->start_sigma, car_helper->noise_level));
     }
 
     car_helper->belief_func->approx_factor = cur_approx_factor;
@@ -718,6 +736,11 @@ namespace CarBSP {
   void CarOptimizerTask::run() {
     bool plotting = true;
 
+    /* enum Method { StateSpace = 0, ContinuousBeliefSpace = 1, DiscontinuousBeliefSpace = 2}; */
+    int method = 0;
+
+    double noise_level = 1;
+
     double start_vec_array[] = {-5, 2, -PI*0.5, 0, 2, 0, -2};
     double goal_vec_array[] = {-5, -2, 0, 0, 0, 0, 0};
 
@@ -729,6 +752,8 @@ namespace CarBSP {
       config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
       config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
       config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
+      config.add(new Parameter<int>("method", &method, "method"));
+      config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
       CommandParser parser(config);
       parser.read(argc, argv, true);
     }
@@ -742,6 +767,8 @@ namespace CarBSP {
     planner->start = start;
     planner->goal = goal;
     planner->start_sigma = start_sigma;
+    planner->method = method;
+    planner->noise_level = noise_level;
     planner->initialize();
 
     boost::shared_ptr<CarSimulationPlotter> sim_plotter;
@@ -751,36 +778,58 @@ namespace CarBSP {
       double x_min = -11.25, x_max = 6.25, y_min = -5, y_max = 5;
       sim_plotter.reset(create_plotter<CarSimulationPlotter>(x_min, x_max, y_min, y_max, planner->helper));
       sim_plotter->show();
-      opt_plotter.reset(create_plotter<CarOptPlotter>(x_min, x_max, y_min, y_max, planner->helper));
-      opt_plotter->show();
+      if (method != 0) {
+        opt_plotter.reset(create_plotter<CarOptPlotter>(x_min, x_max, y_min, y_max, planner->helper));
+        opt_plotter->show();
+      }
     }
 
     boost::function<void(OptProb*, DblVec&)> opt_callback;
-    if (plotting) {
-      //opt_callback = boost::bind(&CarOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
+    if (plotting && method != 0) {
+      opt_callback = boost::bind(&CarOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
     }
+
+    //cout << "start solving" << endl;
 
     while (!planner->finished()) {
       planner->solve(opt_callback);
-      //planner->simulate_executions(planner->helper->T);
-      planner->simulate_executions(1);
+      planner->simulate_executions(planner->helper->T);
+      //planner->simulate_executions(1);
       if (plotting) {
         //emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
         sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
       }
     }
-    emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
-    emit finished_signal();
 
+    cout << "final position: " << planner->simulated_positions.back().head<2>().transpose() << endl;
+    cout << "goal position: " << planner->goal.head<2>().transpose() << endl;
+    cout << "final estimated position: " << planner->start.head<2>().transpose() << endl;
+    cout << "final covariance: " << endl << planner->start_sigma.topLeftCorner<2, 2>() << endl;
+    if (plotting) {
+      emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
+      emit finished_signal();
+    }
   }
 }
 
 using namespace CarBSP;
 
 int main(int argc, char *argv[]) {
-	QApplication app(argc, argv);
-	CarOptimizerTask* task = new CarOptimizerTask(argc, argv, &app);
-	QTimer::singleShot(0, task, SLOT(run_slot()));
-	QObject::connect(task, SIGNAL(finished_signal()), &app, SLOT(quit()));
-	return app.exec();
+  bool plotting = true;
+  {
+    Config config;
+    config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
+    CommandParser parser(config);
+    parser.read(argc, argv, true);
+  }
+  QApplication app(argc, argv);
+  CarOptimizerTask* task = new CarOptimizerTask(argc, argv, &app);
+  if (plotting) {
+    QTimer::singleShot(0, task, SLOT(run_slot()));
+    QObject::connect(task, SIGNAL(finished_signal()), &app, SLOT(quit()));
+    return app.exec();
+  } else {
+    task->run();
+    return 0;
+	}
 }

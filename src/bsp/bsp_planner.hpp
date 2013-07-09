@@ -46,6 +46,10 @@ public:
   int n_alpha_iterations;
   BSPProblemHelperPtr helper;
 
+  enum Method { StateSpace = 0, ContinuousBeliefSpace = 1, DiscontinuousBeliefSpace = 2};
+  int method;
+  double noise_level;
+
   deque<ControlT> controls;
   StateNoiseT state_noise_mean;
   StateNoiseCovT state_noise_cov;
@@ -87,12 +91,13 @@ public:
     helper->start_sigma = start_sigma;
     helper->T = T;
     helper->initial_controls = controls;
+    helper->noise_level = noise_level;
     helper->initialize();
     state_noise_mean = StateNoiseT::Zero(helper->state_noise_dim);
     state_noise_cov = StateNoiseCovT::Identity(helper->state_noise_dim, helper->state_noise_dim);
     observe_noise_mean = ObserveNoiseT::Zero(helper->observe_noise_dim);
     observe_noise_cov = ObserveNoiseCovT::Identity(helper->observe_noise_dim, helper->observe_noise_dim);
-    current_position = start;//sample_gaussian(start, start_sigma);
+    current_position = start;//sample_gaussian(start, start_sigma, noise_level);
     simulated_positions.push_back(current_position);
     initialized = true;
   }
@@ -100,11 +105,20 @@ public:
   void solve(boost::function<void(OptProb*, DblVec&)>& opt_callback) {
     assert (initialized);
 
+    if (method == StateSpace) {
+      return;
+    }
+
     OptProbPtr prob(new OptProb());
     helper->start = start;
     helper->start_sigma = start_sigma;
     helper->initialize();
     helper->configure_problem(*prob);
+
+    if (method == ContinuousBeliefSpace) {
+      n_alpha_iterations = 1;
+      helper->belief_func->approx_factor = 1;
+    }
 
     for (int i = 0; i < n_alpha_iterations; ++i) {
       BSPTrustRegionSQP opt(prob);
@@ -131,15 +145,15 @@ public:
   
   void simulate_executions(int nsteps) {
     assert (initialized);
-    if (nsteps <= 0 || nsteps > controls.size()) {
+    if (nsteps <= 0 || nsteps > helper->T) {
       return;
     }
     StateFuncPtr state_func = helper->state_func;
     ObserveFuncPtr observe_func = helper->observe_func;
     BeliefFuncPtr belief_func = helper->belief_func;
     for (int i = 0; i < nsteps; ++i) {
-      StateNoiseT state_noise = sample_gaussian(state_noise_mean, state_noise_cov);
-      ObserveNoiseT observe_noise = sample_gaussian(observe_noise_mean, observe_noise_cov);
+      StateNoiseT state_noise = sample_gaussian(state_noise_mean, state_noise_cov, noise_level);
+      ObserveNoiseT observe_noise = sample_gaussian(observe_noise_mean, observe_noise_cov, noise_level);
       // update actual position
       current_position = state_func->call(current_position, controls.front(), state_noise);
       simulated_positions.push_back(current_position);
@@ -161,7 +175,7 @@ public:
     }
     helper->initial_controls = controls;
     helper->T = controls.size();
-    cout << "Finished simulating execution, remaining horizon: " << helper->T << endl;
+    //cout << "Finished simulating execution, remaining horizon: " << helper->T << endl;
   }
 
   void simulate_execution() {

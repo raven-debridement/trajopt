@@ -119,17 +119,15 @@ namespace BSP {
   }
 
   template<class MeanT, class VarianceT>
-  MeanT sample_gaussian(const MeanT& mean, const VarianceT& cov) {
+  MeanT sample_gaussian(const MeanT& mean, const VarianceT& cov, double scaling=1.0/9.0) {
     static boost::normal_distribution<> standard_normal;
     static boost::mt19937 rng(static_cast<unsigned int>(std::time(0)));
     static boost::variate_generator<boost::mt19937&, 
                                     boost::normal_distribution<> > gen(rng, standard_normal);
     MeanT sample(mean.size());
     for (int i = 0; i < mean.size(); ++i) {
-      //sample(i) = gen();
     	sample(i) = normal();
     }
-    double scaling = 1.0/9.0;
     SelfAdjointEigenSolver<VarianceT> solver(cov*scaling);
     return (solver.eigenvectors().real())
          * (solver.eigenvalues().real().cwiseSqrt().asDiagonal())
