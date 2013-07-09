@@ -34,8 +34,3 @@ SET(needle_qt_headers needle.hpp)
 QT4_WRAP_CPP(needle_qt_headers_moc ${needle_qt_headers})
 add_executable(needle needle.cpp geometry_2d.cpp ${needle_qt_headers_moc})
 target_link_libraries(needle bsp trajopt ${QT_LIBRARIES})
-
-SET(car_static_qt_headers car_static.hpp)
-QT4_WRAP_CPP(car_static_qt_headers_moc ${car_static_qt_headers})
-add_executable(car_static car_static.cpp geometry_2d.cpp ${car_static_qt_headers_moc})
-target_link_libraries(car_static bsp trajopt ${QT_LIBRARIES})
