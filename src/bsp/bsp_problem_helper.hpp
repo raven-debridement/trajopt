@@ -237,6 +237,7 @@ namespace BSP {
         }
       }
 
+
       assert(belief_func->helper);
       vector<BeliefT> init_beliefs;
       BeliefT cur_belief(belief_dim);

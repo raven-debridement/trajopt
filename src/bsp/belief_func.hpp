@@ -104,7 +104,10 @@ namespace BSP {
 
       f->linearize(x, u, zero_state_noise, &A, (ControlGradT*) NULL, &M);
 
+      //cout << "sigma before: " << sigma << endl;
+
       sigma = A*sigma*A.transpose() + M*M.transpose();
+      //cout << "sigma after: " << sigma << endl;
 
       new_x = f->call(x, u, zero_state_noise);
 
@@ -114,16 +117,53 @@ namespace BSP {
       } else {
         observation_masks = h->observation_masks(new_x, approx_factor);
       }
+      //cout << "obs masks: " << observation_masks.transpose() << endl;
 
       h->linearize(new_x, zero_observe_noise, &H, &N);
 
-      K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose())) * observation_masks.asDiagonal();
+      H = observation_masks.asDiagonal() * H;
+
+      //cout << "N: " << endl << N << endl;
+      //cout << "H: " << endl << H << endl;
+      //cout << "sigma: " << endl << sigma << endl;
+      //cout << "nominator:" << endl << (sigma*H.transpose()) << endl;
+      //cout << "denominator:" << endl <<  (H*sigma*H.transpose() + N*N.transpose())<< endl;
+      K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose()));
+      //cout << "K: " << endl << K << endl;
+
+      //cout << "obs masks:\n" << observation_masks.asDiagonal() << endl;
 
       if (z_ptr != NULL) {
-        new_x = new_x + K * ((*z_ptr) - h->call(new_x, zero_observe_noise));
+        new_x = new_x + K * observation_masks.asDiagonal() * ((*z_ptr) - h->call(new_x, zero_observe_noise));
       }
 
-      sigma = ensure_precision((VarianceT) (sigma - K*(H*sigma)));
+      EigenSolver<VarianceT> es(sigma);
+      //cout << "eigvals: " << es.eigenvalues() << endl;
+      sigma = sigma - K*(H*sigma);//ensure_precision((VarianceT) (sigma - K*(H*sigma)));
+      VarianceT sqrtsigma = matrix_sqrt(sigma);
+      for (int i = 0; i < sqrtsigma.rows(); ++i) {
+        for (int j = 0; j < sqrtsigma.cols(); ++j) {
+          if (isnan(sqrtsigma(i, j))) {
+            cout << "NAN!!" << endl;
+            cout << "sigma: " << endl << sigma << endl;
+            cout << "sqrtsigma: " << endl << sqrtsigma << endl;
+            goto finish;
+          }
+        }
+      }
+finish:
+      for (int i = 0; i < new_x.rows(); ++i) {
+        if (isnan(new_x(i))) {
+          cout << "NANX!!" << endl;
+        }
+      }
+
+
+      //if (isnan(sigma.norm())) {
+      //  cout << "NAN!!!" << endl;
+      //}
+      //cout << "new sigma: " << endl << sigma << endl;
+      //cout << "new sqrt sigma:" << endl << matrix_sqrt(sigma) << endl;
 
       compose_belief(new_x, matrix_sqrt(sigma), &new_b);
 

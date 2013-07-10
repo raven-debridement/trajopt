@@ -65,12 +65,12 @@ namespace CarBSP {
 
     double state_lbs_array[] = {-10, -10, -PI*2, -10, -10, -10, -10};
     double state_ubs_array[] = {10, 10, PI*2, 10, 10, 10, 10};
-    double control_lbs_array[] = {-PI*0.25, 0, -0.5, -0.5, -0.5, -0.5};
-    double control_ubs_array[] = {PI*0.25, 3, 0.5, 0.5, 0.5, 0.5};
+    //double control_lbs_array[] = {-PI*0.25, 0, -0.5, -0.5, -0.5, -0.5};
+    //double control_ubs_array[] = {PI*0.25, 3, 0.5, 0.5, 0.5, 0.5};
 
     // static controls:
-    // double control_lbs_array[] = {-PI*0.25, 0, 0, 0, 0, 0};
-    // double control_ubs_array[] = {PI*0.25, 5, 0.00001, 0.00001, 0.00001, 0.00001};
+    double control_lbs_array[] = {-PI*0.25, 0, 0, 0, 0, 0};
+    double control_ubs_array[] = {PI*0.25, 5, 0, 0, 0, 0};//0.00001, 0.00001, 0.00001, 0.00001};
 
     set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
@@ -94,146 +94,6 @@ namespace CarBSP {
       prob.addLinearConstraint(exprSub(exprSub(AffExpr(0), AffExpr(optvar)), (-goal(i)+goaleps) ), INEQ);
     }
   }
-
-  //void CarBSPProblemHelper::RRTplan(bool compute) {
-  //  if (compute) {
-
-  //    srand(time(0));
-
-  //    vector<RRTNode> rrtTree;
-  //    RRTNode startNode;
-  //    startNode.x = start.head<3>();
-  //    rrtTree.push_back(startNode);
-
-  //    Vector2d poserr = (startNode.x.head<2>() - goal.head<2>());
-
-  //    double state_lbs_array[] = {-6, -6, -PI};
-  //    double state_ubs_array[] = {6, 6, PI};
-  //    double control_lbs_array[] = {-PI*0.25, 0.5};
-  //    double control_ubs_array[] = {PI*0.25, 1};
-
-  //    int numiter = 0;
-  //    while (poserr.squaredNorm() > goaleps*goaleps || numiter < 100) {
-
-  //      cout << ".";
-  //      RobotStateT sample;
-  //      for (int xd = 0; xd < robot_state_dim; ++xd) {
-  //        sample(xd) = (((double) rand()) / RAND_MAX) * (state_ubs_array[xd] - state_lbs_array[xd]) + state_lbs_array[xd];
-  //      }
-
-  //      // Check sample for collisions, turned off for now
-
-  //      int node = -1;
-  //      double mindist = 9e99;
-  //      for (int j = 0; j < (int) rrtTree.size(); ++j) {
-  //        double ddist = (rrtTree[j].x - sample).squaredNorm();
-  //        if (ddist < mindist) {
-  //          mindist = ddist;
-  //          node = j;
-  //        }
-  //      }
-  //      if (node == -1) {
-  //        continue;
-  //      }
-
-  //      RobotControlT input;
-  //      for (int ud = 0; ud < robot_control_dim; ++ud) {
-  //        input(ud) = (((double) rand()) / RAND_MAX) * (control_ubs_array[ud] - control_lbs_array[ud]) + control_lbs_array[ud];
-  //      }
-
-  //      StateNoiseT zero_state_noise = StateNoiseT::Zero(state_noise_dim);
-  //      //RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) concat(input, Vector4d::Zero()), zero_state_noise).head<3>();
-  //      RobotStateT new_x = state_func->call((StateT) concat(rrtTree[node].x, Vector4d::Zero()), (ControlT) input, zero_state_noise).head<3>();
-
-  //      bool valid = true;
-  //      for (int xd = 0; xd < robot_state_dim; ++xd) {
-  //        if (new_x(xd) < state_lbs[xd] || new_x(xd) > state_ubs[xd]) {
-  //          valid = false;
-  //          break;
-  //        }
-  //      }
-  //      if (!valid) {
-  //        continue;
-  //      }
-
-  //      // Check edge for collisions here, turned off for now
-
-  //      RRTNode newnode;
-  //      newnode.x = new_x;
-  //      newnode.u = input;
-  //      newnode.bp = node;
-
-  //      rrtTree.push_back(newnode);
-  //      Vector4d edge;
-  //      edge << rrtTree[node].x(0), rrtTree[node].x(1), newnode.x(0), newnode.x(1);
-  //      rrt_edges.push_back(edge);
-
-  //      poserr = (newnode.x.head<2>() - goal.head<2>());
-  //      ++numiter;
-  //    }
-  //    cout << endl;
-
-  //    deque<RRTNode> path;
-
-  //    int i = (int)rrtTree.size() - 1;
-  //    RRTNode node;
-  //    node.x = rrtTree[i].x;
-  //    node.u = RobotControlT::Zero(robot_control_dim);
-  //    path.push_front(node);
-
-  //    while (i != 0) {
-  //      node.u = rrtTree[i].u;
-  //      i = rrtTree[i].bp;
-  //      node.x = rrtTree[i].x;
-  //      node.bp = -1;
-
-  //      path.push_front(node);
-  //    }
-
-  //    initial_controls.clear();
-  //    for (int i = 0; i < (int)path.size()-1; ++i) {
-  //      initial_controls.push_back((ControlT) path[i].u);
-  //      cout << path[i].u(0) << " " << path[i].u(1) << endl;
-  //    }
-
-  //    ofstream fptr(car_rrt_filename, ios::out);
-  //    if (!fptr.is_open()) {
-  //      cerr << "Could not open file, check location" << endl;
-  //      std::exit(-1);
-  //    }
-  //    fptr << initial_controls.size() << endl;
-  //    for (int i = 0; i < initial_controls.size(); ++i) {
-  //      fptr << initial_controls[i](0) << " " << initial_controls[i](1) << endl;
-  //    }
-  //    if (fptr.is_open()) fptr.close();
-  //        
-  //    cout << "T: " << initial_controls.size() << endl;
-
-  //    //cout << "PAUSED INSIDE RRT BUILD" << endl;
-  //    //int num;
-  //    //cin >> num;
-
-  //  } else {
-
-  //    ifstream fptr(car_rrt_filename, ios::in);
-  //    if (!fptr.is_open()) {
-  //      cerr << "Could not open file, check location" << endl;
-  //      std::exit(-1);
-  //    }
-  //    int nu;
-  //    fptr >> nu;
-  //    //cout << "nu: " << nu << endl;
-  //    initial_controls.clear();
-  //    ControlT u = ControlT::Zero(control_dim);
-  //    for (int i = 0; i < nu; ++i) {
-  //      fptr >> u(0) >> u(1);
-  //      initial_controls.push_back(u);
-  //      //cout << u(0) << " " << u(1) << endl;
-  //    }
-  //    if (fptr.is_open()) fptr.close();
-  //  }
-
-  //}
 
   CarStateFunc::CarStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
 
@@ -282,12 +142,10 @@ namespace CarBSP {
   CarObserveFunc::CarObserveFunc(BSPProblemHelperBasePtr helper) :
               ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
 
-  ObserveT CarObserveFunc::unnoisy_observation(const StateT& x) const {
+  ObserveT CarObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
     ObserveT ret(observe_dim);
     Vector2d car_pos = x.head<2>(), l1 = x.middleRows<2>(3), l2 = x.middleRows<2>(5);
     double car_angle = x(2);
-    //ret(0) = car_velocity;
-    //ret(1) = car_pos.x() - l1.x();
 
     ret(0) = (car_pos - l1).norm();
     ret(1) = atan2(car_pos.y() - l1.y(), car_pos.x() - l1.x()) - car_angle;
@@ -299,19 +157,7 @@ namespace CarBSP {
     //ret(2) = (car_pos(0) - l2(0));
     //ret(3) = (car_pos(1) - l2(1));
 
-    return ret;
-  }
-
-  ObserveT CarObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
-    ObserveMatT invgamma = compute_inverse_gamma(x, -1);
-    //cout << "invgamma: " << endl;
-    //cout << invgamma << endl;
-    return unnoisy_observation(x) + 0.01 * compute_inverse_gamma(x, -1) * n;
-
-  }
-
-  ObserveT CarObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const {
-    return unnoisy_observation(x) + 0.01 * compute_inverse_gamma(x, approx_factor) * n;
+    return ret + 0.01 * n;
   }
 
   Beam2D robot_fov(double x, double y, double angle, double camera_depth, double camera_span_angle) {
@@ -337,51 +183,20 @@ namespace CarBSP {
     return (*dists)(0) < 0 || (*dists)(1) < 0;
   }
 
-  ObserveMatT CarObserveFunc::compute_gamma(const StateT& x, double approx_factor) const {
+  ObserveT CarObserveFunc::observation_masks(const StateT& x, double approx_factor) const {
+    ObserveT ret(observe_dim);
     Vector2d dists;
     sgndist(x, &dists);
-    double tol = 0;//0.25;
-    double gamma1, gamma2;
+    double tol = 0;
     if (approx_factor < 0) {
-      gamma1 = dists(0) <= 0 ? 1 : 0;
-      gamma2 = dists(1) <= 0 ? 1 : 0;
+      ret(0) = ret(1) = dists(0) <= 0 ? 1 : 0;
+      ret(2) = ret(3) = dists(1) <= 0 ? 1 : 0;
     } else {
-      gamma1 = 1. - (1./(1.+exp(-approx_factor*(dists(0)+tol))));
-      gamma2 = 1. - (1./(1.+exp(-approx_factor*(dists(1)+tol))));
-    }
-    ObserveMatT gamma(observe_dim, observe_dim);
-
-    gamma << gamma1,      0,      0,      0,
-        0, gamma1,      0,      0,
-        0,      0, gamma2,      0,
-        0,      0,      0, gamma2;
-
-    return gamma;
-  }
-
-  ObserveMatT CarObserveFunc::compute_inverse_gamma(const StateT& x, double approx_factor) const {
-    Vector2d dists;
-    sgndist(x, &dists);
-    double minval = 1e-4;
-    double tol = 0;//0.25;
-    double invgamma1, invgamma2;
-    if (approx_factor < 0) {
-      invgamma1 = dists(0) <= 0 ? 1 : 1/minval;
-      invgamma2 = dists(1) <= 0 ? 1 : 1/minval;
-    } else {
-      double gamma1 = 1. - (1./(1.+exp(-approx_factor*(dists(0)+tol))));
-      double gamma2 = 1. - (1./(1.+exp(-approx_factor*(dists(1)+tol))));
-      invgamma1 = 1. / fmax(gamma1, minval);
-      invgamma2 = 1. / fmax(gamma2, minval);
+      ret(0) = ret(1) = 1. - sigmoid(approx_factor * (dists(0) + tol));
+      ret(2) = ret(3) = 1. - sigmoid(approx_factor * (dists(1) + tol));
     }
 
-    ObserveMatT invgamma(observe_dim, observe_dim);
-    invgamma << invgamma1,         0,         0,         0,
-        0, invgamma1,         0,         0,
-        0,         0, invgamma2,         0,
-        0,         0,         0, invgamma2;
-
-    return invgamma;
+    return ret;
   }
 
   CarBeliefFunc::CarBeliefFunc() : BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>() {

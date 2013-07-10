@@ -283,7 +283,11 @@ namespace Geometry2D {
     }
     double x1 = p1.x(), y1 = p1.y(), x2 = p2.x(), y2 = p2.y(), x3 = max_point.x(), y3 = max_point.y();
     Vector2d c; c << y1 - y2, x2 - x1;
-    double d = (y2 - y1) * x3 - (x2 - x1) * y3;
+    double d = - (y2 - y1) * x3 + (x2 - x1) * y3;
+    cout << "p1: " << p1.transpose() << endl;
+    cout << "p2: " << p2.transpose() << endl;
+    cout << "maxdist: " << max_dist << endl;
+    cout << "c: " << c.transpose() << "; d: " << d << endl;
     truncate_gaussian(c, d, cur_mean, cur_cov, out_mean, out_cov);
   }
 }

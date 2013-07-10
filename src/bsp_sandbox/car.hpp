@@ -50,11 +50,8 @@ namespace CarBSP {
     CarObserveFunc();
     CarObserveFunc(BSPProblemHelperBasePtr helper);
     bool sgndist(const StateT& x, Vector2d* dists) const;
-    ObserveMatT compute_gamma(const StateT& x, double approx_factor) const;
-    ObserveMatT compute_inverse_gamma(const StateT& x, double approx_factor) const;
-    ObserveT unnoisy_observation(const StateT& x) const;
+    ObserveT observation_masks(const StateT& x, double approx_factor=-1) const;
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
-    virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const;
   };
 
   class CarBeliefFunc : public BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT> {

@@ -53,8 +53,10 @@ namespace ArmBSP {
       Vector2d new_state;
       Matrix2d new_sigma;
       truncate_belief(cur_fov, state->tail<2>(), sigma->bottomRightCorner<2, 2>(), &new_state, &new_sigma);
+      cout << "sigma before: " << sigma->bottomRightCorner<2, 2>() << endl;
       state->tail<2>() = get_pos_within_region(new_state);
       sigma->bottomRightCorner<2, 2>() = ensure_precision(new_sigma);
+      cout << "sigma after: " << sigma->bottomRightCorner<2, 2>() << endl;
     }
   }
   
@@ -239,15 +241,15 @@ namespace ArmBSP {
 
   void ArmOptPlotter::paintEvent(QPaintEvent* ) {
     QPainter painter(this);
-    //if (cur_approx_factor != old_approx_factor || distmap.height() != height() || distmap.width() != width()) {
-    //  // replot distmap
-    //  distmap = QImage(width(), height(), QImage::Format_RGB32);
-    //  if (states.size() > 0) {
-    //    compute_distmap(&distmap, &states[0], arm_helper->belief_func->approx_factor);
-    //  } else {
-    //    compute_distmap(&distmap, NULL, arm_helper->belief_func->approx_factor);
-    //  }
-    //}
+    if (cur_approx_factor != old_approx_factor || distmap.height() != height() || distmap.width() != width()) {
+      // replot distmap
+      distmap = QImage(width(), height(), QImage::Format_RGB32);
+      if (states.size() > 0) {
+        compute_distmap(&distmap, &states[0], arm_helper->belief_func->approx_factor);
+      } else {
+        compute_distmap(&distmap, NULL, arm_helper->belief_func->approx_factor);
+      }
+    }
     if (states.size() > 0) {
       //painter.drawImage(0, 0, distmap);
       QPen robot_start_pen(QColor(255, 0, 0, 255), 4, Qt::SolidLine);
@@ -395,12 +397,12 @@ namespace ArmBSP {
   }
 
   void ArmOptimizerTask::run() {
-    int T = 10;
+    int T = 20;
     bool plotting = false;
     int method = 2;
     double noise_level = 1;
     double base_vec_array[] = {0, -1, 0};
-    double start_vec_array[] = {PI/4+PI/16, PI/2, PI/4+PI/16, 0, 5};
+    double start_vec_array[] = {PI/4+PI/16, PI/2, PI/4+PI/16, -3.8, 8};
     vector<double> base_vec(base_vec_array, end(base_vec_array));
     vector<double> start_vec(start_vec_array, end(start_vec_array));
     {
@@ -415,14 +417,14 @@ namespace ArmBSP {
     Vector5d start = toVectorXd(start_vec);
     Vector3d base_config = toVectorXd(base_vec);
     Matrix5d start_sigma = Matrix5d::Identity() * 0.01;
-    start_sigma.bottomRightCorner<2, 2>() = Matrix2d::Identity() * 10;
+    start_sigma.bottomRightCorner<2, 2>() = Matrix2d::Identity() * 20;
 
     deque<Vector3d> initial_controls;
     for (int i = 0; i < T; ++i) {
       initial_controls.push_back(Vector3d::Zero());
     }
 
-    Vector3d link_lengths; link_lengths << 4, 3, 2;
+    Vector3d link_lengths; link_lengths << 5, 5, 4;
 
     Beam2D camera;
     camera.base = Point(0, 0);
@@ -440,8 +442,8 @@ namespace ArmBSP {
     planner->method = method;
     planner->controls = initial_controls;
     planner->camera = camera;
-    planner->n_fov_parts = 10;
-    planner->real_object_pos = Vector2d(2, 7);
+    planner->n_fov_parts = 30;
+    planner->real_object_pos = Vector2d(4, 8);
     planner->initialize();
 
     boost::shared_ptr<ArmSimulationPlotter> sim_plotter;
