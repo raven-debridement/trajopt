@@ -78,32 +78,36 @@ namespace ToyBSP {
     void compute_distmap(QImage* distmap, StateT* state, double approx_factor);
   };
 
+  class ToySimulationPlotter : public ToyPlotter {
+    Q_OBJECT
+  public:
+    ToySimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    virtual void update_plot_data(void* data_x, void* data_sim);
+    vector<StateT> simulated_positions;
+  protected:
+    QImage distmap;
+    vector<StateT> states;
+    vector<VarianceT> sigmas;
+    vector<StateT> waypoints;
+    virtual void paintEvent(QPaintEvent*);
+  };
+
   class ToyOptPlotter : public ToyPlotter {
     Q_OBJECT
   public:
     ToyOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
   public slots:
     virtual void update_plot_data(void *data);
+  public:
+    boost::shared_ptr<ToySimulationPlotter> simplotptr;
   protected:
     double old_approx_factor, cur_approx_factor;
     QImage distmap;
-    vector<StateT> states_opt, states_actual, states_waypoints;
+    vector<StateT> states_opt, states_actual, states_01, states_waypoints;
     vector<StateT> samples;
-    vector<VarianceT> sigmas_opt, sigmas_actual;
-    virtual void paintEvent(QPaintEvent*);
-  };
-
-  class ToySimulationPlotter : public ToyPlotter {
-    Q_OBJECT
-  public:
-    ToySimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
-    virtual void update_plot_data(void* data_x, void* data_sim);
-  protected:
-    QImage distmap;
-    vector<StateT> states;
-    vector<VarianceT> sigmas;
-    vector<StateT> waypoints;
-    vector<StateT> simulated_positions;
+    vector<VarianceT> sigmas_opt, sigmas_actual, sigmas_01;
+    vector<StateT> openlooppts;
+    bool fileinp;
     virtual void paintEvent(QPaintEvent*);
   };
 
@@ -120,6 +124,7 @@ namespace ToyBSP {
   public:
     ToyBSPPlanner();
     virtual void custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state);
+    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt);
   };
 
   typedef boost::shared_ptr<ToyBSPPlanner> ToyBSPPlannerPtr;

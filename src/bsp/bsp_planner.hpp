@@ -3,7 +3,11 @@
 #include "common.hpp"
 
 namespace BSP {
-template< class BSPProblemHelperT >
+
+  enum Method { StateSpace = 0, ContinuousBeliefSpace = 1, DiscontinuousBeliefSpace = 2 };
+  enum TruncatedGaussian { WithTruncatedGaussian = 0, WithoutTruncatedGaussian = 1 };
+
+  template< class BSPProblemHelperT >
   class BSPPlanner {
   public:
     /** begin annoying typedefs */
@@ -46,8 +50,8 @@ template< class BSPProblemHelperT >
     int n_alpha_iterations;
     BSPProblemHelperPtr helper;
 
-    enum Method { StateSpace = 0, ContinuousBeliefSpace = 1, DiscontinuousBeliefSpace = 2};
     int method;
+    int truncated_gaussian;
     double noise_level;
 
     deque<ControlT> controls;
@@ -110,10 +114,7 @@ template< class BSPProblemHelperT >
     void solve(boost::function<void(OptProb*, DblVec&)>& opt_callback) {
       assert (initialized);
 
-      cout << "method: " << method << endl;
-
       if (method == StateSpace) {
-        cout << "method is statespace" << endl;
         helper->start = start;
         helper->start_sigma = start_sigma;
         helper->initialize();
@@ -121,7 +122,6 @@ template< class BSPProblemHelperT >
         controls = helper->initial_controls;
         return;
       }
-      cout << "start here" << endl;
 
       OptProbPtr prob(new OptProb());
       helper->start = start;
