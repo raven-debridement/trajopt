@@ -3,7 +3,7 @@
 #include "common.hpp"
 
 namespace BSP {
-template< class BSPProblemHelperT >
+  template< class BSPProblemHelperT >
   class BSPPlanner {
   public:
     /** begin annoying typedefs */
@@ -56,12 +56,12 @@ template< class BSPProblemHelperT >
     ObserveNoiseT observe_noise_mean;
     ObserveNoiseCovT observe_noise_cov;
     StateT current_position; // current position initially sampled from the Gaussian distribution,
-                             // and later simulated with sampled noise
-    vector<StateT> simulated_positions; 
+    // and later simulated with sampled noise
+    vector<StateT> simulated_positions;
     DblVec result;
 
     BSPPlanner() : initialized(false) {
-      n_alpha_iterations = 3;
+      n_alpha_iterations = 5;
     }
 
     bool finished() {
@@ -72,37 +72,37 @@ template< class BSPProblemHelperT >
       opt.max_iter_                   = 250;
       opt.merit_error_coeff_          = 100;
       opt.merit_coeff_increase_ratio_ = 10;
-      opt.max_merit_coeff_increases_  = 2;
-      opt.trust_shrink_ratio_         = 0.8;
-      opt.trust_expand_ratio_         = 1.2;
-      opt.min_trust_box_size_         = 0.001;
-      opt.min_approx_improve_         = 1e-2;
+      opt.max_merit_coeff_increases_  = 3;
+      opt.trust_shrink_ratio_         = 0.9;
+      opt.trust_expand_ratio_         = 1.1;
+      opt.min_trust_box_size_         = 1e-4;
+      opt.min_approx_improve_         = 0.01;
       opt.min_approx_improve_frac_    = 1e-4;
       opt.improve_ratio_threshold_    = 0.1;
       opt.trust_box_size_             = 1;
-      opt.cnt_tolerance_              = 1e-06;
+      opt.cnt_tolerance_              = 1e-08;
     }
 
     virtual void initialize() {
       assert(!initialized);
       helper.reset(new BSPProblemHelperT());
       helper->start = start;
+      //cout << "start: " << start(0) << " " << start(1) << endl;
       helper->goal = goal;
       helper->start_sigma = start_sigma;
       helper->T = T;
-      helper->initialize();
-      if (controls.size() == 0) {
-        helper->initialize_controls_in_state_space();
-        controls = helper->initial_controls;
-      } else {
-        helper->initial_controls = controls;
-      }
+      helper->initial_controls = controls;
       helper->noise_level = noise_level;
+      helper->initialize();
       state_noise_mean = StateNoiseT::Zero(helper->state_noise_dim);
       state_noise_cov = StateNoiseCovT::Identity(helper->state_noise_dim, helper->state_noise_dim);
       observe_noise_mean = ObserveNoiseT::Zero(helper->observe_noise_dim);
       observe_noise_cov = ObserveNoiseCovT::Identity(helper->observe_noise_dim, helper->observe_noise_dim);
-      current_position = sample_gaussian(start, start_sigma, noise_level);
+      //current_position = sample_gaussian(start, start_sigma, noise_level);
+      current_position = sample_gaussian(start, start_sigma, 1.0/7.0);
+      //current_position(0) = -5.28689; current_position(1) = 1.76638;
+      cout << current_position(0) << " " << current_position(1) << endl;
+      simulated_positions.clear();
       simulated_positions.push_back(current_position);
       initialized = true;
     }
@@ -110,18 +110,11 @@ template< class BSPProblemHelperT >
     void solve(boost::function<void(OptProb*, DblVec&)>& opt_callback) {
       assert (initialized);
 
-      cout << "method: " << method << endl;
+      //cout << "Solving problem with method: " << method << endl;
 
       if (method == StateSpace) {
-        cout << "method is statespace" << endl;
-        helper->start = start;
-        helper->start_sigma = start_sigma;
-        helper->initialize();
-        helper->initialize_controls_in_state_space();
-        controls = helper->initial_controls;
         return;
       }
-      cout << "start here" << endl;
 
       OptProbPtr prob(new OptProb());
       helper->start = start;
@@ -141,22 +134,25 @@ template< class BSPProblemHelperT >
         if (opt_callback) {
           opt.addCallback(opt_callback);
         }
+        //cout << "Inside alpha iteration loop" << endl;
         opt.optimize();
         this->result = opt.x();
         helper->initial_controls.clear();
         for (int j = 0; j < helper->get_T(); ++j) {
           ControlT uvec = (ControlT) getVec(result, helper->control_vars.row(j));
           helper->initial_controls.push_back(uvec);
+          //cout << uvec(0) << " " << uvec(1) << endl;
         }
+        //cout << endl;
         helper->belief_func->approx_factor *= 3;
       }
 
       controls = helper->initial_controls;
-      
+
     }
 
     virtual void custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state) {}
-    
+
     void simulate_executions(int nsteps) {
       assert (initialized);
       if (nsteps <= 0 || nsteps > helper->T) {
@@ -170,14 +166,19 @@ template< class BSPProblemHelperT >
         ObserveNoiseT observe_noise = sample_gaussian(observe_noise_mean, observe_noise_cov, noise_level);
         // update actual position
         current_position = state_func->call(current_position, controls.front(), state_noise);
+        cout << current_position(0) << " " << current_position(1) << endl;
         simulated_positions.push_back(current_position);
         // update observation
-        ObserveT observe = observe_func->real_observation(current_position, observe_noise); //, &actual_observe_masks);
-        ObserveT observe_masks = observe_func->real_observation_masks(current_position);
+        ObserveT observe = observe_func->real_observation(current_position, observe_noise);
         // update Kalman filter
         BeliefT belief(helper->belief_dim);
         belief_func->compose_belief(start, matrix_sqrt(start_sigma), &belief);
-        belief = belief_func->call(belief, controls.front(), &observe, &observe_masks);//, true, is_observe_valid);
+        {
+          double current_approx_factor = belief_func->approx_factor;
+          belief_func->approx_factor = -1;
+          belief = belief_func->call(belief, controls.front(), observe, true);
+          belief_func->approx_factor = current_approx_factor;
+        }
         belief_func->extract_state(belief, &start);
         belief_func->extract_sigma(belief, &start_sigma);
         custom_simulation_update(&start, &start_sigma, current_position);
@@ -191,7 +192,6 @@ template< class BSPProblemHelperT >
     void simulate_execution() {
       simulate_executions(1);
     }
-    
   };
 
 }

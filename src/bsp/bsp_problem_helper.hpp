@@ -302,7 +302,6 @@ namespace BSP {
     }
 
     void initialize_controls_in_state_space() {
-      cout << "initialize controls in state space..." << endl;
       OptProbPtr prob(new OptProb());
       create_state_variables(*prob);
       create_control_variables(*prob);

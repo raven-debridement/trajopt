@@ -1,5 +1,5 @@
 #include "bsp/bsp.hpp"
-#include "car.hpp"
+#include "car_static.hpp"
 #include <deque>
 #include <QApplication>
 #include <QtCore>
@@ -16,10 +16,6 @@ namespace CarBSP {
 
   void CarBSPPlanner::initialize() {
     BSPPlanner<CarBSPProblemHelper>::initialize();
-    for (int i = 0; i < T; ++i) {
-      controls[i].tail<4>() = Vector4d::Zero();
-      helper->initial_controls[i].tail<4>() = Vector4d::Zero();
-    }
   }
 
   void CarBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
@@ -59,18 +55,16 @@ namespace CarBSP {
     set_state_dim(7);
     set_sigma_dof(28);
     set_observe_dim(4);
-    set_control_dim(6);
+    set_control_dim(2);
     robot_state_dim = 3;
     robot_control_dim = 2;
 
     double state_lbs_array[] = {-10, -10, -PI*2, -10, -10, -10, -10};
     double state_ubs_array[] = {10, 10, PI*2, 10, 10, 10, 10};
-    double control_lbs_array[] = {-PI*0.25, 0, -0.5, -0.5, -0.5, -0.5};
-    double control_ubs_array[] = {PI*0.25, 3, 0.5, 0.5, 0.5, 0.5};
 
     // static controls:
-    //double control_lbs_array[] = {-PI*0.25, 0};//, 0, 0, 0, 0};
-    //double control_ubs_array[] = {PI*0.25, 5};//, 0, 0, 0, 0};//0.00001, 0.00001, 0.00001, 0.00001};
+    double control_lbs_array[] = {-PI*0.25, 0};//, 0, 0, 0, 0};
+    double control_ubs_array[] = {PI*0.25, 5};//, 0, 0, 0, 0};//0.00001, 0.00001, 0.00001, 0.00001};
 
     set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
@@ -81,8 +75,8 @@ namespace CarBSP {
     set_final_variance_cost(variance_cost * 100);//VarianceT::Identity(state_dim, state_dim)*100);
 
     ControlCostT control_cost = ControlCostT::Identity(control_dim, control_dim);
-    control_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0;//.1;//Zero();
-    set_control_cost(control_cost * 0.1);//ControlCostT::Identity(control_dim, control_dim)*0.1);
+    //control_cost.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 0;//.1;//Zero();
+    set_control_cost(control_cost * 0);//0.01);//ControlCostT::Identity(control_dim, control_dim)*0.1);
   }
 
   void CarBSPProblemHelper::add_goal_constraint(OptProb& prob) {
@@ -127,7 +121,7 @@ namespace CarBSP {
     x4(2) = u(1) * tan((double)u(0)) / car_helper->carlen;
 
     new_x = x + car_helper->input_dt/6.0*(x1+2.0*(x2+x3)+x4);
-    new_x.tail<4>() = x.tail<4>() + u.tail<4>() * car_helper->input_dt;
+    new_x.tail<4>() = x.tail<4>();
     new_x.head<3>() += 0.01 * m.head<3>();
 
     new_x.tail<4>() += 0.01 * m.tail<4>();
@@ -200,12 +194,12 @@ namespace CarBSP {
   }
 
   CarBeliefFunc::CarBeliefFunc() : BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>() {
-    this->approx_factor = 100;
+    this->approx_factor = 1;
   }
 
   CarBeliefFunc::CarBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
              BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(helper, f, h), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {
-    this->approx_factor = 100;
+    this->approx_factor = 1;
   }
 
   CarPlotter::CarPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
@@ -544,8 +538,8 @@ namespace CarBSP {
   CarOptimizerTask::CarOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
   void CarOptimizerTask::stage_plot_callback(boost::shared_ptr<CarOptPlotter> plotter, OptProb*, DblVec& x) {
-    //plotter->update_plot_data(&x);
-    wait_to_proceed(boost::bind(&CarOptPlotter::update_plot_data, plotter, &x));
+    plotter->update_plot_data(&x);
+    //wait_to_proceed(boost::bind(&CarOptPlotter::update_plot_data, plotter, &x));
   }
 
 

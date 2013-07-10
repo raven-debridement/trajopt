@@ -45,7 +45,7 @@ namespace ToyBSP {
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
 
     VarianceT variance_cost = VarianceT::Identity(state_dim, state_dim);
-    set_variance_cost(variance_cost);
+    set_variance_cost(variance_cost*10);
     set_final_variance_cost(variance_cost * 100);
 
     ControlCostT control_cost = ControlCostT::Identity(control_dim, control_dim);
@@ -68,8 +68,6 @@ namespace ToyBSP {
                             StateFunc<StateT, ControlT, StateNoiseT>(helper), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
 
   StateT ToyStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    StateT new_x(state_dim);
-
     return x + u * toy_helper->input_dt + 0.01 * m;
   }
 
@@ -78,60 +76,25 @@ namespace ToyBSP {
   ToyObserveFunc::ToyObserveFunc(BSPProblemHelperBasePtr helper) :
               ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
 
-  ObserveT ToyObserveFunc::unnoisy_observation(const StateT& x) const {
-    return x;
-  }
-
   ObserveT ToyObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
-    return unnoisy_observation(x) + 0.01 * compute_inverse_gamma(x, -1) * n;
-
+    return x + 0.01 * n;
   }
 
-  ObserveT ToyObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const {
-    return unnoisy_observation(x) + 0.01 * compute_inverse_gamma(x, approx_factor) * n;
+  ObserveT ToyObserveFunc::observation_masks(const StateT& x, double approx_factor) const {
+    Vector1d dists;
+    sgndist(x, &dists);
+    double tol = 0.25;
+    ObserveT ret(observe_dim);
+    if (approx_factor < 0) {
+      ret(0) = ret(1) = dists(0) <= 0 ? 1 : 0;
+    } else {
+      ret(0) = ret(1) = 1. - sigmoid(approx_factor * (dists(0) + tol));
+    }
   }
 
   bool ToyObserveFunc::sgndist(const StateT& x, Vector1d* dists) const {
     (*dists)(0) = -x(0);
     return (*dists)(0) < 0;
-  }
-
-  ObserveMatT ToyObserveFunc::compute_gamma(const StateT& x, double approx_factor) const {
-    Vector1d dists;
-    sgndist(x, &dists);
-    double tol = 0.25;
-    double gamma1;
-    if (approx_factor < 0) {
-      gamma1 = dists(0) <= 0 ? 1 : 0;
-    } else {
-      gamma1 = 1. - (1./(1.+exp(-approx_factor*(dists(0)+tol))));
-    }
-    ObserveMatT gamma(observe_dim, observe_dim);
-
-    gamma << gamma1,      0,
-             0,      gamma1;
-
-    return gamma;
-  }
-
-  ObserveMatT ToyObserveFunc::compute_inverse_gamma(const StateT& x, double approx_factor) const {
-    Vector1d dists;
-    sgndist(x, &dists);
-    double minval = 1e-4;
-    double tol = 0.25;
-    double invgamma1;
-    if (approx_factor < 0) {
-      invgamma1 = dists(0) <= 0 ? 1 : 1/minval;
-    } else {
-      double gamma1 = 1. - (1./(1.+exp(-approx_factor*(dists(0)+tol))));
-      invgamma1 = 1. / fmax(gamma1, minval);
-    }
-
-    ObserveMatT invgamma(observe_dim, observe_dim);
-    invgamma << invgamma1,         0,
-                0,         invgamma1;
-
-    return invgamma;
   }
 
   ToyBeliefFunc::ToyBeliefFunc() : BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>() {
@@ -348,11 +311,11 @@ namespace ToyBSP {
     Vector2d goal = toVectorXd(goal_vec);
     Matrix2d start_sigma = Matrix2d::Identity()*4;
 
-    int T = 20;
-    //deque<Vector2d> initial_controls;
-    //for (int i = 0; i < T; ++i) {
-    //  initial_controls.push_back(Vector2d::Zero());
-    //}
+    int T = 30;
+    deque<Vector2d> initial_controls;
+    for (int i = 0; i < T; ++i) {
+      initial_controls.push_back(Vector2d::Zero());
+    }
 
     ToyBSPPlannerPtr planner(new ToyBSPPlanner());
     planner->start = start;
@@ -360,7 +323,7 @@ namespace ToyBSP {
     planner->start_sigma = start_sigma;
     planner->method = method;
     planner->T = T;
-    //planner->controls = initial_controls;
+    planner->controls = initial_controls;
     planner->noise_level = noise_level;
     planner->initialize();
 
@@ -382,7 +345,7 @@ namespace ToyBSP {
       opt_callback = boost::bind(&ToyOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
     }
 
-    //cout << "start solving" << endl;
+    cout << "start solving" << endl;
 
     while (!planner->finished()) {
       planner->solve(opt_callback);

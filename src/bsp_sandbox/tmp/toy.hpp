@@ -49,8 +49,11 @@ namespace ToyBSP {
     ToyObserveFunc();
     ToyObserveFunc(BSPProblemHelperBasePtr helper);
     bool sgndist(const StateT& x, Vector1d* dists) const;
-    virtual ObserveT observation_masks(const StateT& x, double approx_factor) const;
+    ObserveMatT compute_gamma(const StateT& x, double approx_factor) const;
+    ObserveMatT compute_inverse_gamma(const StateT& x, double approx_factor) const;
+    ObserveT unnoisy_observation(const StateT& x) const;
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
+    virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const;
   };
 
   class ToyBeliefFunc : public BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT> {
@@ -78,32 +81,36 @@ namespace ToyBSP {
     void compute_distmap(QImage* distmap, StateT* state, double approx_factor);
   };
 
+  class ToySimulationPlotter : public ToyPlotter {
+    Q_OBJECT
+  public:
+    ToySimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    virtual void update_plot_data(void* data_x, void* data_sim);
+    vector<StateT> simulated_positions;
+  protected:
+    QImage distmap;
+    vector<StateT> states;
+    vector<VarianceT> sigmas;
+    vector<StateT> waypoints;
+    virtual void paintEvent(QPaintEvent*);
+  };
+
   class ToyOptPlotter : public ToyPlotter {
     Q_OBJECT
   public:
     ToyOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
   public slots:
     virtual void update_plot_data(void *data);
+  public:
+    boost::shared_ptr<ToySimulationPlotter> simplotptr;
   protected:
     double old_approx_factor, cur_approx_factor;
     QImage distmap;
-    vector<StateT> states_opt, states_actual, states_waypoints;
+    vector<StateT> states_opt, states_actual, states_01, states_waypoints;
     vector<StateT> samples;
-    vector<VarianceT> sigmas_opt, sigmas_actual;
-    virtual void paintEvent(QPaintEvent*);
-  };
-
-  class ToySimulationPlotter : public ToyPlotter {
-    Q_OBJECT
-  public:
-    ToySimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
-    virtual void update_plot_data(void* data_x, void* data_sim);
-  protected:
-    QImage distmap;
-    vector<StateT> states;
-    vector<VarianceT> sigmas;
-    vector<StateT> waypoints;
-    vector<StateT> simulated_positions;
+    vector<VarianceT> sigmas_opt, sigmas_actual, sigmas_01;
+    vector<StateT> openlooppts;
+    bool fileinp;
     virtual void paintEvent(QPaintEvent*);
   };
 
