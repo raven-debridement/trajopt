@@ -441,7 +441,7 @@ namespace ArmBSP {
     planner->controls = initial_controls;
     planner->camera = camera;
     planner->n_fov_parts = 10;
-    planner->real_object_pos = Vector2d(0, 5);//2, 7);
+    planner->real_object_pos = Vector2d(2, 7);
     planner->initialize();
 
     boost::shared_ptr<ArmSimulationPlotter> sim_plotter;
@@ -459,21 +459,8 @@ namespace ArmBSP {
       opt_callback = boost::bind(&ArmOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
     }
 
-    //if (plotting) {
-    //  emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
-    //}
-
-    planner->solve(opt_callback);
-    StateT final_pos = getVec(planner->result, planner->helper->state_vars.row(planner->T));
-    deque<Vector3d> _initial_controls;
-    for (int i = 0; i < T; ++i) {
-      _initial_controls.push_back((final_pos.head<3>() - start.head<3>()) / T);
-    }
-    planner->controls = planner->helper->initial_controls = _initial_controls;
-    planner->simulate_executions(planner->T);
-    planner->helper->real_object_pos = Vector2d(2, 7);//2, 7);
     if (plotting) {
-      emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);//, planner->finished());
+      emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
     }
 
     while (!planner->finished()) {
