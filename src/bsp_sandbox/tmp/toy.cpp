@@ -388,7 +388,6 @@ namespace ToyBSP {
 
   void ToyOptimizerTask::stage_plot_callback(boost::shared_ptr<ToyOptPlotter> plotter, OptProb*, DblVec& x) {
     plotter->update_plot_data(&x);
-    //wait_to_proceed(boost::bind(&ToyOptPlotter::update_plot_data, plotter, &x));
   }
 
 
@@ -415,8 +414,8 @@ namespace ToyBSP {
       CommandParser parser(config);
       parser.read(argc, argv, true);
     }
-    srand(static_cast<unsigned int>(std::time(0)));
-    //srand(seed);
+
+    srand(seed);
 
     Vector2d start = toVectorXd(start_vec);
     Vector2d goal = toVectorXd(goal_vec);
@@ -424,17 +423,10 @@ namespace ToyBSP {
 
     int T = 20;
     deque<Vector2d> initial_controls;
-    //ifstream ifptr("toy-opt-init.txt", ios::in);
-    //int nu;
-    //ifptr >> nu;
     ControlT uvec;
     for (int i = 0; i < T; ++i) {
-      //initial_controls.push_back(Vector2d::Zero());
       initial_controls.push_back((goal-start)/(double)T);
-      //ifptr >> uvec(0) >> uvec(1);
-      //initial_controls.push_back(uvec);
     }
-    //if (ifptr.is_open()) ifptr.close();
 
     ToyBSPPlannerPtr planner(new ToyBSPPlanner());
     planner->start = start;
@@ -453,89 +445,15 @@ namespace ToyBSP {
       double x_min = -8.4, x_max = 3.9, y_min = -3.1, y_max = 3.1;
       sim_plotter.reset(create_plotter<ToySimulationPlotter>(x_min, x_max, y_min, y_max, planner->helper));
       sim_plotter->show();
-      //if (method != 0) {
       opt_plotter.reset(create_plotter<ToyOptPlotter>(x_min, x_max, y_min, y_max, planner->helper));
       opt_plotter->show();
-      //}
       opt_plotter->simplotptr = sim_plotter;
     }
 
     boost::function<void(OptProb*, DblVec&)> opt_callback;
-    //if (plotting && method != 0) {
     if (plotting) {
       opt_callback = boost::bind(&ToyOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
     }
-
-    // test truncated gaussians
-    /*
-    StateT state;
-    state(0) = -4.36543; state(1) = 1.80434;
-    VarianceT sigma;
-    sigma(0,0) = 1.0024; sigma(1,0) = 0; sigma(0,1) = 0; sigma(1,1) = 1.0024;
-
-    Vector2d new_state;
-    Matrix2d new_sigma;
-    truncate_gaussian(Vector2d(-1, 0), 0, state, sigma, &new_state, &new_sigma);
-
-    cout << "state: " << state(0) << " " << state(1) << endl;
-    cout << "sigma: " << sigma(0,0) << " " << sigma(0,1) << " " << sigma(1,0) << " " << sigma(1,1) << endl;
-
-    cout << "new_state: " << new_state(0) << " " << new_state(1) << endl;
-    cout << "new_sigma: " << new_sigma(0,0) << " " << new_sigma(0,1) << " " << new_sigma(1,0) << " " << new_sigma(1,1) << endl;
-
-    cout << "PAUSED: testing truncated Gaussians" << endl;
-    int num;
-    cin >> num;
-    */
-
-    //cout << "start solving" << endl;
-
-    /*
-    int success = 0;
-    for (int i = 0; i < 1000; ++i) {
-      planner->helper->T = 20;
-      initial_controls.clear();
-      ifstream ifptr("toy-opt-init.txt", ios::in);
-      int nu;
-      ifptr >> nu;
-      ControlT uvec;
-      for (int i = 0; i < T; ++i) {
-        ifptr >> uvec(0) >> uvec(1);
-        initial_controls.push_back(uvec);
-      }
-      if (ifptr.is_open()) ifptr.close();
-      planner->controls = initial_controls;
-
-      planner->start = start;
-      planner->goal = goal;
-      planner->start_sigma = start_sigma;
-      planner->method = method;
-      planner->T = T;
-      planner->noise_level = noise_level;
-      planner->initialize();
-
-      planner->simulate_executions(planner->helper->T);
-      cout << "final position: " << planner->simulated_positions.back().head<2>().transpose() << endl;
-      cout << "final estimated position: " << planner->start.head<2>().transpose() << endl;
-      cout << "final covariance: " << endl << planner->start_sigma.topLeftCorner<2, 2>() << endl;
-      cout << "goal position: " << planner->goal.head<2>().transpose() << endl;
-
-      Vector2d fpos = planner->simulated_positions.back().head<2>();
-      Vector2d goalpos = planner->goal.head<2>();
-      double dist = (fpos - goalpos).norm();
-      cout << "dist: " << dist << endl;
-      cout << "goaleps: " << planner->helper->goaleps << endl;
-      if (dist < planner->helper->goaleps) {
-        cout << "success" << endl;
-        ++success;
-      }
-      cout << "Successful runs: " << success << "/1000" << endl;
-    }
-
-    if (plotting) {
-      emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
-    }
-    */
 
     int success =0;
     for (int i = 0; i < 20; ++i) {

@@ -127,6 +127,7 @@ namespace ToyBSP {
   public:
     ToyBSPPlanner();
     virtual void custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state);
+    virtual void initialize();
   };
 
   typedef boost::shared_ptr<ToyBSPPlanner> ToyBSPPlannerPtr;

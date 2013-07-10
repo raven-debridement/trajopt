@@ -15,18 +15,22 @@ namespace ArmBSP {
 
   // This will generate a bunch of types like StateT, ControlT, etc.
   BSP_TYPEDEFS(
-    5, // state_dim
-    5, // state_noise_dim
-    3, // control_dim
-    5, // observe_dim
-    5, // observe_noise_dim
-    15, // sigma_dof
-    20 // belief_dim
+    6, // state_dim
+    6, // state_noise_dim
+    4, // control_dim
+    6, // observe_dim
+    6, // observe_noise_dim
+    21, // sigma_dof
+    27 // belief_dim
   );
 
+  // state: { joint_1, joint_2, joint_3, camera_theta, object_x, object_y }
+  // control: { djoint_1, djoint_2, djoint_3, camera_dtheta }
+  // observe: { joint_1, joint_2, joint_3, camera_theta, object_x, object_y }
+
   typedef Matrix<double, 8, 1> Vector8d;
-  typedef Matrix<double, 5, 1> Vector5d;
-  typedef Matrix<double, 5, 5> Matrix5d;
+  typedef Matrix<double, 6, 1> Vector6d;
+  typedef Matrix<double, 6, 6> Matrix6d;
   typedef Matrix<double, 2, 3> TransT;
 
   class ArmBSPProblemHelper;
@@ -70,9 +74,10 @@ namespace ArmBSP {
     Vector3d base_config;
     Vector2d real_object_pos;
     Vector3d link_lengths;
-    Beam2D camera;
-    vector<Beam2D> partitioned_fov;
-    vector<Beam2D> cur_fov;
+    double link_total_lengths;
+    Vector2d camera_base;
+    double camera_depth;
+    double camera_span_angle;
     int n_fov_parts;
     ArmBSPProblemHelper();
     virtual void initialize();
@@ -82,7 +87,7 @@ namespace ArmBSP {
     Vector2d angle_to_pos(const Vector3d& angle) const;
     vector<Segment> angle_to_segments(const Vector3d& angle) const;
     StateT pos_to_angle(const Vector2d& pos) const;
-
+    void fov_from_state(const StateT& x, vector<Beam2D>* out_fov) const;
   };
 
   class ArmPlotter : public BSPQtPlotter, public ProblemState {
@@ -91,6 +96,8 @@ namespace ArmBSP {
     ArmBSPProblemHelperPtr arm_helper;
     ArmPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
     void compute_distmap(QImage* distmap, StateT* current_state, double approx_factor);
+    void draw_beam_2d(const Beam2D& beam, QPainter& painter);
+    void draw_beams(const vector<Beam2D>& beams, QPainter& painter);
   };
 
   class ArmOptPlotter : public ArmPlotter {
@@ -144,11 +151,16 @@ namespace ArmBSP {
     Vector3d link_lengths;
     Vector3d base_config;
     Vector2d real_object_pos;
-    Beam2D camera;
+    Vector2d camera_base;
+    double camera_depth;
+    double camera_span_angle;
+    double link_total_lengths;
+    //Beam2D camera;
     int n_fov_parts;
     virtual void initialize();
     virtual void custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state);
     virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt);
+    Vector2d get_feasible_pos(const Vector2d& pos) const;
     ArmBSPPlanner();
   };
 

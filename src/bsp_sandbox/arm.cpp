@@ -5,31 +5,47 @@ using namespace Geometry2D;
 
 namespace ArmBSP {
 
+  Beam2D camera_fov(double x, double y, double angle, double camera_depth, double camera_span_angle) {
+    Beam2D out;
+    double x0 = x, y0 = y;
+    double skew_depth = camera_depth / cos(camera_span_angle * 0.5);
+    double x1 = x0 + skew_depth * cos(angle - camera_span_angle * 0.5),
+        y1 = y0 + skew_depth * sin(angle - camera_span_angle * 0.5);
+    double x2 = x0 + skew_depth * cos(angle + camera_span_angle * 0.5),
+        y2 = y0 + skew_depth * sin(angle + camera_span_angle * 0.5);
+    out.base = Vector2d(x0, y0);
+    out.a = Vector2d(x1, y1);
+    out.b = Vector2d(x2, y2);
+    return out;
+  }
+
   ArmBSPPlanner::ArmBSPPlanner() : BSPPlanner<ArmBSPProblemHelper>() {}
 
   void ArmBSPPlanner::initialize() {
     BSPPlanner<ArmBSPProblemHelper>::initialize(); 
     helper->link_lengths = link_lengths;
+    link_total_lengths = helper->link_total_lengths = link_lengths.array().sum();
     helper->base_config = base_config;
     helper->real_object_pos = real_object_pos;
-    helper->camera = camera;
+    helper->camera_base = camera_base;
+    helper->camera_depth = camera_depth;
+    helper->camera_span_angle = camera_span_angle;
     helper->n_fov_parts = n_fov_parts;
-    partition(camera, n_fov_parts, &helper->partitioned_fov);
+    //partition(camera, n_fov_parts, &helper->partitioned_fov);
   }
 
-  Vector2d get_pos_within_region(const Vector2d& pos) {
-    Vector2d out = pos;
-    out.y() = fmax(fmin(out.y(), 10.), 0.);
-    if (out.x() < 0) {
-      out.x() = fmax(out.x(), -out.y() * 0.5);
+  Vector2d ArmBSPPlanner::get_feasible_pos(const Vector2d& pos) const {
+    Vector2d base = base_config.head<2>();
+    double distance = (pos - base).norm();
+    if (distance > 0.8 * link_total_lengths) {
+      return base + (pos - base) / distance * 0.8 * link_total_lengths;
     } else {
-      out.x() = fmin(out.x(), out.y() * 0.5);
+      return pos;
     }
-    return out;
   }
 
   void ArmBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
-    opt.max_iter_                   = 250;
+    opt.max_iter_                   = 350;
     opt.merit_error_coeff_          = 100;
     opt.merit_coeff_increase_ratio_ = 10;
     opt.max_merit_coeff_increases_  = 2;
@@ -46,28 +62,36 @@ namespace ArmBSP {
   void ArmBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state) {
     assert (state != NULL);
     assert (sigma != NULL);
-    vector<Beam2D> cur_fov;
-    truncate_beams(helper->partitioned_fov, helper->angle_to_segments(state->head<3>()), &cur_fov);
-    cout << "state: " << state->transpose() << endl;
-    if (!inside(real_object_pos, cur_fov)) { // truncate current belief if object is not in view
+
+    vector<Beam2D> actual_fov;
+    helper->fov_from_state(actual_state, &actual_fov);
+
+    if (!inside(real_object_pos, actual_fov)) { // truncate current belief if object is not in view
+      vector<Beam2D> cur_fov;
+      helper->fov_from_state(*state, &cur_fov);
       Vector2d new_state;
       Matrix2d new_sigma;
       truncate_belief(cur_fov, state->tail<2>(), sigma->bottomRightCorner<2, 2>(), &new_state, &new_sigma);
-      cout << "sigma before: " << sigma->bottomRightCorner<2, 2>() << endl;
-      state->tail<2>() = get_pos_within_region(new_state);
+      state->tail<2>() = get_feasible_pos(new_state);
       sigma->bottomRightCorner<2, 2>() = ensure_precision(new_sigma);
-      cout << "sigma after: " << sigma->bottomRightCorner<2, 2>() << endl;
     }
   }
   
   ArmBSPProblemHelper::ArmBSPProblemHelper() : BSPProblemHelper<ArmBeliefFunc>() {
     input_dt = 1.0;
-    set_state_dim(5);
-    set_sigma_dof(15);
-    set_observe_dim(5);
-    set_control_dim(3);
-    set_state_bounds(concat(DblVec(3, -INFINITY), DblVec(2, -15)), concat(DblVec(3, INFINITY), DblVec(2, 15)));
-    set_control_bounds(DblVec(3, -PI/32), DblVec(3, PI/32));
+    set_state_dim(6);
+    set_sigma_dof(21);
+    set_observe_dim(6);
+    set_control_dim(4);
+
+    double state_lbs_array[] = {-INFINITY, -INFINITY, -INFINITY, PI/18, -15, -15};
+    double state_ubs_array[] = {INFINITY, INFINITY, INFINITY, PI*17/18, 15, 15};
+    double control_lbs_array[] = {-PI/32, -PI/32, -PI/32, -PI/32};
+    double control_ubs_array[] = {PI/32, PI/32, PI/32, PI/32};
+
+    set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
+    set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
+
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim) * 0.1);
@@ -76,7 +100,6 @@ namespace ArmBSP {
   void ArmBSPProblemHelper::initialize() {
     BSPProblemHelper<ArmBeliefFunc>::initialize();
     belief_constraints.clear();
-    truncate_beams(partitioned_fov, angle_to_segments(start.head<3>()), &cur_fov);
   }
 
   void ArmBSPProblemHelper::add_goal_constraint(OptProb& prob) {
@@ -124,6 +147,13 @@ namespace ArmBSP {
     return mat * l3 + base_config.head<2>();
   }
 
+  void ArmBSPProblemHelper::fov_from_state(const StateT& x, vector<Beam2D>* out_fov) const {
+    Beam2D fov = camera_fov(camera_base.x(), camera_base.y(), x(3), camera_depth, camera_span_angle);
+    vector<Beam2D> partitioned_fov;
+    partition(fov, n_fov_parts, &partitioned_fov);
+    truncate_beams(partitioned_fov, angle_to_segments(x.head<3>()), out_fov);
+  }
+
   ArmStateFunc::ArmStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
 
   ArmStateFunc::ArmStateFunc(BSPProblemHelperBasePtr helper) :
@@ -131,7 +161,7 @@ namespace ArmBSP {
 
   StateT ArmStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
     StateT ret;
-    ret.head<3>() = x.head<3>() + u + 0.01 * m.head<3>();
+    ret.head<4>() = x.head<4>() + u + 0.01 * m.head<4>();
     ret.tail<2>() = x.tail<2>() + 0.0001 * m.tail<2>();
     return ret;
   }
@@ -146,20 +176,21 @@ namespace ArmBSP {
   }
 
   ObserveT ArmObserveFunc::observe_masks_from_object_position(const StateT& x, const Vector2d& object_pos, double approx_factor) const {
-    ObserveT ret(observe_dim);
-    ret(0) = ret(1) = ret(2) = 1;
     vector<Beam2D> cur_fov;
-    truncate_beams(arm_helper->partitioned_fov, arm_helper->angle_to_segments(x.head<3>()), &cur_fov);
+    arm_helper->fov_from_state(x, &cur_fov);
+
+    ObserveT ret(observe_dim);
+    ret(0) = ret(1) = ret(2) = ret(3) = 1;
     if (approx_factor < 0) {
       if (inside(object_pos, cur_fov)) {
-        ret(3) = ret(4) = 1;
+        ret(4) = ret(5) = 1;
       } else {
-        ret(3) = ret(4) = 0;
+        ret(4) = ret(5) = 0;
       }
     } else {
       double dist = Geometry2D::sgndist(x.tail<2>(), cur_fov);
       double tol = 0.1;
-      ret(3) = ret(4) = 1 - sigmoid(approx_factor * (dist + tol));
+      ret(4) = ret(5) = 1 - sigmoid(approx_factor * (dist + tol));
     }
     return ret;
   }
@@ -170,7 +201,7 @@ namespace ArmBSP {
 
   ObserveT ArmObserveFunc::real_observation(const StateT& x, const ObserveNoiseT& n) const {
     ObserveT ret;
-    ret.head<3>() = x.head<3>() + 0.01 * n.head<3>();
+    ret.head<4>() = x.head<4>() + 0.01 * n.head<4>();
     ret.tail<2>() = arm_helper->real_object_pos + 0.01 * n.tail<2>();
     return ret;
   }
@@ -207,30 +238,46 @@ namespace ArmBSP {
     draw_line(endpoints(4), endpoints(5), endpoints(6), endpoints(7), painter);
   }
 
+  void ArmPlotter::draw_beam_2d(const Beam2D& beam, QPainter& painter) {
+    QPolygonF polygon;
+    polygon << QPointF(scale_x(beam.base.x()), scale_y(beam.base.y()));
+    polygon << QPointF(scale_x(beam.a.x()), scale_y(beam.a.y()));
+    polygon << QPointF(scale_x(beam.b.x()), scale_y(beam.b.y()));
+    painter.drawPolygon(polygon);
+  }
+
+  void ArmPlotter::draw_beams(const vector<Beam2D>& beams, QPainter& painter) {
+    if (beams.size() <= 0) {
+      return;
+    }
+    QPolygonF polygon;
+    polygon << QPointF(scale_x(beams[0].base.x()), scale_y(beams[0].base.y()));
+    for (int i = 0; i < beams.size(); ++i) {
+      polygon << QPointF(scale_x(beams[i].a.x()), scale_y(beams[i].a.y()));
+      polygon << QPointF(scale_x(beams[i].b.x()), scale_y(beams[i].b.y()));
+    }
+    painter.drawPolygon(polygon);
+  }
+
   void ArmPlotter::compute_distmap(QImage* distmap, StateT* state, double approx_factor) {
     assert(distmap != NULL);
-    vector<Beam2D> cur_fov;
-    vector<Segment> segs;
     if (state != NULL) {
-      vector<Segment> segs = arm_helper->angle_to_segments(state->head<3>());
-      truncate_beams(arm_helper->partitioned_fov, segs, &cur_fov);
-    } else {
-      cur_fov = arm_helper->partitioned_fov;
-    }
-
-    for (int j = 0; j < distmap->height(); ++j) {
-      QRgb *line = (QRgb*) distmap->scanLine(j);
-      for (int i = 0; i < distmap->width(); ++i) {
-        double x = unscale_x(i),
-               y = unscale_y(j);
-        double dist = sgndist(Point(x, y), cur_fov);
-        double grayscale;
-        if (approx_factor > 0) {
-          grayscale = 1./(1. + exp(approx_factor*dist));
-        } else {
-          grayscale = dist <= 0 ? 1 : 0;
+      vector<Beam2D> cur_fov;
+      arm_helper->fov_from_state(*state, &cur_fov);
+      for (int j = 0; j < distmap->height(); ++j) {
+        QRgb *line = (QRgb*) distmap->scanLine(j);
+        for (int i = 0; i < distmap->width(); ++i) {
+          double x = unscale_x(i),
+                 y = unscale_y(j);
+          double dist = sgndist(Vector2d(x, y), cur_fov);
+          double grayscale;
+          if (approx_factor > 0) {
+            grayscale = 1./(1. + exp(approx_factor*dist));
+          } else {
+            grayscale = dist <= 0 ? 1 : 0;
+          }
+          line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
         }
-        line[i] = qRgb(grayscale*255, grayscale*255, grayscale*255);
       }
     }
   }
@@ -252,9 +299,9 @@ namespace ArmBSP {
     }
     if (states.size() > 0) {
       //painter.drawImage(0, 0, distmap);
-      QPen robot_start_pen(QColor(255, 0, 0, 255), 4, Qt::SolidLine);
-      QPen robot_middle_pen(QColor(255, 0, 0, 100), 4, Qt::SolidLine);
-      QPen robot_end_pen(QColor(255, 0, 0, 255), 4, Qt::SolidLine);
+      QPen robot_start_pen(QColor(255, 0, 0, 255), 8, Qt::SolidLine);
+      QPen robot_middle_pen(QColor(255, 0, 0, 100), 8, Qt::SolidLine);
+      QPen robot_end_pen(QColor(255, 0, 0, 255), 8, Qt::SolidLine);
 
       painter.setRenderHint(QPainter::Antialiasing);
       painter.setRenderHint(QPainter::HighQualityAntialiasing);
@@ -269,6 +316,37 @@ namespace ArmBSP {
       if (states.size() > 1) {
         painter.setPen(robot_end_pen);
         draw_robot(states[states.size() - 1].head<3>(), painter);
+      }
+
+      painter.setPen(QPen(QColor(255, 255, 255, 10), 0, Qt::SolidLine));
+      {
+        QBrush prev_brush = painter.brush();
+        painter.setBrush(QBrush(QColor(255, 255, 255, 20)));
+        for (int i = 0; i < states.size(); ++i) {
+          //cout << "angle: " << states[i](3) << endl;
+          vector<Beam2D> fov;
+          arm_helper->fov_from_state(states[i], &fov);
+          //Beam2D fov = camera_fov(arm_helper->camera_base.x(), arm_helper->camera_base.y(), states[i](3), arm_helper->camera_depth, arm_helper->camera_span_angle);
+          //for (int j = 0; j < fov.size(); ++j) {
+            draw_beams(fov, painter);
+          //}
+        }
+        painter.setBrush(prev_brush);
+      }
+      if (states.size() > 0) {
+        {
+          QBrush prev_brush = painter.brush();
+          painter.setBrush(QBrush(QColor(255, 215, 0)));
+          painter.setPen(QPen(Qt::black, 1, Qt::SolidLine));
+          draw_point_with_border(states[0](4), states[0](5), 0.2, 0.2, painter);
+        }
+        {
+          QBrush prev_brush = painter.brush();
+          painter.setBrush(QBrush(Qt::green));
+          painter.setPen(QPen(Qt::black, 1, Qt::SolidLine));
+          draw_point_with_border(arm_helper->real_object_pos.x(), arm_helper->real_object_pos.y(), 0.3, 0.3, painter);
+          painter.setBrush(prev_brush);
+        }
       }
     }
   }
@@ -397,12 +475,12 @@ namespace ArmBSP {
   }
 
   void ArmOptimizerTask::run() {
-    int T = 20;
+    int T = 12;
     bool plotting = false;
     int method = 2;
-    double noise_level = 1;
+    double noise_level = 0.2;
     double base_vec_array[] = {0, -1, 0};
-    double start_vec_array[] = {PI/4+PI/16, PI/2, PI/4+PI/16, -3.8, 8};
+    double start_vec_array[] = {PI/4+PI/16, PI/2, PI/4+PI/16, PI/2, 5, 5};
     vector<double> base_vec(base_vec_array, end(base_vec_array));
     vector<double> start_vec(start_vec_array, end(start_vec_array));
     {
@@ -414,22 +492,22 @@ namespace ArmBSP {
       CommandParser parser(config);
       parser.read(argc, argv, true);
     }
-    Vector5d start = toVectorXd(start_vec);
+    Vector6d start = toVectorXd(start_vec);
     Vector3d base_config = toVectorXd(base_vec);
-    Matrix5d start_sigma = Matrix5d::Identity() * 0.01;
+    Matrix6d start_sigma = Matrix6d::Identity() * 0.01;
     start_sigma.bottomRightCorner<2, 2>() = Matrix2d::Identity() * 20;
 
-    deque<Vector3d> initial_controls;
+    deque<Vector4d> initial_controls;
     for (int i = 0; i < T; ++i) {
-      initial_controls.push_back(Vector3d::Zero());
+      initial_controls.push_back(Vector4d::Zero());
     }
 
     Vector3d link_lengths; link_lengths << 5, 5, 4;
 
-    Beam2D camera;
-    camera.base = Point(0, 0);
-    camera.a = Point(5, 10);
-    camera.b = Point(-5, 10);
+    //Beam2D camera;
+    //camera.base = Vector2d(0, 0);
+    //camera.a = Point(5, 10);
+    //camera.b = Point(-5, 10);
 
     ArmBSPPlannerPtr planner(new ArmBSPPlanner());
 
@@ -441,9 +519,11 @@ namespace ArmBSP {
     planner->noise_level = noise_level;
     planner->method = method;
     planner->controls = initial_controls;
-    planner->camera = camera;
+    planner->camera_base = Vector2d(0, 0);
+    planner->camera_span_angle = PI / 4;
+    planner->camera_depth = 10;
     planner->n_fov_parts = 30;
-    planner->real_object_pos = Vector2d(4, 8);
+    planner->real_object_pos = Vector2d(6, 6);
     planner->initialize();
 
     boost::shared_ptr<ArmSimulationPlotter> sim_plotter;
@@ -458,7 +538,7 @@ namespace ArmBSP {
 
     boost::function<void(OptProb*, DblVec&)> opt_callback;
     if (plotting) {
-      opt_callback = boost::bind(&ArmOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
+      //opt_callback = boost::bind(&ArmOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
     }
 
     if (plotting) {

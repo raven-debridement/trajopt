@@ -168,9 +168,9 @@ namespace CarBSP {
         y1 = y0 + skew_depth * sin(angle - camera_span_angle * 0.5);
     double x2 = x0 + skew_depth * cos(angle + camera_span_angle * 0.5),
         y2 = y0 + skew_depth * sin(angle + camera_span_angle * 0.5);
-    out.base = Point(x0, y0);
-    out.a = Point(x1, y1);
-    out.b = Point(x2, y2);
+    out.base = Vector2d(x0, y0);
+    out.a = Vector2d(x1, y1);
+    out.b = Vector2d(x2, y2);
     return out;
   }
 
@@ -545,7 +545,7 @@ namespace CarBSP {
 
   void CarOptimizerTask::stage_plot_callback(boost::shared_ptr<CarOptPlotter> plotter, OptProb*, DblVec& x) {
     //plotter->update_plot_data(&x);
-    wait_to_proceed(boost::bind(&CarOptPlotter::update_plot_data, plotter, &x));
+    wait_to_proceed(boost::bind(&CarOptPlotter::update_plot_data, plotter, &x), false);
   }
 
 
@@ -616,7 +616,7 @@ namespace CarBSP {
       planner->simulate_executions(1);
       if (plotting) {
         cout << "plotting now" << endl;
-        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, true);
+        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, false);
         //sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
       }
     }

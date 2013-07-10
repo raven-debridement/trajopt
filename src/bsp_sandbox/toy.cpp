@@ -14,6 +14,11 @@ namespace ToyBSP {
     this->n_alpha_iterations = 5;
   }
 
+  void ToyBSPPlanner::initialize() {
+    BSPPlanner<ToyBSPProblemHelper>::initialize();
+    current_position = sample_gaussian(start, start_sigma, 1.0 / 7.0);
+  }
+
   void ToyBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state) {
     if (truncated_gaussian == WithTruncatedGaussian) {
       assert (state != NULL);
@@ -26,6 +31,8 @@ namespace ToyBSP {
       } else {
         truncate_gaussian(Vector2d(1, 0), 0, *state, *sigma, &new_state, &new_sigma);
       }
+      *state = new_state;
+      *sigma = new_sigma;
     }
   }
 
@@ -73,11 +80,8 @@ namespace ToyBSP {
 
   void ToyBSPProblemHelper::add_goal_constraint(OptProb& prob) {
     for (int i = 0; i < 2; ++i) {
-      // box constraint of buffer goaleps around goal position
       Var optvar = state_vars.at(T, i);
       prob.addLinearConstraint(exprSub(AffExpr(optvar), (goal(i))), EQ);
-      //prob.addLinearConstraint(exprSub(AffExpr(optvar), (goal(i)+goaleps) ), INEQ);
-      //prob.addLinearConstraint(exprSub(exprSub(AffExpr(0), AffExpr(optvar)), (-goal(i)+goaleps) ), INEQ);
     }
   }
 
@@ -87,7 +91,6 @@ namespace ToyBSP {
                                       StateFunc<StateT, ControlT, StateNoiseT>(helper), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
 
   StateT ToyStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    //return x + u * toy_helper->input_dt + 0.05 * sqrt((u.transpose()*u).trace())* m;
     return x + u * toy_helper->input_dt + 0.05 * m;
   }
 
@@ -162,12 +165,10 @@ namespace ToyBSP {
                        old_approx_factor(-1), cur_approx_factor(-1), fileinp(false), distmap(400, 400, QImage::Format_RGB32) {}
 
   void ToyOptPlotter::paintEvent(QPaintEvent* ) {
-    //cout << "cur_approx_factor: " << cur_approx_factor << endl;
     QPainter painter(this);
     if (cur_approx_factor != old_approx_factor || distmap.height() != height() || distmap.width() != width()) {
       // replot distmap
       distmap = QImage(width(), height(), QImage::Format_RGB32);
-      //cout << "approx_factor inside paintEvent: " << toy_helper->belief_func->approx_factor << endl;
       if ((int)states_opt.size() > 0) {
         compute_distmap(&distmap, &states_opt[0], toy_helper->belief_func->approx_factor);
       } else {
@@ -178,7 +179,6 @@ namespace ToyBSP {
     double ellipseScaling = 1.0;
     painter.drawImage(0, 0, distmap);
     QPen cvx_cov_pen(Qt::red, 3, Qt::SolidLine);
-    //QPen path_pen(Qt::blue, 3, Qt::SolidLine);
     QPen path_pen(Qt::red, 3, Qt::SolidLine);
     QPen openlooppath_pen(Qt::green, 3, Qt::SolidLine);
     QPen pos_pen(Qt::red, 4, Qt::SolidLine);
@@ -197,29 +197,11 @@ namespace ToyBSP {
     painter.setBrush(prev_brush);
 
     painter.setPen(cvx_cov_pen);
-    //for (int i = 0; i < (int)states_opt.size(); ++i) {
-    //	draw_ellipse(states_opt[i].head<2>(), sigmas_opt[i].topLeftCorner(2,2), painter, ellipseScaling);
-    //}
 
     painter.setPen(path_pen);
     for (int i = 0; i < (int)states_opt.size() - 1; ++i) {
       draw_line(states_opt[i](0), states_opt[i](1), states_opt[i+1](0), states_opt[i+1](1), painter);
     }
-
-    /*
-    painter.setPen(openlooppath_pen);
-    for (int i = 0; i < 20; ++i) {
-      for(int j = 0; j < 20; ++j) {
-        draw_line(openlooppts[i*21+j](0), openlooppts[i*21+j](1), openlooppts[i*21+j+1](0), openlooppts[i*21+j+1](1),painter);
-      }
-    }
-    */
-
-    //painter.setPen(pos_pen);
-    //for (int i = 0; i < (int)states_opt.size(); ++i) {
-    // draw_point(states_opt[i](0), states_opt[i](1), painter);
-    //}//truncate_gaussian(Vector2d(-1, 0), 0, *state, *sigma, &new_state, &new_sigma);
-
 
     // draw beliefs computed using belief dynamics
     QPen cvx_cov_pen2(QColor(255,215,0), 3, Qt::SolidLine);
@@ -227,19 +209,9 @@ namespace ToyBSP {
     draw_ellipse(states_actual[0].head<2>(), sigmas_actual[0].topLeftCorner(2,2), painter, ellipseScaling);
     draw_ellipse(states_actual[(int)states_actual.size()-1].head<2>(), sigmas_actual[(int)states_actual.size()-1].topLeftCorner(2,2), painter, ellipseScaling);
 
-    //for (int i = 0; i < (int)states_actual.size(); ++i) {
-    //	draw_ellipse(states_actual[i].head<2>(), sigmas_actual[i].topLeftCorner(2,2), painter, ellipseScaling);
-    //}
-    //for (int i = 0; i < (int)states_01.size(); ++i) {
-    //	draw_ellipse(states_01[i].head<2>(), sigmas_01[i].topLeftCorner(2,2), painter, ellipseScaling);
-    //}
-
-    //QPen pos_pen2(Qt::red, 8, Qt::SolidLine);
     QPen pos_pen2(QColor(255,215,0), 8, Qt::SolidLine);
     painter.setPen(pos_pen2);
-    //for (int i = 0; i < (int)states_actual.size(); ++i) {
-    //	draw_point(states_actual[i](0), states_actual[i](1), painter);
-    //}
+    
     for (int i = 0; i < (int)states_01.size(); ++i) {
       draw_point(states_01[i](0), states_01[i](1), painter);
     }
@@ -260,33 +232,12 @@ namespace ToyBSP {
     vector<VarianceT> new_sigmas_opt, new_sigmas_actual, new_sigmas_01;
     old_approx_factor = cur_approx_factor;
     cur_approx_factor = toy_helper->belief_func->approx_factor;
-    //cout << "approx_factor inside update_plot_data: " << toy_helper->belief_func->approx_factor << endl;
     DblVec* xvec = (DblVec* ) data;
     BeliefT cur_belief_opt, cur_belief_actual, cur_belief_01;
     toy_helper->belief_func->compose_belief(toy_helper->start, matrix_sqrt(toy_helper->start_sigma), &cur_belief_actual);
     toy_helper->belief_func->compose_belief(toy_helper->start, matrix_sqrt(toy_helper->start_sigma), &cur_belief_01);
     int T = toy_helper->get_T();
     states_waypoints.clear();
-
-    //for (int i = 0; i < T; ++i) {
-    //	ControlT u = (ControlT) getVec(*xvec, toy_helper->control_vars.row(i));
-    //	cout << u(0) << " " << u(1) << endl;
-    //}
-    //cout << endl;
-
-    /*
-    if (!fileinp) {
-      ifstream ifptr("toy-openloop-paths.txt", ios::in);
-      StateT xvec;
-      for(int i = 0; i < 440; ++i) {
-        ifptr >> xvec(0) >> xvec(1);
-        openlooppts.push_back(xvec);
-      }
-      cout << xvec(0) << " " << xvec(1) << endl;
-      ifptr.close();
-      fileinp = true;
-    }
-    */
 
     for (int i = 0; i <= T; ++i) {
       StateT cur_state;
@@ -392,7 +343,9 @@ namespace ToyBSP {
     bool plotting = true;
 
     int method = 2;
-    double noise_level =1;
+    int truncated_gaussian = 1;
+
+    double noise_level = 0.2;
 
     double start_vec_array[] = {-5, 2};
     double goal_vec_array[] = {-5, -2};
@@ -406,12 +359,12 @@ namespace ToyBSP {
       config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
       config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
       config.add(new Parameter<int>("method", &method, "method"));
+      config.add(new Parameter<int>("truncated_gaussian", &truncated_gaussian, "truncated_gaussian"));
       config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
       config.add(new Parameter<int>("seed", &seed, "seed"));
       CommandParser parser(config);
       parser.read(argc, argv, true);
     }
-    //srand(static_cast<unsigned int>(std::time(0)));
     srand(seed);
 
     Vector2d start = toVectorXd(start_vec);
@@ -420,23 +373,17 @@ namespace ToyBSP {
 
     int T = 20;
     deque<Vector2d> initial_controls;
-    //ifstream ifptr("toy-opt-init.txt", ios::in);
-    //int nu;
-    //ifptr >> nu;
     ControlT uvec;
     for (int i = 0; i < T; ++i) {
-      //initial_controls.push_back(Vector2d::Zero());
       initial_controls.push_back((goal-start)/(double)T);
-      //ifptr >> uvec(0) >> uvec(1);
-      //initial_controls.push_back(uvec);
     }
-    //if (ifptr.is_open()) ifptr.close();
 
     ToyBSPPlannerPtr planner(new ToyBSPPlanner());
     planner->start = start;
     planner->goal = goal;
     planner->start_sigma = start_sigma;
     planner->method = method;
+    planner->truncated_gaussian = truncated_gaussian;
     planner->T = T;
     planner->controls = initial_controls;
     planner->noise_level = noise_level;
@@ -612,21 +559,21 @@ namespace ToyBSP {
 using namespace ToyBSP;
 
 int main(int argc, char *argv[]) {
-	bool plotting = true;
-	{
-		Config config;
-		config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
-		CommandParser parser(config);
-		parser.read(argc, argv, true);
-	}
-	QApplication app(argc, argv);
-	ToyOptimizerTask* task = new ToyOptimizerTask(argc, argv, &app);
-	if (plotting) {
-		QTimer::singleShot(0, task, SLOT(run_slot()));
-		QObject::connect(task, SIGNAL(finished_signal()), &app, SLOT(quit()));
-		return app.exec();
-	} else {
+	//bool plotting = true;
+	//{
+	//	Config config;
+	//	config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
+	//	CommandParser parser(config);
+	//	parser.read(argc, argv, true);
+	//}
+	//QApplication app(argc, argv);
+	ToyOptimizerTask* task = new ToyOptimizerTask(argc, argv, NULL);
+	//if (plotting) {
+	//	QTimer::singleShot(0, task, SLOT(run_slot()));
+	//	QObject::connect(task, SIGNAL(finished_signal()), &app, SLOT(quit()));
+	//	return app.exec();
+	//} else {
 		task->run();
 		return 0;
-	}
+	//}
 }

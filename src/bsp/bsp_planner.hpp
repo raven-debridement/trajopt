@@ -168,6 +168,7 @@ namespace BSP {
       for (int i = 0; i < nsteps; ++i) {
         StateNoiseT state_noise = sample_gaussian(state_noise_mean, state_noise_cov, noise_level);
         ObserveNoiseT observe_noise = sample_gaussian(observe_noise_mean, observe_noise_cov, noise_level);
+        //cout << "state noise: " << state_noise.transpose() << endl;
         // update actual position
         current_position = state_func->call(current_position, controls.front(), state_noise);
         simulated_positions.push_back(current_position);
