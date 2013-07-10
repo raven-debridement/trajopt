@@ -159,7 +159,7 @@ namespace ArmBSP {
     int n_fov_parts;
     virtual void initialize();
     virtual void custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state);
-    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt);
+    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time=true);
     Vector2d get_feasible_pos(const Vector2d& pos) const;
     ArmBSPPlanner();
   };

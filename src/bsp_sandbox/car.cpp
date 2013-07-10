@@ -22,13 +22,18 @@ namespace CarBSP {
     }
   }
 
-  void CarBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
+  void CarBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time) {
     opt.max_iter_                   = 250;
-    opt.merit_error_coeff_          = 100;
+    //if (is_first_time) {
+      opt.merit_error_coeff_          = 100;
+      opt.max_merit_coeff_increases_  = 2;
+    //} else {
+    //  opt.merit_error_coeff_          = 1000;
+    //  opt.max_merit_coeff_increases_  = 1;
+    //}
     opt.merit_coeff_increase_ratio_ = 10;
-    opt.max_merit_coeff_increases_  = 2;
-    opt.trust_shrink_ratio_         = 0.8;
-    opt.trust_expand_ratio_         = 1.2;
+    opt.trust_shrink_ratio_         = 0.6;
+    opt.trust_expand_ratio_         = 1.5;
     opt.min_trust_box_size_         = 0.001;
     opt.min_approx_improve_         = 1e-2;
     opt.min_approx_improve_frac_    = 1e-4;
@@ -200,12 +205,12 @@ namespace CarBSP {
   }
 
   CarBeliefFunc::CarBeliefFunc() : BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>() {
-    this->approx_factor = 100;
+    this->approx_factor = 1;
   }
 
   CarBeliefFunc::CarBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
              BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(helper, f, h), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {
-    this->approx_factor = 100;
+    this->approx_factor = 1;
   }
 
   CarPlotter::CarPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent) :
@@ -551,11 +556,12 @@ namespace CarBSP {
 
   void CarOptimizerTask::run() {
     bool plotting = true;
+    bool first_step_only = false;
 
     /* enum Method { StateSpace = 0, ContinuousBeliefSpace = 1, DiscontinuousBeliefSpace = 2}; */
-    int method = 0;
+    int method = 2;
 
-    double noise_level = 1;
+    double noise_level = 0.02;
 
     double start_vec_array[] = {-5, 2, -PI*0.5, 0, 2, 0, -2};
     double goal_vec_array[] = {-5, -2, 0, 0, 0, 0, 0};
@@ -566,6 +572,7 @@ namespace CarBSP {
     {
       Config config;
       config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
+      config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
       config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
       config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
       config.add(new Parameter<int>("method", &method, "method"));
@@ -577,6 +584,7 @@ namespace CarBSP {
     Vector7d start = toVectorXd(start_vec);
     Vector7d goal = toVectorXd(goal_vec);
     Matrix7d start_sigma = Matrix7d::Identity()*1;
+    start_sigma(2, 2) = 0.1;
     start_sigma.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 2;
 
     CarBSPPlannerPtr planner(new CarBSPPlanner());
@@ -607,15 +615,25 @@ namespace CarBSP {
       opt_callback = boost::bind(&CarOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
     }
 
-    //cout << "start solving" << endl;
+    bool is_first_time = true;
+    Vector7d state_error = Vector7d::Ones() * 10000;
 
     while (!planner->finished()) {
-      planner->solve(opt_callback);
-      cout << planner->helper->belief_func->approx_factor << endl;
-      //planner->simulate_executions(planner->helper->T);
-      planner->simulate_executions(1);
+      cout << "start solving" << endl;
+      cout << "error sum: " << state_error.array().abs().sum() << endl;
+      if (state_error.array().abs().sum() < 0.0001) {
+        cout << "ignorable deviation" << endl;
+        // nothing
+      } else if (state_error.array().abs().sum() < 0.05) {
+        cout << "small deviation" << endl;
+        planner->solve(opt_callback, 9, 1);
+      } else {
+        planner->solve(opt_callback, 1, 3);
+      }
+      cout << "solved" << endl;
+      if (first_step_only) break;
+      state_error = planner->simulate_executions(1);
       if (plotting) {
-        cout << "plotting now" << endl;
         emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, false);
         //sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
       }
@@ -635,8 +653,8 @@ namespace CarBSP {
 using namespace CarBSP;
 
 int main(int argc, char *argv[]) {
-  seed_random();
-  //srand(static_cast<unsigned int>(std::time(0)));
+  //seed_random();
+  srand(static_cast<unsigned int>(std::time(0)));
   bool plotting = true;
   {
     Config config;
@@ -644,13 +662,15 @@ int main(int argc, char *argv[]) {
     CommandParser parser(config);
     parser.read(argc, argv, true);
   }
-  QApplication app(argc, argv);
-  CarOptimizerTask* task = new CarOptimizerTask(argc, argv, &app);
+  cout << "start running" << endl;
   if (plotting) {
+    QApplication app(argc, argv);
+    CarOptimizerTask* task = new CarOptimizerTask(argc, argv, &app);
     QTimer::singleShot(0, task, SLOT(run_slot()));
     QObject::connect(task, SIGNAL(finished_signal()), &app, SLOT(quit()));
     return app.exec();
   } else {
+    CarOptimizerTask* task = new CarOptimizerTask(argc, argv, NULL);
     task->run();
     return 0;
 	}

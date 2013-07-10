@@ -44,7 +44,7 @@ namespace ArmBSP {
     }
   }
 
-  void ArmBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
+  void ArmBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time) {
     opt.max_iter_                   = 350;
     opt.merit_error_coeff_          = 100;
     opt.merit_coeff_increase_ratio_ = 10;

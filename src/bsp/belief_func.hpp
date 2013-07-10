@@ -86,7 +86,7 @@ namespace BSP {
       return helper;
     }
 
-    virtual BeliefT operator()(const BeliefT& b, const ControlT& u, ObserveT* z_ptr=NULL, ObserveT* observation_masks_ptr=NULL) const {
+    virtual BeliefT operator()(const BeliefT& b, const ControlT& u, ObserveT* z_ptr=NULL, ObserveT* observation_masks_ptr=NULL, StateT* state_error_out=NULL) const {
       StateT             x(state_dim), new_x(state_dim);
       BeliefT            new_b(belief_dim);
       VarianceT          sigma(state_dim, state_dim);
@@ -134,7 +134,11 @@ namespace BSP {
       //cout << "obs masks:\n" << observation_masks.asDiagonal() << endl;
 
       if (z_ptr != NULL) {
-        new_x = new_x + K * observation_masks.asDiagonal() * ((*z_ptr) - h->call(new_x, zero_observe_noise));
+        StateT state_diff = K * observation_masks.asDiagonal() * ((*z_ptr) - h->call(new_x, zero_observe_noise));
+        new_x = new_x + state_diff;
+        if (state_error_out != NULL) {
+          *state_error_out = state_diff;
+        }
       }
 
       EigenSolver<VarianceT> es(sigma);
@@ -176,8 +180,8 @@ finish:
                  , BeliefControlGradT* output_B
                  , BeliefT* output_c
                   ) const {
-      if (output_A) num_diff((boost::function<BeliefT (const BeliefT& )>) boost::bind(&BeliefFunc<StateFuncT, ObserveFuncT, BeliefT>::operator(), this, _1, u, (ObserveT*) NULL, (ObserveT*) NULL), b, belief_dim, this->epsilon, output_A);
-      if (output_B) num_diff((boost::function<BeliefT (const ControlT& )>) boost::bind(&BeliefFunc<StateFuncT, ObserveFuncT, BeliefT>::operator(), this, b, _1, (ObserveT*) NULL, (ObserveT*) NULL), u, belief_dim, this->epsilon, output_B);
+      if (output_A) num_diff((boost::function<BeliefT (const BeliefT& )>) boost::bind(&BeliefFunc<StateFuncT, ObserveFuncT, BeliefT>::operator(), this, _1, u, (ObserveT*) NULL, (ObserveT*) NULL, (StateT*) NULL), b, belief_dim, this->epsilon, output_A);
+      if (output_B) num_diff((boost::function<BeliefT (const ControlT& )>) boost::bind(&BeliefFunc<StateFuncT, ObserveFuncT, BeliefT>::operator(), this, b, _1, (ObserveT*) NULL, (ObserveT*) NULL, (StateT*) NULL), u, belief_dim, this->epsilon, output_B);
       if (output_c) *output_c = this->call(b, u);
     }
 
@@ -186,8 +190,8 @@ finish:
     //  return operator()(b, u);
     //}
 
-    BeliefT call(const BeliefT& b, const ControlT& u, ObserveT* z_ptr=NULL, ObserveT* observation_masks_ptr=NULL) const {
-      return operator()(b, u, z_ptr, observation_masks_ptr);
+    BeliefT call(const BeliefT& b, const ControlT& u, ObserveT* z_ptr=NULL, ObserveT* observation_masks_ptr=NULL, StateT* state_error_out=NULL) const {
+      return operator()(b, u, z_ptr, observation_masks_ptr, state_error_out);
     }
 
     virtual void extract_state(const BeliefT& belief, StateT* output_state) const {

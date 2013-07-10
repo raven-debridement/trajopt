@@ -124,7 +124,7 @@ namespace ToyBSP {
   public:
     ToyBSPPlanner();
     virtual void custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state);
-    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt);
+    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time=true);
     virtual void initialize();
   };
 

@@ -72,7 +72,7 @@ namespace BSP {
       return (helper->T <= 0);
     }
 
-    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
+    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time=true) {
       opt.max_iter_                   = 250;
       opt.merit_error_coeff_          = 100;
       opt.merit_coeff_increase_ratio_ = 10;
@@ -111,7 +111,7 @@ namespace BSP {
       initialized = true;
     }
 
-    void solve(boost::function<void(OptProb*, DblVec&)>& opt_callback) {
+    void solve(boost::function<void(OptProb*, DblVec&)>& opt_callback, double start_approx_factor=-1, int n_alpha_iterations=-1) {
       assert (initialized);
 
       if (method == StateSpace) {
@@ -134,9 +134,21 @@ namespace BSP {
         helper->belief_func->approx_factor = 1.75;
       }
 
+      if (start_approx_factor > 0) {
+        helper->belief_func->approx_factor = start_approx_factor;
+      }
+
+      if (n_alpha_iterations < 0) {
+        n_alpha_iterations = this->n_alpha_iterations;
+      }
+
       for (int i = 0; i < n_alpha_iterations; ++i) {
         BSPTrustRegionSQP opt(prob);
-        initialize_optimizer_parameters(opt);
+        initialize_optimizer_parameters(opt, i == 0);
+        cout << "alpha iteration " << i << endl;
+        //if (i > 0) {
+        //  opt.merit_error_coeff_ *= opt.merit_coeff_increase_ratio_;
+        //}
         helper->configure_optimizer(*prob, opt);
         if (opt_callback) {
           opt.addCallback(opt_callback);
@@ -157,14 +169,17 @@ namespace BSP {
 
     virtual void custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state) {}
     
-    void simulate_executions(int nsteps) {
+    // returns the last state error by the kalman filter update
+    
+    StateT simulate_executions(int nsteps) {
       assert (initialized);
       if (nsteps <= 0 || nsteps > helper->T) {
-        return;
+        return StateT::Zero(helper->state_dim);
       }
       StateFuncPtr state_func = helper->state_func;
       ObserveFuncPtr observe_func = helper->observe_func;
       BeliefFuncPtr belief_func = helper->belief_func;
+      StateT state_error;
       for (int i = 0; i < nsteps; ++i) {
         StateNoiseT state_noise = sample_gaussian(state_noise_mean, state_noise_cov, noise_level);
         ObserveNoiseT observe_noise = sample_gaussian(observe_noise_mean, observe_noise_cov, noise_level);
@@ -178,7 +193,7 @@ namespace BSP {
         // update Kalman filter
         BeliefT belief(helper->belief_dim);
         belief_func->compose_belief(start, matrix_sqrt(start_sigma), &belief);
-        belief = belief_func->call(belief, controls.front(), &observe, &observe_masks);//, true, is_observe_valid);
+        belief = belief_func->call(belief, controls.front(), &observe, &observe_masks, &state_error);//, true, is_observe_valid);
         belief_func->extract_state(belief, &start);
         belief_func->extract_sigma(belief, &start_sigma);
         custom_simulation_update(&start, &start_sigma, current_position);
@@ -187,6 +202,7 @@ namespace BSP {
       helper->initial_controls = controls;
       helper->T = controls.size();
       //cout << "Finished simulating execution, remaining horizon: " << helper->T << endl;
+      return state_error;
     }
 
     void simulate_execution() {

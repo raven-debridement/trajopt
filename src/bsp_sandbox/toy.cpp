@@ -36,7 +36,7 @@ namespace ToyBSP {
     }
   }
 
-  void ToyBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
+  void ToyBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time) {
     opt.max_iter_                   = 250;
 		opt.merit_error_coeff_          = 100;
 		opt.merit_coeff_increase_ratio_ = 10;
