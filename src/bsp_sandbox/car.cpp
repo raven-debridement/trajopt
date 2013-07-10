@@ -525,8 +525,8 @@ namespace CarBSP {
     // draw beliefs computed using belief dynamics
     QPen cvx_cov_pen2(QColor(255,215,0), 3, Qt::SolidLine);
     painter.setPen(cvx_cov_pen2);
-    draw_ellipse(states_actual[0].head<2>(), sigmas_actual[0].topLeftCorner(2,2), painter, 0.5);
-    draw_ellipse(states_actual.back().head<2>(), sigmas_actual.back().topLeftCorner(2,2), painter, 0.5);
+    draw_ellipse(states_actual[0].head<2>(), sigmas_actual[0].topLeftCorner(2,2), painter);
+    draw_ellipse(states_actual.back().head<2>(), sigmas_actual.back().topLeftCorner(2,2), painter);
     //for (int i = 0; i < states_actual.size(); ++i) {
     //  draw_ellipse(states_actual[i].head<2>(), sigmas_actual[i].topLeftCorner(2,2), painter, 0.5);
     //}
@@ -544,7 +544,7 @@ namespace CarBSP {
     QBrush prev_brush = painter.brush();
     painter.setBrush(goal_brush);
     Vector2d g = car_helper->goal.head<2>();
-    draw_ellipse(g, Matrix2d::Identity()*car_helper->goaleps, painter, 1);
+    draw_ellipse(g, Matrix2d::Identity()*car_helper->goaleps, painter);
     painter.setBrush(prev_brush);
   }
 

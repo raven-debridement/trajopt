@@ -309,22 +309,8 @@ namespace BSP {
       add_goal_constraint(*prob);
       add_state_constraint(*prob);
       BasicTrustRegionSQP opt(prob);
-      DblVec x(prob->getNumVars(), 0); 
+      DblVec x(prob->getNumVars(), 0);
       opt.initialize(x);
-      opt.improve_ratio_threshold_ = .25;
-      opt.min_trust_box_size_ = 1e-4;
-      opt.min_approx_improve_= 1e-4;
-      opt.min_approx_improve_frac_ = -INFINITY;
-      opt.max_iter_ = 200;
-      opt.trust_shrink_ratio_=.1;
-      opt.trust_expand_ratio_ = 1.5;
-      opt.cnt_tolerance_ = 1e-4;
-      opt.max_merit_coeff_increases_ = 10;
-      opt.merit_coeff_increase_ratio_ = 10;
-      opt.max_time_ = INFINITY;
-      opt.merit_error_coeff_ = 10;
-      opt.trust_box_size_ = 1e-1;
-
       opt.optimize();
       cout << "optimized" << endl;
       DblVec result = opt.x();

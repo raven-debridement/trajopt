@@ -92,6 +92,7 @@ public:
     helper->T = T;
     helper->initialize();
     if (controls.size() == 0) {
+      cout << "generating controls in state space..." << endl;
       helper->initialize_controls_in_state_space();
       controls = helper->initial_controls;
     } else {
@@ -163,16 +164,12 @@ public:
       current_position = state_func->call(current_position, controls.front(), state_noise);
       simulated_positions.push_back(current_position);
       // update observation
-      ObserveT observe = observe_func->real_observation(current_position, observe_noise);
+      ObserveT observe = observe_func->real_observation(current_position, observe_noise); //, &actual_observe_masks);
+      ObserveT observe_masks = observe_func->real_observation_masks(current_position);
       // update Kalman filter
       BeliefT belief(helper->belief_dim);
       belief_func->compose_belief(start, matrix_sqrt(start_sigma), &belief);
-      {
-        double current_approx_factor = belief_func->approx_factor;
-        belief_func->approx_factor = -1;
-        belief = belief_func->call(belief, controls.front(), observe, true);
-        belief_func->approx_factor = current_approx_factor;
-      }
+      belief = belief_func->call(belief, controls.front(), &observe, &observe_masks);//, true, is_observe_valid);
       belief_func->extract_state(belief, &start);
       belief_func->extract_sigma(belief, &start_sigma);
       custom_simulation_update(&start, &start_sigma, current_position);

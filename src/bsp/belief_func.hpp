@@ -82,31 +82,11 @@ namespace BSP {
       return approx_factor;
     }
 
-    virtual ObserveStateGradT sensor_constrained_observe_state_gradient(const ObserveStateGradT& H, const StateT& x) const {
-      return H; 
-    }
-
-    virtual VarianceT sensor_constrained_variance_reduction(const VarianceT& reduction, const StateT& x) const {
-      return reduction;
-    }
-    
     virtual BSPProblemHelperBasePtr get_helper() const {
       return helper;
     }
 
-    // Assume that the observations are exact, used for trajectory planning phase
-    virtual BeliefT operator()(const BeliefT& b, const ControlT& u) const {
-      StateT             x(state_dim), new_x(state_dim);
-      StateNoiseT        zero_state_noise = StateNoiseT::Zero(state_noise_dim);
-      ObserveNoiseT      zero_observe_noise = ObserveNoiseT::Zero(observe_noise_dim);
-      extract_state(b, &x);
-      new_x = f->call(x, u, zero_state_noise);
-      return operator()(b, u, zero_observe_noise, false);
-    }
-
-    // The full Kalman filter, used for replanning preparation phase (update current state
-    // estimate based on the measurement)
-    virtual BeliefT operator()(const BeliefT& b, const ControlT& u, const ObserveT& z, bool update_from_observe=false) const {
+    virtual BeliefT operator()(const BeliefT& b, const ControlT& u, ObserveT* z_ptr=NULL, ObserveT* observation_masks_ptr=NULL) const {
       StateT             x(state_dim), new_x(state_dim);
       BeliefT            new_b(belief_dim);
       VarianceT          sigma(state_dim, state_dim);
@@ -128,32 +108,19 @@ namespace BSP {
 
       new_x = f->call(x, u, zero_state_noise);
 
-      h->linearize(new_x, zero_observe_noise, &H, &N, approx_factor);
+      ObserveT observation_masks;
+      if (observation_masks_ptr != NULL) {
+        observation_masks = *observation_masks_ptr;
+      } else {
+        observation_masks = h->observation_masks(new_x, approx_factor);
+      }
 
-      K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose()));
+      h->linearize(new_x, zero_observe_noise, &H, &N);
 
-      if (update_from_observe) {
-        ObserveT obs_diff = z - h->call(new_x, zero_observe_noise);
-        if (obs_diff.array().abs().maxCoeff() < ((ObserveT) (N*N.transpose()).diagonal()).array().abs().maxCoeff() * 3) {
-          new_x = new_x + K * obs_diff;
-        }
-        
-        //if (state_dim == 7) {
-        //	double tol = 1;
-        //	for (int i=0; i < state_dim && valid; ++i) {
-        //		if ( fabs(test_x(i) - new_x(i)) > tol)	valid = false;
-        //	}
-        //}
-        //if (valid){
-        //	new_x = test_x;
-        //}
+      K = matrix_div((KalmanT) (sigma*H.transpose()), (ObserveMatT) (H*sigma*H.transpose() + N*N.transpose())) * observation_masks.asDiagonal();
 
-        //cout << "A: " << A << endl;
-        //cout << "M: " << M << endl;
-        //cout << "kalman matrix: " << K << endl;
-        //cout << "H: " << H << endl;
-        //cout << "sigma before applying kalman: " << sigma << endl;
-        //cout << "sigma after applying kalman: " << sigma - K*(H*sigma) << endl;
+      if (z_ptr != NULL) {
+        new_x = new_x + K * ((*z_ptr) - h->call(new_x, zero_observe_noise));
       }
 
       sigma = ensure_precision((VarianceT) (sigma - K*(H*sigma)));
@@ -169,18 +136,18 @@ namespace BSP {
                  , BeliefControlGradT* output_B
                  , BeliefT* output_c
                   ) const {
-      if (output_A) num_diff((boost::function<BeliefT (const BeliefT& )>) boost::bind(&BeliefFunc<StateFuncT, ObserveFuncT, BeliefT>::operator(), this, _1, u), b, belief_dim, this->epsilon, output_A);
-      if (output_B) num_diff((boost::function<BeliefT (const ControlT& )>) boost::bind(&BeliefFunc<StateFuncT, ObserveFuncT, BeliefT>::operator(), this, b, _1), u, belief_dim, this->epsilon, output_B);
+      if (output_A) num_diff((boost::function<BeliefT (const BeliefT& )>) boost::bind(&BeliefFunc<StateFuncT, ObserveFuncT, BeliefT>::operator(), this, _1, u, (ObserveT*) NULL, (ObserveT*) NULL), b, belief_dim, this->epsilon, output_A);
+      if (output_B) num_diff((boost::function<BeliefT (const ControlT& )>) boost::bind(&BeliefFunc<StateFuncT, ObserveFuncT, BeliefT>::operator(), this, b, _1, (ObserveT*) NULL, (ObserveT*) NULL), u, belief_dim, this->epsilon, output_B);
       if (output_c) *output_c = this->call(b, u);
     }
 
 
-    BeliefT call(const BeliefT& b, const ControlT& u) const {
-      return operator()(b, u);
-    }
+    //BeliefT call(const BeliefT& b, const ControlT& u) const {
+    //  return operator()(b, u);
+    //}
 
-    BeliefT call(const BeliefT& b, const ControlT& u, const ObserveT& z, bool update_from_observe=false) const {
-      return operator()(b, u, z, update_from_observe);
+    BeliefT call(const BeliefT& b, const ControlT& u, ObserveT* z_ptr=NULL, ObserveT* observation_masks_ptr=NULL) const {
+      return operator()(b, u, z_ptr, observation_masks_ptr);
     }
 
     virtual void extract_state(const BeliefT& belief, StateT* output_state) const {

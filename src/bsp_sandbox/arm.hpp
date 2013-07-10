@@ -48,12 +48,11 @@ namespace ArmBSP {
     ArmBSPProblemHelperPtr arm_helper;
     ArmObserveFunc();
     ArmObserveFunc(BSPProblemHelperBasePtr helper);
-    bool sgndist(const Vector2d& x, Vector2d* dists) const;
-    ObserveMatT compute_gamma(const StateT& x, double approx_factor) const;
-    ObserveMatT compute_inverse_gamma(const StateT& x, double approx_factor) const;
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
-    virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const;
     virtual ObserveT real_observation(const StateT& x, const ObserveNoiseT& n) const;
+    virtual ObserveT observation_masks(const StateT& x, double approx_factor=-1) const;
+    virtual ObserveT real_observation_masks(const StateT& x) const;
+    ObserveT observe_masks_from_object_position(const StateT& x, const Vector2d& object_pos, double approx_factor) const;
   };
 
   class ArmBeliefFunc : public BeliefFunc<ArmStateFunc, ArmObserveFunc, BeliefT> {
@@ -119,6 +118,7 @@ namespace ArmBSP {
     vector<VarianceT> sigmas;
     vector<StateT> simulated_positions;
     vector<Vector2d> object_position_beliefs;
+    vector<Matrix2d> object_position_sigmas;
     virtual void paintEvent(QPaintEvent*);
   };
 
@@ -148,6 +148,7 @@ namespace ArmBSP {
     int n_fov_parts;
     virtual void initialize();
     virtual void custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state);
+    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt);
     ArmBSPPlanner();
   };
 

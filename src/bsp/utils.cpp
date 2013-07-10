@@ -67,4 +67,8 @@ namespace BSP {
     srand(randval);
   }
 
+  double sigmoid(double x) {
+    return 1. / (1. + exp(-x));
+  }
+
 }

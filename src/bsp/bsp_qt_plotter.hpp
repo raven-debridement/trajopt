@@ -37,6 +37,7 @@ namespace BSP {
     void draw_ellipse(double cx, double cy, double mx, double my, double theta, QPainter& painter);
     void draw_line(double x1, double y1, double x2, double y2, QPainter& painter);
     void draw_point(double x, double y, QPainter& painter);
+    void draw_point_with_border(double x, double y, double dx, double dy, QPainter& painter);
     vector<VectorXd> states;
     vector<MatrixXd> sigmas;
   };

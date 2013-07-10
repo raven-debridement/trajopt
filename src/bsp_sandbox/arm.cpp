@@ -28,22 +28,33 @@ namespace ArmBSP {
     return out;
   }
 
+  void ArmBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt) {
+    opt.max_iter_                   = 250;
+    opt.merit_error_coeff_          = 100;
+    opt.merit_coeff_increase_ratio_ = 10;
+    opt.max_merit_coeff_increases_  = 2;
+    opt.trust_shrink_ratio_         = 0.8;
+    opt.trust_expand_ratio_         = 1.2;
+    opt.min_trust_box_size_         = 0.001;
+    opt.min_approx_improve_         = 1e-2;
+    opt.min_approx_improve_frac_    = 1e-4;
+    opt.improve_ratio_threshold_    = 0.25;
+    opt.trust_box_size_             = 1;
+    opt.cnt_tolerance_              = 1e-06;
+  }
+
   void ArmBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state) {
     assert (state != NULL);
     assert (sigma != NULL);
     vector<Beam2D> cur_fov;
     truncate_beams(helper->partitioned_fov, helper->angle_to_segments(state->head<3>()), &cur_fov);
+    cout << "state: " << state->transpose() << endl;
     if (!inside(real_object_pos, cur_fov)) { // truncate current belief if object is not in view
-      cout << "updating belief" << endl;
       Vector2d new_state;
       Matrix2d new_sigma;
       truncate_belief(cur_fov, state->tail<2>(), sigma->bottomRightCorner<2, 2>(), &new_state, &new_sigma);
-      cout << "state before: " << state->tail<2>().transpose() << endl;
-      cout << "sigma before: " << sigma->bottomRightCorner<2, 2>().transpose() << endl;
       state->tail<2>() = get_pos_within_region(new_state);
       sigma->bottomRightCorner<2, 2>() = ensure_precision(new_sigma);
-      cout << "state after: " << state->tail<2>().transpose() << endl;
-      cout << "sigma after: " << sigma->bottomRightCorner<2, 2>().transpose() << endl;
     }
   }
   
@@ -128,61 +139,42 @@ namespace ArmBSP {
   ArmObserveFunc::ArmObserveFunc(BSPProblemHelperBasePtr helper) :
     ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), arm_helper(boost::static_pointer_cast<ArmBSPProblemHelper>(helper)) {}
 
-  inline double sigmoid(double x) {
-    return 1. / (1. + exp(-x));
-  }
-
   ObserveT ArmObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
-    return operator()(x, n, -1);
+    return x + 0.01 * n;
   }
 
-  ObserveT ArmObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const {
-    
-    ObserveT ret;
-    ret.head<3>() = x.head<3>() + 0.01 * n.head<3>();
+  ObserveT ArmObserveFunc::observe_masks_from_object_position(const StateT& x, const Vector2d& object_pos, double approx_factor) const {
+    ObserveT ret(observe_dim);
+    ret(0) = ret(1) = ret(2) = 1;
     vector<Beam2D> cur_fov;
     truncate_beams(arm_helper->partitioned_fov, arm_helper->angle_to_segments(x.head<3>()), &cur_fov);
     if (approx_factor < 0) {
-      if (inside(arm_helper->real_object_pos, cur_fov)) {
-        ret.tail<2>() = x.tail<2>() + 0.01 * n.tail<2>();
+      if (inside(object_pos, cur_fov)) {
+        ret(3) = ret(4) = 1;
       } else {
-        ret.tail<2>() = x.tail<2>() + 1000 * n.tail<2>();
+        ret(3) = ret(4) = 0;
       }
     } else {
       double dist = Geometry2D::sgndist(x.tail<2>(), cur_fov);
-      double minval = 1e-4;
       double tol = 0.1;
-      double gamma = 0.;
-      if (approx_factor > 0) {
-        gamma = 1. - sigmoid(approx_factor * (dist + tol));
-      } else {
-        gamma = (dist + tol) <= 0 ? 1 : 0;
-      }
-      double invgamma = 1. / fmax(gamma, minval);
-      ret.tail<2>() = x.tail<2>() + 0.1 * invgamma * n.tail<2>();
+      ret(3) = ret(4) = 1 - sigmoid(approx_factor * (dist + tol));
     }
     return ret;
+  }
+
+  ObserveT ArmObserveFunc::observation_masks(const StateT& x, double approx_factor) const {
+    return observe_masks_from_object_position(x, x.tail<2>(), approx_factor);
   }
 
   ObserveT ArmObserveFunc::real_observation(const StateT& x, const ObserveNoiseT& n) const {
     ObserveT ret;
     ret.head<3>() = x.head<3>() + 0.01 * n.head<3>();
-    vector<Beam2D> cur_fov;
-    truncate_beams(arm_helper->partitioned_fov, arm_helper->angle_to_segments(x.head<3>()), &cur_fov);
-    if (inside(arm_helper->real_object_pos, cur_fov)) {
-      ret.tail<2>() = arm_helper->real_object_pos + 0.01 * n.tail<2>();
-    } else {
-      ret.tail<2>() = x.tail<2>() + 1000 * n.tail<2>();
-    }
+    ret.tail<2>() = arm_helper->real_object_pos + 0.01 * n.tail<2>();
     return ret;
   }
 
-  bool ArmObserveFunc::sgndist(const Vector2d& x, Vector2d* dists) const {
-    Vector2d p1; p1 << 0, 2;
-    Vector2d p2; p2 << 0, 0;
-    (*dists)(0) = (x - p1).norm() - 0.5;
-    (*dists)(1) = (x - p2).norm() - 0.5;
-    return (*dists)(0) < 0 || (*dists)(1) < 0;
+  ObserveT ArmObserveFunc::real_observation_masks(const StateT& x) const {
+    return observe_masks_from_object_position(x, arm_helper->real_object_pos, -1);
   }
 
   ArmBeliefFunc::ArmBeliefFunc() : BeliefFunc<ArmStateFunc, ArmObserveFunc, BeliefT>() {
@@ -247,17 +239,17 @@ namespace ArmBSP {
 
   void ArmOptPlotter::paintEvent(QPaintEvent* ) {
     QPainter painter(this);
-    if (cur_approx_factor != old_approx_factor || distmap.height() != height() || distmap.width() != width()) {
-      // replot distmap
-      distmap = QImage(width(), height(), QImage::Format_RGB32);
-      if (states.size() > 0) {
-        compute_distmap(&distmap, &states[0], arm_helper->belief_func->approx_factor);
-      } else {
-        compute_distmap(&distmap, NULL, arm_helper->belief_func->approx_factor);
-      }
-    }
+    //if (cur_approx_factor != old_approx_factor || distmap.height() != height() || distmap.width() != width()) {
+    //  // replot distmap
+    //  distmap = QImage(width(), height(), QImage::Format_RGB32);
+    //  if (states.size() > 0) {
+    //    compute_distmap(&distmap, &states[0], arm_helper->belief_func->approx_factor);
+    //  } else {
+    //    compute_distmap(&distmap, NULL, arm_helper->belief_func->approx_factor);
+    //  }
+    //}
     if (states.size() > 0) {
-      painter.drawImage(0, 0, distmap);
+      //painter.drawImage(0, 0, distmap);
       QPen robot_start_pen(QColor(255, 0, 0, 255), 4, Qt::SolidLine);
       QPen robot_middle_pen(QColor(255, 0, 0, 100), 4, Qt::SolidLine);
       QPen robot_end_pen(QColor(255, 0, 0, 255), 4, Qt::SolidLine);
@@ -317,48 +309,78 @@ namespace ArmBSP {
     if (simulated_positions.size() <= 0) {
       return;
     }
-    QPen sim_prev_robot_pen(QColor(0, 0, 255, 100), 4, Qt::SolidLine);
-    QPen sim_cur_robot_pen(QColor(0, 0, 255, 255), 4, Qt::SolidLine);
+    QPen sim_prev_robot_pen(QColor(255, 0, 0, 100), 8, Qt::SolidLine);
+    QPen sim_cur_robot_pen(QColor(255, 0, 0, 255), 8, Qt::SolidLine);
     QPen real_object_pos_pen(Qt::green, 8, Qt::SolidLine);
-    QPen object_position_belief_pen(Qt::blue, 4, Qt::SolidLine);
+    QPen object_position_belief_pen(QColor(255,215,0), 4, Qt::SolidLine);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::HighQualityAntialiasing);
     painter.setPen(sim_prev_robot_pen);
-    for (int i = 0; i < simulated_positions.size() - 1; ++i) {
+    for (int i = 0; i < (int) simulated_positions.size() - 1; ++i) {
       draw_robot(simulated_positions[i].head<3>(), painter);
     }
     painter.setPen(sim_cur_robot_pen);
     if (simulated_positions.size() > 0) {
       draw_robot(simulated_positions.back().head<3>(), painter);
     }
-    painter.setPen(real_object_pos_pen);
-    draw_point(arm_helper->real_object_pos.x(), arm_helper->real_object_pos.y(), painter);
-    painter.setPen(object_position_belief_pen);
-    for (int i = 0; i < object_position_beliefs.size(); ++i) {
-      draw_point(object_position_beliefs[i].x(), object_position_beliefs[i].y(), painter);
+    {
+      QBrush prev_brush = painter.brush();
+      painter.setBrush(QBrush(Qt::green));
+      painter.setPen(QPen(Qt::black, 1, Qt::SolidLine));
+      draw_point_with_border(arm_helper->real_object_pos.x(), arm_helper->real_object_pos.y(), 0.3, 0.3, painter);
+      painter.setBrush(prev_brush);
     }
+    //painter.setPen(real_object_pos_pen);
+    {
+      QBrush prev_brush = painter.brush();
+      painter.setBrush(QBrush(QColor(255, 215, 0)));
+      painter.setPen(QPen(Qt::black, 1, Qt::SolidLine));
+
+      //painter.setPen(object_position_belief_pen);
+      for (int i = 0; i < object_position_beliefs.size(); ++i) {
+        draw_point_with_border(object_position_beliefs[i].x(), object_position_beliefs[i].y(), 0.2, 0.2, painter);
+      }
+      painter.setBrush(prev_brush);
+    }
+    painter.setPen(object_position_belief_pen);
+      //for (int i = 0; i < object_position_sigmas.size(); ++i) {
+        draw_ellipse(object_position_beliefs.back(), object_position_sigmas.back(), painter);
+      //  cout << "position: " << object_position_beliefs[i].transpose() << endl;
+      //  cout << "sigma: " << object_position_sigmas[i] << endl;
+      //}
   }
 
   void ArmSimulationPlotter::update_plot_data(void* data_x, void* data_sim) {
     simulated_positions = *((vector<StateT>*) data_sim);
-    DblVec* xvec = (DblVec* ) data_x;
-    vector<StateT> new_states;
-    vector<VarianceT> new_sigmas;
-    BeliefT cur_belief;
-    arm_helper->belief_func->compose_belief(arm_helper->start, matrix_sqrt(arm_helper->start_sigma), &cur_belief);
-    for (int i = 0; i <= arm_helper->T; ++i) {
-      StateT cur_state;
-      VarianceT cur_sigma;
-      arm_helper->belief_func->extract_state(cur_belief, &cur_state);
-      arm_helper->belief_func->extract_sigma(cur_belief, &cur_sigma);
-      new_states.push_back(cur_state);
-      new_sigmas.push_back(cur_sigma);
-      if (i < arm_helper->T) cur_belief = arm_helper->belief_func->call(cur_belief, (ControlT) getVec(*xvec, arm_helper->control_vars.row(i)));
-    }
-    states = new_states;
-    sigmas = new_sigmas;
+    object_position_beliefs.push_back(arm_helper->start.tail<2>());
+    object_position_sigmas.push_back(arm_helper->start_sigma.bottomRightCorner<2, 2>());
+    //DblVec* xvec = (DblVec* ) data_x;
+    //if (xvec->size() > 0) {
+    //  //vector<StateT> new_states;
+    //  //vector<VarianceT> new_sigmas;
+    //  //BeliefT cur_belief;
+    //  //arm_helper->belief_func->compose_belief(arm_helper->start, matrix_sqrt(arm_helper->start_sigma), &cur_belief);
+    //  //for (int i = 0; i <= arm_helper->T; ++i) {
+    //  //  StateT cur_state;
+    //  //  VarianceT cur_sigma;
+    //  //  arm_helper->belief_func->extract_state(cur_belief, &cur_state);
+    //  //  arm_helper->belief_func->extract_sigma(cur_belief, &cur_sigma);
+    //  //  new_states.push_back(cur_state);
+    //  //  new_sigmas.push_back(cur_sigma);
+    //  //  if (i < arm_helper->T) cur_belief = arm_helper->belief_func->call(cur_belief, (ControlT) getVec(*xvec, arm_helper->control_vars.row(i)));
+    //  //}
+    //  //states = new_states;
+    //  //sigmas = new_sigmas;
 
-    object_position_beliefs.push_back(new_states[0].tail<2>());
+    //  
+    //} else {
+    //  states.clear();
+    //  states.push_back(arm_helper->start);
+    //  sigmas.clear();
+    //  sigmas.push_back(arm_helper->start_sigma);
+    //  //object_position_beliefs.push_back(new_states[0].tail<2>());
+    //  //object_position_sigmas.push_back(new_sigmas[0].bottomRightCorner<2, 2>());
+    //}
 
     this->repaint();
   }
@@ -373,30 +395,34 @@ namespace ArmBSP {
   }
 
   void ArmOptimizerTask::run() {
-    int T = 30;
+    int T = 10;
     bool plotting = false;
+    int method = 2;
+    double noise_level = 1;
     double base_vec_array[] = {0, -1, 0};
-    double start_vec_array[] = {PI/4+PI/16, PI/2, PI/4+PI/16, -1, 9};
+    double start_vec_array[] = {PI/4+PI/16, PI/2, PI/4+PI/16, 0, 5};
     vector<double> base_vec(base_vec_array, end(base_vec_array));
     vector<double> start_vec(start_vec_array, end(start_vec_array));
     {
       Config config;
       config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
       config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
+      config.add(new Parameter<int>("method", &method, "method"));
+      config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
       CommandParser parser(config);
       parser.read(argc, argv, true);
     }
     Vector5d start = toVectorXd(start_vec);
     Vector3d base_config = toVectorXd(base_vec);
-    Matrix5d start_sigma = Matrix5d::Identity() * 0.1;
-    start_sigma.bottomRightCorner<2, 2>() = Matrix2d::Identity() * 25;
+    Matrix5d start_sigma = Matrix5d::Identity() * 0.01;
+    start_sigma.bottomRightCorner<2, 2>() = Matrix2d::Identity() * 10;
 
     deque<Vector3d> initial_controls;
     for (int i = 0; i < T; ++i) {
       initial_controls.push_back(Vector3d::Zero());
     }
 
-    Vector3d link_lengths; link_lengths << 5, 5, 4;
+    Vector3d link_lengths; link_lengths << 4, 3, 2;
 
     Beam2D camera;
     camera.base = Point(0, 0);
@@ -410,16 +436,18 @@ namespace ArmBSP {
     planner->start_sigma = start_sigma;
     planner->link_lengths = link_lengths;
     planner->T = T;
+    planner->noise_level = noise_level;
+    planner->method = method;
     planner->controls = initial_controls;
     planner->camera = camera;
     planner->n_fov_parts = 10;
-    planner->real_object_pos = Vector2d(2, 8);
+    planner->real_object_pos = Vector2d(0, 5);//2, 7);
     planner->initialize();
 
     boost::shared_ptr<ArmSimulationPlotter> sim_plotter;
     boost::shared_ptr<ArmOptPlotter> opt_plotter;
     if (plotting) {
-      double x_min = -15, x_max = 15, y_min = -15, y_max = 15;
+      double x_min = -12.4, x_max = 12.4, y_min = -2, y_max = 12;
       sim_plotter.reset(create_plotter<ArmSimulationPlotter>(x_min, x_max, y_min, y_max, planner->helper));
       sim_plotter->show();
       opt_plotter.reset(create_plotter<ArmOptPlotter>(x_min, x_max, y_min, y_max, planner->helper));
@@ -431,11 +459,28 @@ namespace ArmBSP {
       opt_callback = boost::bind(&ArmOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
     }
 
+    //if (plotting) {
+    //  emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
+    //}
+
+    planner->solve(opt_callback);
+    StateT final_pos = getVec(planner->result, planner->helper->state_vars.row(planner->T));
+    deque<Vector3d> _initial_controls;
+    for (int i = 0; i < T; ++i) {
+      _initial_controls.push_back((final_pos.head<3>() - start.head<3>()) / T);
+    }
+    planner->controls = planner->helper->initial_controls = _initial_controls;
+    planner->simulate_executions(planner->T);
+    planner->helper->real_object_pos = Vector2d(2, 7);//2, 7);
+    if (plotting) {
+      emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);//, planner->finished());
+    }
+
     while (!planner->finished()) {
       planner->solve(opt_callback);
       planner->simulate_execution();
       if (plotting) {
-        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
+        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);//, planner->finished());
       }
     }
     emit finished_signal();

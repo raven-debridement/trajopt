@@ -257,13 +257,6 @@ namespace Geometry2D {
     *out_var = cur_var * (1.0 - y*z - z*z);
   }
 
-  //void truncate_standard_gaussian(double *mean, double *var, double z) {
-  //  double norm = m_sqrt_pi_2 * (1.0 - cdf(standard_normal, z * m_sqrt_1_2));
-  //  if (norm < 1e-2) { cout << "Likelihood of that truncation is very low: " << norm << endl; }
-  //  *mean = exp(-z*z*0.5) / norm;
-  //  *var = 1.0 + z*(*mean) - (*mean) * (*mean);
-  //}
-
   void truncate_belief(const vector<Beam2D>& beams, const Vector2d& cur_mean, const Matrix2d& cur_cov, Vector2d* out_mean, Matrix2d* out_cov) {
     assert (out_mean != NULL);
     assert (out_cov != NULL);
@@ -279,7 +272,6 @@ namespace Geometry2D {
     for (int i = 0; i < beams.size(); ++i) {
       const Beam2D &beam = beams[i];
       double tmpdist;
-      cout << "beam : " << beam << endl;
       if (!segment_intersects_segment(beam.base, beam.a, p1, p2) && (tmpdist = dist_to_line(beam.a, p1, p2)) > max_dist) {
         max_dist = tmpdist;
         max_point = beam.a;
@@ -289,7 +281,6 @@ namespace Geometry2D {
         max_point = beam.b;
       }
     }
-    cout << "max dist: " << max_dist << endl;
     double x1 = p1.x(), y1 = p1.y(), x2 = p2.x(), y2 = p2.y(), x3 = max_point.x(), y3 = max_point.y();
     Vector2d c; c << y1 - y2, x2 - x1;
     double d = (y2 - y1) * x3 - (x2 - x1) * y3;

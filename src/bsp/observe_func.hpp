@@ -39,16 +39,17 @@ namespace BSP {
     ObserveFunc() : epsilon(DefaultEpsilon) {}
     ObserveFunc(BSPProblemHelperBasePtr helper) : ProblemState(helper), helper(helper), epsilon(DefaultEpsilon) {}
 
-    // This should give the exact measurement
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const = 0;
-
-    // This should give the smooth approximation of the measurement.
-    // the larger the approx_factor (> 0), the better the smooth approximation should be
-    virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const = 0;
 
     // Gives the observation in real case
     virtual ObserveT real_observation(const StateT& x, const ObserveNoiseT& n) const {
       return operator()(x, n);
+    }
+
+    virtual ObserveT observation_masks(const StateT& x, double approx_factor=-1) const = 0;
+
+    virtual ObserveT real_observation_masks(const StateT& x) const {
+      return observation_masks(x);
     }
 
     virtual BSPProblemHelperBasePtr get_helper() const {
@@ -64,22 +65,9 @@ namespace BSP {
       if (output_N) num_diff((boost::function<ObserveT (const ObserveNoiseT& )>) boost::bind(&ObserveFunc::operator(), this, x, _1), n, observe_dim, this->epsilon, output_N);
     }
 
-    virtual void linearize(const StateT& x
-                         , const ObserveNoiseT& n
-                         , ObserveStateGradT* output_H
-                         , ObserveNoiseGradT* output_N
-                         , double approx_factor
-                          ) const {
-      if (output_H) num_diff((boost::function<ObserveT (const StateT& )>) boost::bind(&ObserveFunc::operator(), this, _1, n, approx_factor), x, observe_dim, this->epsilon, output_H);
-      if (output_N) num_diff((boost::function<ObserveT (const ObserveNoiseT& )>) boost::bind(&ObserveFunc::operator(), this, x, _1, approx_factor), n, observe_dim, this->epsilon, output_N);
-    }
-
     ObserveT call(const StateT& x, const ObserveNoiseT& n) const {
       return operator()(x, n);
     }
 
-    ObserveT call(const StateT& x, const ObserveNoiseT& n, double approx_factor) const {
-      return operator()(x, n, approx_factor);
-    }
   };
 }

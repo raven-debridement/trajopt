@@ -78,6 +78,15 @@ namespace BSP {
     painter.drawLine(x1, y1, x2, y2);
   }
 
+  void BSPQtPlotter::draw_point_with_border(double x, double y, double dx, double dy, QPainter& painter) {
+    QPolygonF polygon;
+    polygon << QPointF(scale_x(x-dx), scale_y(y+dy));
+    polygon << QPointF(scale_x(x+dx), scale_y(y+dy));
+    polygon << QPointF(scale_x(x+dx), scale_y(y-dy));
+    polygon << QPointF(scale_x(x-dx), scale_y(y-dy));
+    painter.drawPolygon(polygon);
+  }
+
   void BSPQtPlotter::draw_point(double x, double y, QPainter& painter) {
     x = scale_x(x);
     y = scale_y(y);

@@ -14,26 +14,30 @@ namespace BSP {
     BSPOptimizerTask(int argc, char **argv, QObject* parent=NULL);
     virtual void run() = 0;
 
-    void wait_to_proceed(boost::function<void()> f) {
-      QEventLoop loop;
-      connect(this, SIGNAL(proceed_signal()), &loop, SLOT(quit()));
-      f();
-      loop.exec();
+    void wait_to_proceed(boost::function<void()> f, bool wait=true) {
+      if (wait) {
+        QEventLoop loop;
+        connect(this, SIGNAL(proceed_signal()), &loop, SLOT(quit()));
+        f();
+        loop.exec();
+      } else {
+        f();
+      }
     }
 
     template<class PlotterT>
-    void emit_plot_message(boost::shared_ptr<PlotterT> plotter, void* d1) {
-      wait_to_proceed(boost::bind(&PlotterT::update_plot_data, plotter, d1));
+    void emit_plot_message(boost::shared_ptr<PlotterT> plotter, void* d1, bool wait=true) {
+      wait_to_proceed(boost::bind(&PlotterT::update_plot_data, plotter, d1), wait);
     }
 
     template<class PlotterT>
-    void emit_plot_message(boost::shared_ptr<PlotterT> plotter, void* d1, void* d2) {
-      wait_to_proceed(boost::bind(&PlotterT::update_plot_data, plotter, d1, d2));
+    void emit_plot_message(boost::shared_ptr<PlotterT> plotter, void* d1, void* d2, bool wait=true) {
+      wait_to_proceed(boost::bind(&PlotterT::update_plot_data, plotter, d1, d2), wait);
     }
 
     template<class PlotterT>
-    void emit_plot_message(boost::shared_ptr<PlotterT> plotter, void* d1, void* d2, void* d3) {
-      wait_to_proceed(boost::bind(&PlotterT::update_plot_data, plotter, d1, d2, d3));
+    void emit_plot_message(boost::shared_ptr<PlotterT> plotter, void* d1, void* d2, void* d3, bool wait=true) {
+      wait_to_proceed(boost::bind(&PlotterT::update_plot_data, plotter, d1, d2, d3), wait);
     }
 
   public slots:

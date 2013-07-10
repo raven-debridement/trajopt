@@ -34,6 +34,8 @@
   BOOST_STATIC_ASSERT( (boost::is_same< BSP_CONCAT(_scalar_type_, prefix, _1), BSP_CONCAT(_scalar_type_, prefix, _2) >::value) );
 
 #define ENSURE_SAME_SCALAR_TYPE(T1, T2) __ENSURE_SAME_SCALAR_TYPE(__COUNTER__, T1, T2)
+
+
   
 
 namespace BSP {
@@ -148,4 +150,6 @@ namespace BSP {
   }
 
   void seed_random();
+
+  double sigmoid(double x);
 }
