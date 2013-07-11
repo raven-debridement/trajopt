@@ -23,8 +23,8 @@ namespace CarBSP {
     opt.merit_error_coeff_          = 100;
     opt.merit_coeff_increase_ratio_ = 10;
     opt.max_merit_coeff_increases_  = 2;
-    opt.trust_shrink_ratio_         = 0.8;
-    opt.trust_expand_ratio_         = 1.2;
+    opt.trust_shrink_ratio_         = 0.6;
+    opt.trust_expand_ratio_         = 1.5;
     opt.min_trust_box_size_         = 0.001;
     opt.min_approx_improve_         = 1e-2;
     opt.min_approx_improve_frac_    = 1e-4;
@@ -544,12 +544,14 @@ namespace CarBSP {
 
 
   void CarOptimizerTask::run() {
+    srand(static_cast<unsigned int>(std::time(0)));
     bool plotting = true;
+    bool first_step_only = false;
 
     /* enum Method { StateSpace = 0, ContinuousBeliefSpace = 1, DiscontinuousBeliefSpace = 2}; */
-    int method = 0;
+    int method = 2;
 
-    double noise_level = 1;
+    double noise_level = 0.02;
 
     double start_vec_array[] = {-5, 2, -PI*0.5, 0, 2, 0, -2};
     double goal_vec_array[] = {-5, -2, 0, 0, 0, 0, 0};
@@ -560,6 +562,7 @@ namespace CarBSP {
     {
       Config config;
       config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
+      config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
       config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
       config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
       config.add(new Parameter<int>("method", &method, "method"));
@@ -601,16 +604,25 @@ namespace CarBSP {
       opt_callback = boost::bind(&CarOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
     }
 
-    //cout << "start solving" << endl;
+    Vector7d state_error = Vector7d::Ones() * 10000;
 
     while (!planner->finished()) {
-      planner->solve(opt_callback);
-      cout << planner->helper->belief_func->approx_factor << endl;
-      //planner->simulate_executions(planner->helper->T);
-      planner->simulate_executions(1);
+      cout << "start solving" << endl;
+      cout << "error sum: " << state_error.array().abs().sum() << endl;
+      if (state_error.array().abs().sum() < 0.0001) {
+        cout << "ignorable deviation" << endl;
+        // nothing
+      } else if (state_error.array().abs().sum() < 0.10) {
+        cout << "small deviation" << endl;
+        planner->solve(opt_callback, 9, 1);
+      } else {
+        planner->solve(opt_callback, 1, 3);
+      }
+      cout << "solved" << endl;
+      if (first_step_only) break;
+      state_error = planner->simulate_executions(1);
       if (plotting) {
-        cout << "plotting now" << endl;
-        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, true);
+        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, false);
         //sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
       }
     }
@@ -619,6 +631,7 @@ namespace CarBSP {
     cout << "goal position: " << planner->goal.head<2>().transpose() << endl;
     cout << "final estimated position: " << planner->start.head<2>().transpose() << endl;
     cout << "final covariance: " << endl << planner->start_sigma.topLeftCorner<2, 2>() << endl;
+
     if (plotting) {
       emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
       emit finished_signal();
@@ -629,8 +642,7 @@ namespace CarBSP {
 using namespace CarBSP;
 
 int main(int argc, char *argv[]) {
-  seed_random();
-  //srand(static_cast<unsigned int>(std::time(0)));
+  //seed_random();
   bool plotting = true;
   {
     Config config;

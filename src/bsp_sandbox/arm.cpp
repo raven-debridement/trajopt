@@ -60,20 +60,22 @@ namespace ArmBSP {
   }
 
   void ArmBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state) {
-    assert (state != NULL);
-    assert (sigma != NULL);
+    if (truncated_gaussian == WithTruncatedGaussian) {
+      assert (state != NULL);
+      assert (sigma != NULL);
 
-    vector<Beam2D> actual_fov;
-    helper->fov_from_state(actual_state, &actual_fov);
+      vector<Beam2D> actual_fov;
+      helper->fov_from_state(actual_state, &actual_fov);
 
-    if (!inside(real_object_pos, actual_fov)) { // truncate current belief if object is not in view
-      vector<Beam2D> cur_fov;
-      helper->fov_from_state(*state, &cur_fov);
-      Vector2d new_state;
-      Matrix2d new_sigma;
-      truncate_belief(cur_fov, state->tail<2>(), sigma->bottomRightCorner<2, 2>(), &new_state, &new_sigma);
-      state->tail<2>() = get_feasible_pos(new_state);
-      sigma->bottomRightCorner<2, 2>() = ensure_precision(new_sigma);
+      if (!inside(real_object_pos, actual_fov)) { // truncate current belief if object is not in view
+        vector<Beam2D> cur_fov;
+        helper->fov_from_state(*state, &cur_fov);
+        Vector2d new_state;
+        Matrix2d new_sigma;
+        truncate_belief(cur_fov, state->tail<2>(), sigma->bottomRightCorner<2, 2>(), &new_state, &new_sigma);
+        state->tail<2>() = get_feasible_pos(new_state);
+        sigma->bottomRightCorner<2, 2>() = ensure_precision(new_sigma);
+      }
     }
   }
   
@@ -475,9 +477,12 @@ namespace ArmBSP {
   }
 
   void ArmOptimizerTask::run() {
+    srand(static_cast<unsigned int>(std::time(0)));
     int T = 12;
     bool plotting = false;
+    bool first_step_only = false;
     int method = 2;
+    int truncated_gaussian = 1;
     double noise_level = 0.2;
     double base_vec_array[] = {0, -1, 0};
     double start_vec_array[] = {PI/4+PI/16, PI/2, PI/4+PI/16, PI/2, 5, 5};
@@ -488,7 +493,9 @@ namespace ArmBSP {
       config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
       config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
       config.add(new Parameter<int>("method", &method, "method"));
+      config.add(new Parameter<int>("truncated_gaussian", &truncated_gaussian, "truncated_gaussian"));
       config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
+      config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
       CommandParser parser(config);
       parser.read(argc, argv, true);
     }
@@ -518,6 +525,7 @@ namespace ArmBSP {
     planner->T = T;
     planner->noise_level = noise_level;
     planner->method = method;
+    planner->truncated_gaussian = truncated_gaussian;
     planner->controls = initial_controls;
     planner->camera_base = Vector2d(0, 0);
     planner->camera_span_angle = PI / 4;
@@ -542,16 +550,27 @@ namespace ArmBSP {
     }
 
     if (plotting) {
-      emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
+      emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, false);
     }
 
+    Vector6d state_error = Vector6d::Ones() * 10000;
+
     while (!planner->finished()) {
-      planner->solve(opt_callback);
-      planner->simulate_execution();
+      if (state_error.array().abs().sum() < 0.0001) {
+        // nothing
+      } else if (state_error.array().abs().sum() < 0.10) {
+        planner->solve(opt_callback, 9, 1);
+      } else {
+        planner->solve(opt_callback, 1, 3);
+      }
+      if (first_step_only) break;
+      state_error = planner->simulate_executions(1);
       if (plotting) {
-        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);//, planner->finished());
+        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, false);
+        //sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
       }
     }
+
     emit finished_signal();
   }
 }

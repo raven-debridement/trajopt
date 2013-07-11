@@ -341,6 +341,7 @@ namespace ToyBSP {
 
   void ToyOptimizerTask::run() {
     bool plotting = true;
+    bool first_step_only = false;
 
     int method = 2;
     int truncated_gaussian = 1;
@@ -361,6 +362,7 @@ namespace ToyBSP {
       config.add(new Parameter<int>("method", &method, "method"));
       config.add(new Parameter<int>("truncated_gaussian", &truncated_gaussian, "truncated_gaussian"));
       config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
+      config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
       config.add(new Parameter<int>("seed", &seed, "seed"));
       CommandParser parser(config);
       parser.read(argc, argv, true);
@@ -395,160 +397,50 @@ namespace ToyBSP {
     if (plotting) {
       double x_min = -8.4, x_max = 3.9, y_min = -3.1, y_max = 3.1;
       sim_plotter.reset(create_plotter<ToySimulationPlotter>(x_min, x_max, y_min, y_max, planner->helper));
-      //sim_plotter->show();
-      //if (method != 0) {
+      sim_plotter->show();
       opt_plotter.reset(create_plotter<ToyOptPlotter>(x_min, x_max, y_min, y_max, planner->helper));
-      //opt_plotter->show();
-      //}
+      opt_plotter->show();
       opt_plotter->simplotptr = sim_plotter;
     }
 
     boost::function<void(OptProb*, DblVec&)> opt_callback;
-    //if (plotting && method != 0) {
     if (plotting) {
-      //opt_callback = boost::bind(&ToyOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
+      opt_callback = boost::bind(&ToyOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
     }
 
-    // test truncated gaussians
-    /*
-    StateT state;
-    state(0) = -4.36543; state(1) = 1.80434;
-    VarianceT sigma;
-    sigma(0,0) = 1.0024; sigma(1,0) = 0; sigma(0,1) = 0; sigma(1,1) = 1.0024;
+    Vector2d state_error = Vector2d::Ones() * 10000;
 
-    Vector2d new_state;
-    Matrix2d new_sigma;
-    truncate_gaussian(Vector2d(-1, 0), 0, state, sigma, &new_state, &new_sigma);
-
-    cout << "state: " << state(0) << " " << state(1) << endl;
-    cout << "sigma: " << sigma(0,0) << " " << sigma(0,1) << " " << sigma(1,0) << " " << sigma(1,1) << endl;
-
-    cout << "new_state: " << new_state(0) << " " << new_state(1) << endl;
-    cout << "new_sigma: " << new_sigma(0,0) << " " << new_sigma(0,1) << " " << new_sigma(1,0) << " " << new_sigma(1,1) << endl;
-
-    cout << "PAUSED: testing truncated Gaussians" << endl;
-    int num;
-    cin >> num;
-    */
-
-    //cout << "start solving" << endl;
-
-    /*
-    int success = 0;
-    for (int i = 0; i < 1000; ++i) {
-      planner->helper->T = 20;
-      initial_controls.clear();
-      ifstream ifptr("toy-opt-init.txt", ios::in);
-      int nu;
-      ifptr >> nu;
-      ControlT uvec;
-      for (int i = 0; i < T; ++i) {
-        ifptr >> uvec(0) >> uvec(1);
-        initial_controls.push_back(uvec);
-      }
-      if (ifptr.is_open()) ifptr.close();
-      planner->controls = initial_controls;
-
-      planner->start = start;
-      planner->goal = goal;
-      planner->start_sigma = start_sigma;
-      planner->method = method;
-      planner->T = T;
-      planner->noise_level = noise_level;
-      planner->initialize();
-
-      planner->simulate_executions(planner->helper->T);
-      cout << "final position: " << planner->simulated_positions.back().head<2>().transpose() << endl;
-      cout << "final estimated position: " << planner->start.head<2>().transpose() << endl;
-      cout << "final covariance: " << endl << planner->start_sigma.topLeftCorner<2, 2>() << endl;
-      cout << "goal position: " << planner->goal.head<2>().transpose() << endl;
-
-      Vector2d fpos = planner->simulated_positions.back().head<2>();
-      Vector2d goalpos = planner->goal.head<2>();
-      double dist = (fpos - goalpos).norm();
-      cout << "dist: " << dist << endl;
-      cout << "goaleps: " << planner->helper->goaleps << endl;
-      if (dist < planner->helper->goaleps) {
-        cout << "success" << endl;
-        ++success;
-      }
-      cout << "Successful runs: " << success << "/1000" << endl;
-    }
-
-    if (plotting) {
-      emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
-    }
-    */
-
-    //int success =0;
-    //for (int i = 0; i < 20; ++i) {
-      //planner->helper->T = 20;
-      //planner->start = start;
-      //planner->goal = goal;
-      //ControlT uvec;
-      //initial_controls.clear();
-      //for (int i = 0; i < T; ++i) {
-      //  initial_controls.push_back((goal-start)/(double)T);
-      //}
-      //planner->controls = initial_controls;
-      //planner->start_sigma = start_sigma;
-      //planner->method = method;
-      //planner->T = T;
-      //planner->noise_level = noise_level;
-      //planner->initialize();
-
-      while (!planner->finished()) {
-        //cout << "Solving optimization" << endl;
-        planner->solve(opt_callback);
-        //planner->simulate_executions(planner->helper->T);
-        planner->simulate_executions(1);
-        if (plotting) {
-          //emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
-          sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
-        }
-      }
-
-      if (plotting) {
-        sim_plotter->show();
-      }
-
-      //planner->simulate_executions(planner->helper->T);
-      //cout << "final position: " << planner->simulated_positions.back().head<2>().transpose() << endl;
-      //cout << "final estimated position: " << planner->start.head<2>().transpose() << endl;
-      //cout << "final covariance: " << endl << planner->start_sigma.topLeftCorner<2, 2>() << endl;
-      //cout << "goal position: " << planner->goal.head<2>().transpose() << endl;
-
-      //cout << endl;
-
-      //Vector2d fpos = planner->simulated_positions.back().head<2>();
-      //Vector2d goalpos = planner->goal.head<2>();
-      //double dist = (fpos - goalpos).norm();
-      //cout << "dist: " << dist << endl;
-      //cout << "goaleps: " << planner->helper->goaleps << endl;
-      //if (dist < planner->helper->goaleps) {
-      //  cout << "success" << endl;
-      //  ++success;
-      //}
-      //cout << "Successful runs: " << success << "/1000" << endl;
-    //}
-
-    /*
     while (!planner->finished()) {
-      //cout << "Solving optimization" << endl;
-      planner->solve(opt_callback);
-      //planner->simulate_executions(planner->helper->T);
-      planner->simulate_executions(1);
+      if (state_error.array().abs().sum() < 0.0001) {
+        // nothing
+      } else if (state_error.array().abs().sum() < 0.10) {
+        planner->solve(opt_callback, 9, 3);
+      } else {
+        planner->solve(opt_callback, 1, 5);
+      }
+      if (first_step_only) break;
+      state_error = planner->simulate_executions(1);
       if (plotting) {
-        //emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
-        sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
+        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, false);
+        //sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
       }
     }
-    */
+
+    bool inside_sensing_region = false;
+
+    for (int i = 0; i < planner->simulated_positions.size(); ++i) {
+      if (planner->simulated_positions[i].x() > 0) {
+        inside_sensing_region = true;
+        break;
+      }
+    }
 
     cout << "final position: " << planner->simulated_positions.back().head<2>().transpose() << endl;
     cout << "final estimated position: " << planner->start.head<2>().transpose() << endl;
     cout << "final covariance: " << endl << planner->start_sigma.topLeftCorner<2, 2>() << endl;
     cout << "goal position: " << planner->goal.head<2>().transpose() << endl;
+    //if (inside_sensing_region) {
+    cout << "inside sensing region: " << (inside_sensing_region ? "true" : "false") << endl;
     if (plotting) {
       emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions);
       emit finished_signal();
@@ -559,21 +451,23 @@ namespace ToyBSP {
 using namespace ToyBSP;
 
 int main(int argc, char *argv[]) {
-	//bool plotting = true;
-	//{
-	//	Config config;
-	//	config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
-	//	CommandParser parser(config);
-	//	parser.read(argc, argv, true);
-	//}
-	//QApplication app(argc, argv);
-	ToyOptimizerTask* task = new ToyOptimizerTask(argc, argv, NULL);
-	//if (plotting) {
-	//	QTimer::singleShot(0, task, SLOT(run_slot()));
-	//	QObject::connect(task, SIGNAL(finished_signal()), &app, SLOT(quit()));
-	//	return app.exec();
-	//} else {
+	bool plotting = true;
+	{
+		Config config;
+		config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
+		CommandParser parser(config);
+		parser.read(argc, argv, true);
+	}
+	
+	if (plotting) {
+    QApplication app(argc, argv);
+	  ToyOptimizerTask* task = new ToyOptimizerTask(argc, argv, &app);
+		QTimer::singleShot(0, task, SLOT(run_slot()));
+	  QObject::connect(task, SIGNAL(finished_signal()), &app, SLOT(quit()));
+	  return app.exec();
+  } else {
+	  ToyOptimizerTask* task = new ToyOptimizerTask(argc, argv, NULL);
 		task->run();
 		return 0;
-	//}
+  }
 }

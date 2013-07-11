@@ -584,7 +584,7 @@ namespace CarBSP {
     Vector7d start = toVectorXd(start_vec);
     Vector7d goal = toVectorXd(goal_vec);
     Matrix7d start_sigma = Matrix7d::Identity()*1;
-    start_sigma(2, 2) = 0.1;
+    //start_sigma(2, 2) = 0.1;
     start_sigma.bottomRightCorner<4, 4>() = Matrix4d::Identity() * 2;
 
     CarBSPPlannerPtr planner(new CarBSPPlanner());
@@ -615,7 +615,6 @@ namespace CarBSP {
       opt_callback = boost::bind(&CarOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
     }
 
-    bool is_first_time = true;
     Vector7d state_error = Vector7d::Ones() * 10000;
 
     while (!planner->finished()) {
@@ -624,7 +623,7 @@ namespace CarBSP {
       if (state_error.array().abs().sum() < 0.0001) {
         cout << "ignorable deviation" << endl;
         // nothing
-      } else if (state_error.array().abs().sum() < 0.05) {
+      } else if (state_error.array().abs().sum() < 0.10) {
         cout << "small deviation" << endl;
         planner->solve(opt_callback, 9, 1);
       } else {

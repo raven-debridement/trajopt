@@ -145,10 +145,6 @@ namespace BSP {
       for (int i = 0; i < n_alpha_iterations; ++i) {
         BSPTrustRegionSQP opt(prob);
         initialize_optimizer_parameters(opt, i == 0);
-        cout << "alpha iteration " << i << endl;
-        //if (i > 0) {
-        //  opt.merit_error_coeff_ *= opt.merit_coeff_increase_ratio_;
-        //}
         helper->configure_optimizer(*prob, opt);
         if (opt_callback) {
           opt.addCallback(opt_callback);
@@ -179,11 +175,11 @@ namespace BSP {
       StateFuncPtr state_func = helper->state_func;
       ObserveFuncPtr observe_func = helper->observe_func;
       BeliefFuncPtr belief_func = helper->belief_func;
-      StateT state_error;
+      StateT total_state_error;
       for (int i = 0; i < nsteps; ++i) {
+        StateT current_state_error;
         StateNoiseT state_noise = sample_gaussian(state_noise_mean, state_noise_cov, noise_level);
         ObserveNoiseT observe_noise = sample_gaussian(observe_noise_mean, observe_noise_cov, noise_level);
-        //cout << "state noise: " << state_noise.transpose() << endl;
         // update actual position
         current_position = state_func->call(current_position, controls.front(), state_noise);
         simulated_positions.push_back(current_position);
@@ -193,16 +189,18 @@ namespace BSP {
         // update Kalman filter
         BeliefT belief(helper->belief_dim);
         belief_func->compose_belief(start, matrix_sqrt(start_sigma), &belief);
-        belief = belief_func->call(belief, controls.front(), &observe, &observe_masks, &state_error);//, true, is_observe_valid);
+        belief = belief_func->call(belief, controls.front(), &observe, &observe_masks, &current_state_error);//, true, is_observe_valid);
         belief_func->extract_state(belief, &start);
         belief_func->extract_sigma(belief, &start_sigma);
+        StateT prev_start = start;
         custom_simulation_update(&start, &start_sigma, current_position);
+        current_state_error += start - prev_start;
+        total_state_error += current_state_error.array().abs().matrix();
         controls.pop_front();
       }
       helper->initial_controls = controls;
       helper->T = controls.size();
-      //cout << "Finished simulating execution, remaining horizon: " << helper->T << endl;
-      return state_error;
+      return total_state_error;
     }
 
     void simulate_execution() {
