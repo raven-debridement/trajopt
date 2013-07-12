@@ -37,10 +37,10 @@ namespace ToyBSP {
   }
 
   void ToyBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time) {
-    opt.max_iter_                   = 250;
+    opt.max_iter_                   = 500;
 		opt.merit_error_coeff_          = 100;
 		opt.merit_coeff_increase_ratio_ = 10;
-		opt.max_merit_coeff_increases_  = 3;
+		opt.max_merit_coeff_increases_  = 5;
 		opt.trust_shrink_ratio_         = 0.9;
 		opt.trust_expand_ratio_         = 1.1;
 		opt.min_trust_box_size_         = 1e-4;
@@ -64,8 +64,8 @@ namespace ToyBSP {
     double state_lbs_array[] = {-7, -5};
     double state_ubs_array[] = {3, 5};
 
-    double control_lbs_array[] = {-0.9, -0.9};
-    double control_ubs_array[] = {0.9, 0.9};
+    double control_lbs_array[] = {-0.8, -0.8};
+    double control_ubs_array[] = {0.8, 0.8};
 
     set_state_bounds(DblVec(state_lbs_array, end(state_lbs_array)), DblVec(state_ubs_array, end(state_ubs_array)));
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
@@ -91,7 +91,7 @@ namespace ToyBSP {
                                       StateFunc<StateT, ControlT, StateNoiseT>(helper), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
 
   StateT ToyStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    return x + u * toy_helper->input_dt + 0.05 * m;
+    return x + u * toy_helper->input_dt + 0.1 * m;
   }
 
   ToyObserveFunc::ToyObserveFunc() : ObserveFunc<StateT, ObserveT, ObserveNoiseT>() {}
@@ -178,23 +178,23 @@ namespace ToyBSP {
 
     double ellipseScaling = 1.0;
     painter.drawImage(0, 0, distmap);
-    QPen cvx_cov_pen(Qt::red, 3, Qt::SolidLine);
-    QPen path_pen(Qt::red, 3, Qt::SolidLine);
-    QPen openlooppath_pen(Qt::green, 3, Qt::SolidLine);
+    QPen cvx_cov_pen(Qt::red, 6, Qt::SolidLine);
+    QPen path_pen(Qt::red, 6, Qt::SolidLine);
+    QPen openlooppath_pen(Qt::green, 6, Qt::SolidLine);
     QPen pos_pen(Qt::red, 4, Qt::SolidLine);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::HighQualityAntialiasing);
 
 
     // draw goal
-    QPen goal_pen(QColor(192,192,192,100), 2, Qt::SolidLine);
-    painter.setPen(goal_pen);
-    QBrush goal_brush(QColor(192, 192, 192, 100));
-    QBrush prev_brush = painter.brush();
-    painter.setBrush(goal_brush);
-    Vector2d g = toy_helper->goal.head<2>();
-    draw_ellipse(g, Matrix2d::Identity()*toy_helper->goaleps, painter, ellipseScaling);
-    painter.setBrush(prev_brush);
+    //QPen goal_pen(QColor(192,192,192,100), 2, Qt::SolidLine);
+    //painter.setPen(goal_pen);
+    //QBrush goal_brush(QColor(192, 192, 192, 100));
+    //QBrush prev_brush = painter.brush();
+    //painter.setBrush(goal_brush);
+    //Vector2d g = toy_helper->goal.head<2>();
+    //draw_ellipse(g, Matrix2d::Identity()*toy_helper->goaleps, painter, ellipseScaling);
+    //painter.setBrush(prev_brush);
 
     painter.setPen(cvx_cov_pen);
 
@@ -204,14 +204,24 @@ namespace ToyBSP {
     }
 
     // draw beliefs computed using belief dynamics
-    QPen cvx_cov_pen2(QColor(255,215,0), 3, Qt::SolidLine);
-    painter.setPen(cvx_cov_pen2);
-    draw_ellipse(states_actual[0].head<2>(), sigmas_actual[0].topLeftCorner(2,2), painter, ellipseScaling);
-    draw_ellipse(states_actual[(int)states_actual.size()-1].head<2>(), sigmas_actual[(int)states_actual.size()-1].topLeftCorner(2,2), painter, ellipseScaling);
-
-    QPen pos_pen2(QColor(255,215,0), 8, Qt::SolidLine);
-    painter.setPen(pos_pen2);
     
+    painter.setPen(QPen(Qt::red, 6, Qt::SolidLine));
+    
+    for (int i = 0; i < states_actual.size(); ++i) {
+      draw_ellipse(states_actual[i].head<2>(), sigmas_actual[i].topLeftCorner(2,2), painter, ellipseScaling);
+    }
+    QPen cvx_cov_pen2(QColor(255,215,0), 6, Qt::SolidLine);
+    painter.setPen(cvx_cov_pen2);
+    for (int i = 0; i < states_actual.size(); ++i) {
+      draw_ellipse(states_01[i].head<2>(), sigmas_01[i].topLeftCorner(2,2), painter, ellipseScaling);
+    }
+    //draw_ellipse(states_actual[0].head<2>(), sigmas_actual[0].topLeftCorner(2,2), painter, ellipseScaling);
+    //draw_ellipse(states_actual[(int)states_actual.size()-1].head<2>(), sigmas_actual[(int)states_actual.size()-1].topLeftCorner(2,2), painter, ellipseScaling);
+
+    QPen pos_pen2(QColor(255,215,0), 10, Qt::SolidLine);
+    painter.setPen(pos_pen2);
+    draw_point(states_01[0](0), states_01[0](1), painter);
+    draw_point(states_01.back()(0), states_01.back()(1), painter);
     for (int i = 0; i < (int)states_01.size(); ++i) {
       draw_point(states_01[i](0), states_01[i](1), painter);
     }
@@ -221,9 +231,9 @@ namespace ToyBSP {
     if ((int)simplotptr->simulated_positions.size() <= 0) {
       return;
     }
-    for (int i = 0; i < (int)simplotptr->simulated_positions.size() - 1; ++i) {
-      draw_line(simplotptr->simulated_positions[i](0), simplotptr->simulated_positions[i](1), simplotptr->simulated_positions[i+1](0), simplotptr->simulated_positions[i+1](1), painter);
-    }
+    //for (int i = 0; i < (int)simplotptr->simulated_positions.size() - 1; ++i) {
+    //  draw_line(simplotptr->simulated_positions[i](0), simplotptr->simulated_positions[i](1), simplotptr->simulated_positions[i+1](0), simplotptr->simulated_positions[i+1](1), painter);
+    //}
   }
 
   void ToyOptPlotter::update_plot_data(void* data)
@@ -334,8 +344,8 @@ namespace ToyBSP {
   ToyOptimizerTask::ToyOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
   void ToyOptimizerTask::stage_plot_callback(boost::shared_ptr<ToyOptPlotter> plotter, OptProb*, DblVec& x) {
-    plotter->update_plot_data(&x);
-    //wait_to_proceed(boost::bind(&ToyOptPlotter::update_plot_data, plotter, &x));
+    //plotter->update_plot_data(&x);
+    wait_to_proceed(boost::bind(&ToyOptPlotter::update_plot_data, plotter, &x));
   }
 
 
@@ -371,7 +381,7 @@ namespace ToyBSP {
 
     Vector2d start = toVectorXd(start_vec);
     Vector2d goal = toVectorXd(goal_vec);
-    Matrix2d start_sigma = Matrix2d::Identity();
+    Matrix2d start_sigma = Matrix2d::Identity() * 0.5;
 
     int T = 20;
     deque<Vector2d> initial_controls;
@@ -395,7 +405,7 @@ namespace ToyBSP {
     boost::shared_ptr<ToyOptPlotter> opt_plotter;
 
     if (plotting) {
-      double x_min = -8.4, x_max = 3.9, y_min = -3.1, y_max = 3.1;
+      double x_min = -8, x_max = 3, y_min = -3.1, y_max = 3.1;
       sim_plotter.reset(create_plotter<ToySimulationPlotter>(x_min, x_max, y_min, y_max, planner->helper));
       sim_plotter->show();
       opt_plotter.reset(create_plotter<ToyOptPlotter>(x_min, x_max, y_min, y_max, planner->helper));
@@ -415,13 +425,15 @@ namespace ToyBSP {
         // nothing
       } else if (state_error.array().abs().sum() < 0.10) {
         planner->solve(opt_callback, 9, 3);
+        //planner->solve(opt_callback, 1000, 3);
       } else {
-        planner->solve(opt_callback, 1, 5);
+        planner->solve(opt_callback, 1, 6);
+        //planner->solve(opt_callback, 1000, 5);
       }
       if (first_step_only) break;
       state_error = planner->simulate_executions(1);
       if (plotting) {
-        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, false);
+        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, true);
         //sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
       }
     }

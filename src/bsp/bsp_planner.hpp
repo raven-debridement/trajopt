@@ -146,10 +146,11 @@ namespace BSP {
         BSPTrustRegionSQP opt(prob);
         initialize_optimizer_parameters(opt, i == 0);
         helper->configure_optimizer(*prob, opt);
-        if (opt_callback) {
-          opt.addCallback(opt_callback);
-        }
+        //if (opt_callback) {
+        //  opt.addCallback(opt_callback);
+        //}
         opt.optimize();
+        opt_callback(&(*prob), opt.x());
         this->result = opt.x();
         helper->initial_controls.clear();
         for (int j = 0; j < helper->get_T(); ++j) {
