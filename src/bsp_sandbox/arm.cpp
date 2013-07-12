@@ -74,7 +74,7 @@ namespace ArmBSP {
         Matrix2d new_sigma;
         truncate_belief(cur_fov, state->tail<2>(), sigma->bottomRightCorner<2, 2>(), &new_state, &new_sigma);
         state->tail<2>() = get_feasible_pos(new_state);
-        sigma->bottomRightCorner<2, 2>() = ensure_precision(new_sigma);
+        sigma->bottomRightCorner<2, 2>() = new_sigma;//ensure_precision(new_sigma);
       }
     }
   }

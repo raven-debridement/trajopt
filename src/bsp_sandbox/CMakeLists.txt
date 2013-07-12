@@ -2,6 +2,7 @@ find_package(Qt4 REQUIRED)
 
 include(${QT_USE_FILE})
 ADD_DEFINITIONS(${QT_DEFINITIONS})
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 
 include_directories(
   SYSTEM

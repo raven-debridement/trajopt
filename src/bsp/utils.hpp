@@ -91,10 +91,10 @@ namespace BSP {
     (*sigma) = (*sigma) * (sigma->transpose());
   }
 
-  template<typename T, size_t N>
-  T* end(T (&ra)[N]) {
-    return ra + N;
-  }
+  //template<typename T, size_t N>
+  //T* end(T (&ra)[N]) {
+  //  return ra + N;
+  //}
 
   void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<double>& lbs, const vector<double>& ubs, const vector<string>& name_prefix, const vector<VarArray*>& newvars);
 
@@ -136,18 +136,18 @@ namespace BSP {
          * sample + mean;
   }
 
-  template< class MatT >
-  MatT ensure_precision(const MatT& mat) {
-    MatT out = mat;
-    for (int i = 0; i < out.rows(); ++i) {
-      for (int j = 0; j < out.cols(); ++j) {
-        if (isnan(out(i, j))) {
-          out(i, j) = eps;
-        }
-      }
-    }
-    return out;
-  }
+  //template< class MatT >
+  //MatT ensure_precision(const MatT& mat) {
+  //  MatT out = mat;
+  //  for (int i = 0; i < out.rows(); ++i) {
+  //    for (int j = 0; j < out.cols(); ++j) {
+  //      if (isnan(out(i, j))) {
+  //        out(i, j) = eps;
+  //      }
+  //    }
+  //  }
+  //  return out;
+  //}
 
   void seed_random();
 
