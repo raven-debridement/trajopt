@@ -26,28 +26,39 @@ namespace ToyBSP {
       Vector2d new_state;
       Matrix2d new_sigma;
 
-      if (actual_state(0) > 0) {
+      if (actual_state(0) > 0 && (*state)(0) < 0) {
         truncate_gaussian(Vector2d(-1, 0), 0, *state, *sigma, &new_state, &new_sigma);
-      } else {
+        *state = new_state;
+        *sigma = new_sigma;
+      } else if (actual_state(0) < 0 && (*state)(0) > 0) {
         truncate_gaussian(Vector2d(1, 0), 0, *state, *sigma, &new_state, &new_sigma);
+        *state = new_state;
+        *sigma = new_sigma;
       }
-      *state = new_state;
-      *sigma = new_sigma;
+      
     }
   }
 
   void ToyBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time) {
-    opt.max_iter_                   = 500;
-		opt.merit_error_coeff_          = 100;
-		opt.merit_coeff_increase_ratio_ = 10;
-		opt.max_merit_coeff_increases_  = 5;
+    opt.max_iter_                   = 250;
+    opt.merit_coeff_increase_ratio_ = 10;
+    if (helper->belief_func->approx_factor <= 27) {
+      opt.merit_error_coeff_          = 100;
+		  opt.max_merit_coeff_increases_  = 4;
+		  opt.trust_box_size_             = 1;
+    } else {
+      opt.merit_error_coeff_          = 1000;
+		  opt.max_merit_coeff_increases_  = 3;
+      //opt.merit_coeff_increase_ratio_ = 5;
+		  opt.trust_box_size_             = 0.1;
+    }
+
 		opt.trust_shrink_ratio_         = 0.9;
 		opt.trust_expand_ratio_         = 1.1;
 		opt.min_trust_box_size_         = 1e-4;
 		opt.min_approx_improve_         = 0.01;
 		opt.min_approx_improve_frac_    = 1e-4;
 		opt.improve_ratio_threshold_    = 0.1;
-		opt.trust_box_size_             = 1;
 		opt.cnt_tolerance_              = 1e-08;
 
   }
@@ -71,8 +82,8 @@ namespace ToyBSP {
     set_control_bounds(DblVec(control_lbs_array, end(control_lbs_array)), DblVec(control_ubs_array, end(control_ubs_array)));
 
     VarianceT variance_cost = VarianceT::Identity(state_dim, state_dim);
-    set_variance_cost(variance_cost);
-    set_final_variance_cost(variance_cost * 10);
+    set_variance_cost(variance_cost * 10);
+    set_final_variance_cost(variance_cost * 80);
 
     ControlCostT control_cost = ControlCostT::Identity(control_dim, control_dim);
     set_control_cost(control_cost);
@@ -207,16 +218,16 @@ namespace ToyBSP {
     
     painter.setPen(QPen(Qt::red, 6, Qt::SolidLine));
     
-    for (int i = 0; i < states_actual.size(); ++i) {
-      draw_ellipse(states_actual[i].head<2>(), sigmas_actual[i].topLeftCorner(2,2), painter, ellipseScaling);
-    }
+    //for (int i = 0; i < states_actual.size(); ++i) {
+    //  draw_ellipse(states_actual[i].head<2>(), sigmas_actual[i].topLeftCorner(2,2), painter, ellipseScaling);
+    //}
     QPen cvx_cov_pen2(QColor(255,215,0), 6, Qt::SolidLine);
     painter.setPen(cvx_cov_pen2);
-    for (int i = 0; i < states_actual.size(); ++i) {
-      draw_ellipse(states_01[i].head<2>(), sigmas_01[i].topLeftCorner(2,2), painter, ellipseScaling);
-    }
-    //draw_ellipse(states_actual[0].head<2>(), sigmas_actual[0].topLeftCorner(2,2), painter, ellipseScaling);
-    //draw_ellipse(states_actual[(int)states_actual.size()-1].head<2>(), sigmas_actual[(int)states_actual.size()-1].topLeftCorner(2,2), painter, ellipseScaling);
+    //for (int i = 0; i < states_actual.size(); ++i) {
+    //  draw_ellipse(states_01[i].head<2>(), sigmas_01[i].topLeftCorner(2,2), painter, ellipseScaling);
+    //}
+    draw_ellipse(states_actual[0].head<2>(), sigmas_actual[0].topLeftCorner(2,2), painter, ellipseScaling);
+    draw_ellipse(states_actual[(int)states_actual.size()-1].head<2>(), sigmas_actual[(int)states_actual.size()-1].topLeftCorner(2,2), painter, ellipseScaling);
 
     QPen pos_pen2(QColor(255,215,0), 10, Qt::SolidLine);
     painter.setPen(pos_pen2);
@@ -226,14 +237,19 @@ namespace ToyBSP {
       draw_point(states_01[i](0), states_01[i](1), painter);
     }
 
-    QPen real_pen(QColor(0,255,0), 3, Qt::SolidLine);
-    painter.setPen(real_pen);
+    
     if ((int)simplotptr->simulated_positions.size() <= 0) {
       return;
     }
-    //for (int i = 0; i < (int)simplotptr->simulated_positions.size() - 1; ++i) {
-    //  draw_line(simplotptr->simulated_positions[i](0), simplotptr->simulated_positions[i](1), simplotptr->simulated_positions[i+1](0), simplotptr->simulated_positions[i+1](1), painter);
-    //}
+    painter.setPen(QPen(Qt::green, 10, Qt::SolidLine));
+    for (int i = 0; i < (int)simplotptr->simulated_positions.size() - 1; ++i) {
+      draw_point(simplotptr->simulated_positions[i](0), simplotptr->simulated_positions[i](1), painter);
+    }
+    QPen real_pen(QColor(0,255,0), 6, Qt::DotLine);
+    painter.setPen(real_pen);
+    for (int i = 0; i < (int)simplotptr->simulated_positions.size() - 2; ++i) {
+      draw_line(simplotptr->simulated_positions[i](0), simplotptr->simulated_positions[i](1), simplotptr->simulated_positions[i+1](0), simplotptr->simulated_positions[i+1](1), painter);
+    }
   }
 
   void ToyOptPlotter::update_plot_data(void* data)
@@ -344,8 +360,8 @@ namespace ToyBSP {
   ToyOptimizerTask::ToyOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
   void ToyOptimizerTask::stage_plot_callback(boost::shared_ptr<ToyOptPlotter> plotter, OptProb*, DblVec& x) {
-    //plotter->update_plot_data(&x);
-    wait_to_proceed(boost::bind(&ToyOptPlotter::update_plot_data, plotter, &x));
+    plotter->update_plot_data(&x);
+    //wait_to_proceed(boost::bind(&ToyOptPlotter::update_plot_data, plotter, &x));
   }
 
 
@@ -364,6 +380,7 @@ namespace ToyBSP {
     vector<double> start_vec(start_vec_array, end(start_vec_array));
     vector<double> goal_vec(goal_vec_array, end(goal_vec_array));
     int seed = static_cast<unsigned int>(std::time(0));
+    cout << "seed: " << seed << endl;
     {
       Config config;
       config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
@@ -421,19 +438,21 @@ namespace ToyBSP {
     Vector2d state_error = Vector2d::Ones() * 10000;
 
     while (!planner->finished()) {
-      if (state_error.array().abs().sum() < 0.0001) {
-        // nothing
-      } else if (state_error.array().abs().sum() < 0.10) {
-        planner->solve(opt_callback, 9, 3);
-        //planner->solve(opt_callback, 1000, 3);
-      } else {
+      //if (state_error.array().abs().sum() < 0.0001) {
+      //  // nothing
+      //} else if (state_error.array().abs().sum() < 0.10) {
+      //  planner->solve(opt_callback, 9, 3);
+      //  //planner->solve(opt_callback, 1000, 3);
+      //} else {
         planner->solve(opt_callback, 1, 6);
         //planner->solve(opt_callback, 1000, 5);
-      }
+      //}
       if (first_step_only) break;
       state_error = planner->simulate_executions(1);
+      cout << planner->helper->T << endl;
       if (plotting) {
-        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, true);
+        //emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, true);//planner->finished());
+        emit_plot_message(sim_plotter, &planner->result, &planner->simulated_positions, planner->helper->T <= 13);//planner->finished());//planner->finished());
         //sim_plotter->update_plot_data(&planner->result, &planner->simulated_positions);
       }
     }
