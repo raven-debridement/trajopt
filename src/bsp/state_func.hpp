@@ -5,34 +5,14 @@
 #include "utils.hpp"
 #include "bsp_problem_helper_base.hpp"
 #include "problem_state.hpp"
+#include "types/state_func.hpp"
 
 namespace BSP {
   template<class _StateT=VectorXd, class _ControlT=VectorXd, class _StateNoiseT=VectorXd>
   class StateFunc : public ProblemState {
   public:
-    /** begin typedefs */
-    typedef _StateT StateT;
-    typedef _ControlT ControlT;
-    typedef _StateNoiseT StateNoiseT;
+    define_state_func_types();
     typedef boost::shared_ptr< StateFunc<StateT, ControlT, StateNoiseT> > Ptr;
-
-    ENSURE_VECTOR(StateT);
-    ENSURE_VECTOR(ControlT);
-    ENSURE_VECTOR(StateNoiseT);
-    ENSURE_SAME_SCALAR_TYPE(StateT, ControlT);
-    ENSURE_SAME_SCALAR_TYPE(StateT, StateNoiseT);
-
-    typedef typename MatrixTraits<StateT>::scalar_type scalar_type;
-
-    const static int _state_dim = MatrixTraits<StateT>::rows;
-    const static int _control_dim = MatrixTraits<ControlT>::rows;
-    const static int _state_noise_dim = MatrixTraits<StateNoiseT>::rows;
-
-    // types for the gradient matrices
-    typedef Matrix<scalar_type, _state_dim, _state_dim> StateGradT;
-    typedef Matrix<scalar_type, _state_dim, _control_dim> ControlGradT;
-    typedef Matrix<scalar_type, _state_dim, _state_noise_dim> StateNoiseGradT;
-    /** end typedefs */
 
     double epsilon;
     BSPProblemHelperBasePtr helper;
@@ -53,9 +33,21 @@ namespace BSP {
                          , ControlGradT* output_B // df/du
                          , StateNoiseGradT* output_M // df/dm
                           ) const {
-      if (output_A) num_diff((boost::function<StateT (const StateT& )>) boost::bind(&StateFunc::operator(), this, _1, u, m), x, state_dim, this->epsilon, output_A);
-      if (output_B) num_diff((boost::function<StateT (const ControlT& )>) boost::bind(&StateFunc::operator(), this, x, _1, m), u, state_dim, this->epsilon, output_B);
-      if (output_M) num_diff((boost::function<StateT (const StateNoiseT& )>) boost::bind(&StateFunc::operator(), this, x, u, _1), m, state_dim, this->epsilon, output_M);
+      if (output_A) {
+        boost::function<StateT (const StateT& )> f_x;
+        f_x = boost::bind(&StateFunc::operator(), this, _1, u, m);
+        num_diff(f_x, x, state_dim, this->epsilon, output_A);
+       }
+      if (output_B) {
+        boost::function<StateT (const ControlT& )> f_u;
+        f_u = boost::bind(&StateFunc::operator(), this, x, _1, m);
+        num_diff(f_u, u, state_dim, this->epsilon, output_B);
+      }
+      if (output_M) {
+        boost::function<StateT (const StateNoiseT& )> f_m;
+        f_m = boost::bind(&StateFunc::operator(), this, x, u, _1);
+        num_diff(f_m, m, state_dim, this->epsilon, output_M);
+      }
     }
 
     StateT call(const StateT& x, const ControlT& u, const StateNoiseT& m) const {

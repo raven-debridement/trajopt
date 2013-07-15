@@ -12,7 +12,7 @@ namespace BSP {
   class BSPQtPlotter : public QWidget {
     Q_OBJECT
   public:
-    BSPQtPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    BSPQtPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
     double scale_x_length(double x) const;
     double scale_y_length(double y) const;
     double scale_x(double x) const;

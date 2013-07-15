@@ -121,12 +121,12 @@ namespace ToyBSP {
     return ret;
   }
 
-  ToyBeliefFunc::ToyBeliefFunc() : BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>() {
+  ToyBeliefFunc::ToyBeliefFunc() : EkfBeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>() {
     this->approx_factor = 1;
   }
 
   ToyBeliefFunc::ToyBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-                       BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>(helper, f, h), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {
+                       EkfBeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT>(helper, f, h), toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {
     this->approx_factor = 1;
   }
 

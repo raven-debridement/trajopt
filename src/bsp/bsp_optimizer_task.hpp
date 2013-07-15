@@ -10,8 +10,8 @@ namespace BSP {
   public:
     int argc;
     char **argv;
-    BSPOptimizerTask(QObject* parent=NULL);
-    BSPOptimizerTask(int argc, char **argv, QObject* parent=NULL);
+    BSPOptimizerTask(QObject* parent=nullptr);
+    BSPOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
     virtual void run() = 0;
 
     void wait_to_proceed(boost::function<void()> f, bool wait=true) {
@@ -48,7 +48,7 @@ namespace BSP {
     void proceed_signal();
   protected:
     template<class PlotterT> PlotterT* create_plotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper) {
-      PlotterT* plotter = new PlotterT(x_min, x_max, y_min, y_max, helper, NULL);
+      PlotterT* plotter = new PlotterT(x_min, x_max, y_min, y_max, helper, nullptr);
       QObject::connect(plotter, SIGNAL(finished_signal()), parent(), SLOT(quit()));
       QObject::connect(plotter, SIGNAL(proceed_signal()), this, SLOT(proceed_slot()));
       return plotter;

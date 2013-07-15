@@ -4,40 +4,6 @@
 #include <boost/random.hpp>
 #include <boost/random/normal_distribution.hpp>
 
-#define BSP_TYPEDEFS(state_dim, state_noise_dim, control_dim, observe_dim, observe_noise_dim, sigma_dof, belief_dim) \
-  typedef Matrix<double, state_dim, 1> StateT; \
-  typedef Matrix<double, state_noise_dim, 1> StateNoiseT; \
-  typedef Matrix<double, control_dim, 1> ControlT; \
-  typedef Matrix<double, observe_dim, 1> ObserveT; \
-  typedef Matrix<double, observe_noise_dim, 1> ObserveNoiseT; \
-  typedef Matrix<double, belief_dim, 1> BeliefT; \
-  typedef Matrix<double, state_dim, state_dim> VarianceT; \
-  typedef Matrix<double, state_dim, state_dim> VarianceCostT; \
-  typedef Matrix<double, state_dim, state_dim> StateGradT; \
-  typedef Matrix<double, control_dim, control_dim> ControlGradT; \
-  typedef Matrix<double, control_dim, control_dim> ControlCostT; \
-  typedef Matrix<double, state_dim, state_noise_dim> StateNoiseGradT; \
-  typedef Matrix<double, observe_dim, state_dim> ObserveStateGradT; \
-  typedef Matrix<double, observe_dim, observe_noise_dim> ObserveNoiseGradT; \
-  typedef Matrix<double, observe_dim, observe_dim> ObserveMatT; \
-  typedef Matrix<double, state_dim, observe_dim> KalmanT;
-
-#define ENSURE_VECTOR(T) BOOST_STATIC_ASSERT( (MatrixTraits<T>::cols == 1) );
-
-#define BSP_CONCAT_IMPL( x, y, z ) x##y##z
-
-#define BSP_CONCAT( x, y, z ) BSP_CONCAT_IMPL( x, y, z )
-
-#define __ENSURE_SAME_SCALAR_TYPE(prefix, T1, T2) \
-  typedef typename MatrixTraits<T1>::scalar_type BSP_CONCAT(_scalar_type_, prefix, _1); \
-  typedef typename MatrixTraits<T2>::scalar_type BSP_CONCAT(_scalar_type_, prefix, _2); \
-  BOOST_STATIC_ASSERT( (boost::is_same< BSP_CONCAT(_scalar_type_, prefix, _1), BSP_CONCAT(_scalar_type_, prefix, _2) >::value) );
-
-#define ENSURE_SAME_SCALAR_TYPE(T1, T2) __ENSURE_SAME_SCALAR_TYPE(__COUNTER__, T1, T2)
-
-
-  
-
 namespace BSP {
   template<class MatT1, class MatT2>
   MatT1 matrix_div(const MatT1& A, const MatT2& B) {
@@ -60,7 +26,7 @@ namespace BSP {
               , double epsilon
               , MatType* out
                ) {
-    assert (out != NULL);
+    assert (out != nullptr);
     int n = cur.size();
     InputType x = cur;
     out->resize(m, n);
@@ -136,20 +102,8 @@ namespace BSP {
          * sample + mean;
   }
 
-  //template< class MatT >
-  //MatT ensure_precision(const MatT& mat) {
-  //  MatT out = mat;
-  //  for (int i = 0; i < out.rows(); ++i) {
-  //    for (int j = 0; j < out.cols(); ++j) {
-  //      if (isnan(out(i, j))) {
-  //        out(i, j) = eps;
-  //      }
-  //    }
-  //  }
-  //  return out;
-  //}
-
   void seed_random();
 
   double sigmoid(double x);
+  
 }

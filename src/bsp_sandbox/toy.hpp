@@ -53,7 +53,7 @@ namespace ToyBSP {
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
   };
 
-  class ToyBeliefFunc : public BeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT> {
+  class ToyBeliefFunc : public EkfBeliefFunc<ToyStateFunc, ToyObserveFunc, BeliefT> {
   public:
     typedef boost::shared_ptr<ToyBeliefFunc> Ptr;
     ToyBSPProblemHelperPtr toy_helper;

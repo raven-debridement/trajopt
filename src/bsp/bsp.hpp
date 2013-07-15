@@ -5,6 +5,7 @@
 #include "state_func.hpp"
 #include "observe_func.hpp"
 #include "belief_func.hpp"
+#include "ekf_belief_func.hpp"
 #include "utils.hpp"
 #include "costs.hpp"
 #include "constraints.hpp"
@@ -12,3 +13,4 @@
 #include "bsp_qt_plotter.hpp"
 #include "bsp_optimizer_task.hpp"
 #include "bsp_planner.hpp"
+#include "types/bsp_typedefs.hpp"
