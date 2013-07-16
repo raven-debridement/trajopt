@@ -129,26 +129,26 @@ osg::Node* osgNodeFromGeom(const KinBody::Link::Geometry& geom) {
   osgUtil::SmoothingVisitor sv;
   geode->accept(sv);
 
-  if (!geom.GetRenderFilename().empty()) {
-    osg::Node* node = osgDB::readNodeFile(geom.GetRenderFilename());
-    if (node) {
-#if 0  // show collision mesh and collision mesh
-      osg::Group* group = new osg::Group;
-      group->addChild(node);
-      group->addChild(geode);
-      return group;
-#else 
-      return node;
-#endif
-    }
-    else {
-      LOG_ERROR("failed to load graphics mesh %s. Falling back to collision geom", geom.GetRenderFilename().c_str());
-      return geode;
-    }
-  }
-  else {
-    return geode;
-  }
+//  if (!geom.GetRenderFilename().empty()) {
+//    osg::Node* node = osgDB::readNodeFile(geom.GetRenderFilename());
+//    if (node) {
+//#if 0  // show collision mesh and collision mesh
+//      osg::Group* group = new osg::Group;
+//      group->addChild(node);
+//      group->addChild(geode);
+//      return group;
+//#else 
+//      return node;
+//#endif
+//    }
+//    else {
+//      LOG_ERROR("failed to load graphics mesh %s. Falling back to collision geom", geom.GetRenderFilename().c_str());
+//      return geode;
+//    }
+//  }
+//  else {
+  return geode;
+//  }
 
 
 

@@ -13,10 +13,9 @@
     }
     },
   {
-    "type" : "collision",
+    "type" : "continuous_collision",
     "name" : "collision",
     "params" : {
-      "continuous" : true,
       "coeffs" : [20],
       "dist_pen" : [0.025]
     }
