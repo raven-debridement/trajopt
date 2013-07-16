@@ -44,8 +44,8 @@ namespace BSP {
 
       for (int iter=1; ;) { // sqp loop
         callCallbacks(x_);
-        vector<bool> incmask = prob_->getIncrementMask();
-        for (int i=0; i < incmask.size(); ++i) if (incmask[i]) x_[i] = 0;
+        //vector<bool> incmask = prob_->getIncrementMask();
+        //for (int i=0; i < incmask.size(); ++i) if (incmask[i]) x_[i] = 0;
 
         LOG_DEBUG("current iterate: %s", CSTR(x_));
         LOG_INFO("iteration %i", iter);

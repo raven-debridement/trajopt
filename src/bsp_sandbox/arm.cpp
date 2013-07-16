@@ -224,7 +224,7 @@ namespace ArmBSP {
   ArmGoalError::ArmGoalError(ArmBSPProblemHelperPtr helper) : helper(helper) {}
 
   VectorXd ArmGoalError::operator()(const VectorXd& a) const {
-    assert (a.size() == 5);
+    assert (a.size() == 6);
     return a.tail<2>() - helper->angle_to_pos(a.head<3>());
   }
 
@@ -479,7 +479,7 @@ namespace ArmBSP {
   void ArmOptimizerTask::run() {
     srand(static_cast<unsigned int>(std::time(0)));
     int T = 12;
-    bool plotting = false;
+    bool plotting = true;
     bool first_step_only = false;
     int method = 2;
     int truncated_gaussian = 1;
@@ -546,7 +546,7 @@ namespace ArmBSP {
 
     boost::function<void(OptProb*, DblVec&)> opt_callback;
     if (plotting) {
-      //opt_callback = boost::bind(&ArmOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
+      opt_callback = boost::bind(&ArmOptimizerTask::stage_plot_callback, this, opt_plotter, _1, _2);
     }
 
     if (plotting) {
