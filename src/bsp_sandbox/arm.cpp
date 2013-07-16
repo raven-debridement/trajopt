@@ -212,12 +212,12 @@ namespace ArmBSP {
     return observe_masks_from_object_position(x, arm_helper->real_object_pos, -1);
   }
 
-  ArmBeliefFunc::ArmBeliefFunc() : BeliefFunc<ArmStateFunc, ArmObserveFunc, BeliefT>() {
+  ArmBeliefFunc::ArmBeliefFunc() : EkfBeliefFunc<ArmStateFunc, ArmObserveFunc, BeliefT>() {
     set_approx_factor(0.5);
   }
 
   ArmBeliefFunc::ArmBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-    BeliefFunc<ArmStateFunc, ArmObserveFunc, BeliefT>(helper, f, h), arm_helper(boost::static_pointer_cast<ArmBSPProblemHelper>(helper)) {
+    EkfBeliefFunc<ArmStateFunc, ArmObserveFunc, BeliefT>(helper, f, h), arm_helper(boost::static_pointer_cast<ArmBSPProblemHelper>(helper)) {
     set_approx_factor(0.5);
   }
 

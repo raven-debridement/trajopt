@@ -59,7 +59,7 @@ namespace ArmBSP {
     ObserveT observe_masks_from_object_position(const StateT& x, const Vector2d& object_pos, double approx_factor) const;
   };
 
-  class ArmBeliefFunc : public BeliefFunc<ArmStateFunc, ArmObserveFunc, BeliefT> {
+  class ArmBeliefFunc : public EkfBeliefFunc<ArmStateFunc, ArmObserveFunc, BeliefT> {
   public:
     typedef boost::shared_ptr<ArmBeliefFunc> Ptr;
     ArmBSPProblemHelperPtr arm_helper;

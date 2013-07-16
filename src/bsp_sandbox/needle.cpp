@@ -45,7 +45,7 @@ namespace NeedleBSP {
     cout << "state before: " << state->transpose() << endl;
     cout << "sigma before: " << endl << *sigma << endl;
     state->head<2>() = new_state;
-    sigma->topLeftCorner<2, 2>() = ensure_precision(new_sigma);
+    sigma->topLeftCorner<2, 2>() = new_sigma;
     cout << "state: " << state->transpose() << endl;
     cout << "sigma: " << endl << *sigma << endl;
   }
@@ -287,20 +287,12 @@ namespace NeedleBSP {
   NeedleObserveFunc::NeedleObserveFunc(BSPProblemHelperBasePtr helper) :
     ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), needle_helper(boost::static_pointer_cast<NeedleBSPProblemHelper>(helper)) {}
 
-  ObserveT NeedleObserveFunc::unnoisy_observation(const StateT& x) const {
+  ObserveT NeedleObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
     ObserveT ret(observe_dim);
     ret(0) = x(0);
     ret(1) = x(1);
     ret(2) = x(3);
-    return ret;
-  }
-
-  ObserveT NeedleObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
-    return unnoisy_observation(x) + 0.01 * compute_inverse_gamma(x, -1) * n;
-  }
-
-  ObserveT NeedleObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const {
-    return unnoisy_observation(x) + 0.01 * compute_inverse_gamma(x, approx_factor) * n;
+    return ret + 0.01 * n;
   }
 
   bool NeedleObserveFunc::sgndist(double x, double ultrasound_x, Vector1d* dists) const {
@@ -314,52 +306,27 @@ namespace NeedleBSP {
     return (*dists)(0) < 0;
   }
 
-  ObserveMatT NeedleObserveFunc::compute_gamma(const StateT& x, double approx_factor) const {
-    Vector1d dists;
-    sgndist(x(0), x(3), &dists);
-    double tol = 0.1;
-    double gamma1;
-    if (approx_factor < 0) {
-      gamma1 = dists(0) <= 0 ? 1 : 0; 
-    } else {
-      gamma1 = 1. - (1./(1.+exp(-approx_factor*(dists(0)+tol))));
-    }
-    ObserveMatT gamma(observe_dim, observe_dim);
-
-    gamma << gamma1,      0, 0,
-                  0, gamma1, 0,
-                  0,      0, 1;
-
-    return gamma;
-  }
-
-  ObserveMatT NeedleObserveFunc::compute_inverse_gamma(const StateT& x, double approx_factor) const {
+  ObserveT NeedleObserveFunc::observation_masks(const StateT& x, double approx_factor) const {
+    ObserveT ret(observe_dim);
     Vector1d dists;
     sgndist(x(0), x(3), &dists);
     double minval = 1e-4;
     double tol = 0.1;
-    double invgamma1, invgamma2;
+
+    ret(2) = 1;
     if (approx_factor < 0) {
-      invgamma1 = dists(0) <= 0 ? 1 : 1/minval;
+      ret(0) = ret(1) = dists(0) <= 0 ? 1 : 0;
     } else {
-      double gamma1 = 1. - (1./(1.+exp(-approx_factor*(dists(0)+tol))));
-      invgamma1 = 1. / fmax(gamma1, minval);
+      ret(0) = ret(1) = 1. - sigmoid(approx_factor * (dists(0) + tol));
     }
-
-    ObserveMatT invgamma(observe_dim, observe_dim);
-    invgamma << invgamma1,         0, 0,
-                        0, invgamma1, 0,
-                        0,         0, 1;
-
-    return invgamma;
   }
 
-  NeedleBeliefFunc::NeedleBeliefFunc() : BeliefFunc<NeedleStateFunc, NeedleObserveFunc, BeliefT>() {
+  NeedleBeliefFunc::NeedleBeliefFunc() : EkfBeliefFunc<NeedleStateFunc, NeedleObserveFunc, BeliefT>() {
     this->approx_factor = 1;
   }
 
   NeedleBeliefFunc::NeedleBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-   BeliefFunc<NeedleStateFunc, NeedleObserveFunc, BeliefT>(helper, f, h), needle_helper(boost::static_pointer_cast<NeedleBSPProblemHelper>(helper)) {
+   EkfBeliefFunc<NeedleStateFunc, NeedleObserveFunc, BeliefT>(helper, f, h), needle_helper(boost::static_pointer_cast<NeedleBSPProblemHelper>(helper)) {
     this->approx_factor = 1;
   }
 

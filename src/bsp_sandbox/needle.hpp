@@ -50,14 +50,11 @@ namespace NeedleBSP {
     NeedleObserveFunc();
     NeedleObserveFunc(BSPProblemHelperBasePtr helper);
     bool sgndist(double x, double ultrasound_x, Vector1d* dists) const;
-    ObserveMatT compute_gamma(const StateT& x, double approx_factor) const;
-    ObserveMatT compute_inverse_gamma(const StateT& x, double approx_factor) const;
-    ObserveT unnoisy_observation(const StateT& x) const;
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
-    virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n, double approx_factor) const;
+    virtual ObserveT observation_masks(const StateT& x, double approx_factor=-1) const;
   };
 
-  class NeedleBeliefFunc : public BeliefFunc<NeedleStateFunc, NeedleObserveFunc, BeliefT> {
+  class NeedleBeliefFunc : public EkfBeliefFunc<NeedleStateFunc, NeedleObserveFunc, BeliefT> {
   public:
     typedef boost::shared_ptr<NeedleBeliefFunc> Ptr;
     NeedleBSPProblemHelperPtr needle_helper;

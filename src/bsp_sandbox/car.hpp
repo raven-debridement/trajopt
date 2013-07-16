@@ -54,7 +54,7 @@ namespace CarBSP {
     virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
   };
 
-  class CarBeliefFunc : public BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT> {
+  class CarBeliefFunc : public EkfBeliefFunc<CarStateFunc, CarObserveFunc, BeliefT> {
   public:
     typedef boost::shared_ptr<CarBeliefFunc> Ptr;
     CarBSPProblemHelperPtr car_helper;
@@ -67,11 +67,6 @@ namespace CarBSP {
 
   class CarBSPProblemHelper : public BSPProblemHelper<CarBeliefFunc> {
   public:
-    //struct RRTNode {
-    //  RobotStateT x;
-    //  RobotControlT u;
-    //  int bp;
-    //};
 
     typedef typename BeliefConstraint<CarBeliefFunc>::Ptr BeliefConstraintPtr;
     double input_dt;
@@ -86,7 +81,6 @@ namespace CarBSP {
 
     vector<Vector4d> rrt_edges;
 
-    //virtual void RRTplan(bool);
     virtual void add_goal_constraint(OptProb& prob);
     CarBSPProblemHelper();
   };

@@ -204,12 +204,12 @@ namespace CarBSP {
     return ret;
   }
 
-  CarBeliefFunc::CarBeliefFunc() : BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>() {
+  CarBeliefFunc::CarBeliefFunc() : EkfBeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>() {
     this->approx_factor = 1;
   }
 
   CarBeliefFunc::CarBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-             BeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(helper, f, h), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {
+             EkfBeliefFunc<CarStateFunc, CarObserveFunc, BeliefT>(helper, f, h), car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {
     this->approx_factor = 1;
   }
 
