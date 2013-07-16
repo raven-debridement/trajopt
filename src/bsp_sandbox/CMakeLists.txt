@@ -1,12 +1,13 @@
 find_package(Qt4 REQUIRED)
 
 include(${QT_USE_FILE})
-ADD_DEFINITIONS(${QT_DEFINITIONS})
+add_definitions(${QT_DEFINITIONS})
+add_definitions(-DDATA_DIR="/home/rocky/trajopt-alex/data")#${CMAKE_SOURCE_DIR}/data")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 
 include_directories(
   SYSTEM
-  ${BULLET_INCLUDE_DIRS}  
+  ${BULLET_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
   ${Eigen_INCLUDE_DIRS}
   ${OpenRAVE_INCLUDE_DIRS}
@@ -40,3 +41,6 @@ SET(needle_qt_headers needle.hpp)
 QT4_WRAP_CPP(needle_qt_headers_moc ${needle_qt_headers})
 add_executable(needle needle.cpp geometry_2d.cpp ${needle_qt_headers_moc})
 target_link_libraries(needle bsp trajopt ${QT_LIBRARIES})
+
+add_executable(robot robot.cpp)
+target_link_libraries(robot bsp trajopt)
