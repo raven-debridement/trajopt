@@ -74,14 +74,14 @@ namespace ToyBSP {
   class ToyPlotter : public BSPQtPlotter, public ProblemState {
   protected:
     ToyBSPProblemHelperPtr toy_helper;
-    ToyPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    ToyPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
     void compute_distmap(QImage* distmap, StateT* state, double approx_factor);
   };
 
   class ToySimulationPlotter : public ToyPlotter {
     Q_OBJECT
   public:
-    ToySimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    ToySimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
     virtual void update_plot_data(void* data_x, void* data_sim);
     vector<StateT> simulated_positions;
   protected:
@@ -95,7 +95,7 @@ namespace ToyBSP {
   class ToyOptPlotter : public ToyPlotter {
     Q_OBJECT
   public:
-    ToyOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    ToyOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
   public slots:
     virtual void update_plot_data(void *data);
   public:
@@ -114,8 +114,8 @@ namespace ToyBSP {
   class ToyOptimizerTask : public BSPOptimizerTask {
     Q_OBJECT
   public:
-    ToyOptimizerTask(QObject* parent=NULL);
-    ToyOptimizerTask(int argc, char **argv, QObject* parent=NULL);
+    ToyOptimizerTask(QObject* parent=nullptr);
+    ToyOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
     virtual void run();
     void stage_plot_callback(boost::shared_ptr<ToyOptPlotter> plotter, OptProb*, DblVec& x);
   };

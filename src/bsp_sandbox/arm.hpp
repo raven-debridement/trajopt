@@ -94,7 +94,7 @@ namespace ArmBSP {
   protected:
     void draw_robot(const Vector3d& x, QPainter& painter);
     ArmBSPProblemHelperPtr arm_helper;
-    ArmPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    ArmPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
     void compute_distmap(QImage* distmap, StateT* current_state, double approx_factor);
     void draw_beam_2d(const Beam2D& beam, QPainter& painter);
     void draw_beams(const vector<Beam2D>& beams, QPainter& painter);
@@ -103,7 +103,7 @@ namespace ArmBSP {
   class ArmOptPlotter : public ArmPlotter {
     Q_OBJECT
   public:
-    ArmOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    ArmOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
   public slots:
     virtual void update_plot_data(void* data);
   protected:
@@ -117,7 +117,7 @@ namespace ArmBSP {
   class ArmSimulationPlotter : public ArmPlotter {
     Q_OBJECT
   public:
-    ArmSimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    ArmSimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
     virtual void update_plot_data(void* data_x, void* data_sim);
   protected:
     QImage distmap;
@@ -132,8 +132,8 @@ namespace ArmBSP {
   class ArmOptimizerTask : public BSPOptimizerTask {
     Q_OBJECT
   public:
-    ArmOptimizerTask(QObject* parent=NULL);
-    ArmOptimizerTask(int argc, char **argv, QObject* parent=NULL);
+    ArmOptimizerTask(QObject* parent=nullptr);
+    ArmOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
     virtual void run();
     void stage_plot_callback(boost::shared_ptr<ArmOptPlotter> plotter, OptProb*, DblVec& x);
   };

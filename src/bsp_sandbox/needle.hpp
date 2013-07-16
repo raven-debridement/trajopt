@@ -95,14 +95,14 @@ namespace NeedleBSP {
   class NeedlePlotter : public BSPQtPlotter, public ProblemState {
   protected:
     NeedleBSPProblemHelperPtr needle_helper;
-    NeedlePlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    NeedlePlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
     void compute_distmap(QImage* distmap, StateT* state, double approx_factor);
   };
 
   class NeedleOptPlotter : public NeedlePlotter {
     Q_OBJECT
   public:
-    NeedleOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    NeedleOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
   public slots:
     virtual void update_plot_data(void *data);
   protected:
@@ -116,7 +116,7 @@ namespace NeedleBSP {
   class NeedleSimulationPlotter : public NeedlePlotter {
     Q_OBJECT
   public:
-    NeedleSimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    NeedleSimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
     virtual void update_plot_data(void* data_x, void* data_sim);
   protected:
     QImage distmap;
@@ -129,8 +129,8 @@ namespace NeedleBSP {
   class NeedleOptimizerTask : public BSPOptimizerTask {
     Q_OBJECT
   public:
-    NeedleOptimizerTask(QObject* parent=NULL);
-    NeedleOptimizerTask(int argc, char **argv, QObject* parent=NULL);
+    NeedleOptimizerTask(QObject* parent=nullptr);
+    NeedleOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
     virtual void run();
     void stage_plot_callback(boost::shared_ptr<NeedleOptPlotter> plotter, OptProb*, DblVec& x);
   };

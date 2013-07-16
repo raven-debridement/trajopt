@@ -21,8 +21,8 @@ namespace ToyBSP {
 
   void ToyBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state) {
     if (truncated_gaussian == WithTruncatedGaussian) {
-      assert (state != NULL);
-      assert (sigma != NULL);
+      assert (state != nullptr);
+      assert (sigma != nullptr);
       Vector2d new_state;
       Matrix2d new_sigma;
 
@@ -147,11 +147,11 @@ namespace ToyBSP {
                        toy_helper(boost::static_pointer_cast<ToyBSPProblemHelper>(helper)) {}
 
   void ToyPlotter::compute_distmap(QImage* distmap, StateT* state, double approx_factor) {
-    assert(distmap != NULL);
+    assert(distmap != nullptr);
     for (int j = 0; j < distmap->height(); ++j) {
       QRgb *line = (QRgb*) distmap->scanLine(j);
       for (int i = 0; i < distmap->width(); ++i) {
-        if (state == NULL) {
+        if (state == nullptr) {
           line[i] = qRgb(0, 0, 0);
         } else {
           double x = unscale_x(i),
@@ -183,7 +183,7 @@ namespace ToyBSP {
       if ((int)states_opt.size() > 0) {
         compute_distmap(&distmap, &states_opt[0], toy_helper->belief_func->approx_factor);
       } else {
-        compute_distmap(&distmap, NULL, toy_helper->belief_func->approx_factor);
+        compute_distmap(&distmap, nullptr, toy_helper->belief_func->approx_factor);
       }
     }
 
@@ -497,7 +497,7 @@ int main(int argc, char *argv[]) {
 	  QObject::connect(task, SIGNAL(finished_signal()), &app, SLOT(quit()));
 	  return app.exec();
   } else {
-	  ToyOptimizerTask* task = new ToyOptimizerTask(argc, argv, NULL);
+	  ToyOptimizerTask* task = new ToyOptimizerTask(argc, argv, nullptr);
 		task->run();
 		return 0;
   }

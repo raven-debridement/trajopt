@@ -88,7 +88,7 @@ namespace CarBSP {
   class CarPlotter : public BSPQtPlotter, public ProblemState {
   protected:
     CarBSPProblemHelperPtr car_helper;
-    CarPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    CarPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
     void compute_distmap(QImage* distmap, StateT* state, double approx_factor);
     void draw_beam_2d(const Beam2D& beam, QPainter& painter);
   };
@@ -96,7 +96,7 @@ namespace CarBSP {
   class CarOptPlotter : public CarPlotter {
     Q_OBJECT
   public:
-    CarOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    CarOptPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
   public slots:
     virtual void update_plot_data(void *data);
   protected:
@@ -111,7 +111,7 @@ namespace CarBSP {
   class CarSimulationPlotter : public CarPlotter {
     Q_OBJECT
   public:
-    CarSimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=NULL);
+    CarSimulationPlotter(double x_min, double x_max, double y_min, double y_max, BSPProblemHelperBasePtr helper, QWidget* parent=nullptr);
     virtual void update_plot_data(void* data_x, void* data_sim);
   protected:
     QImage distmap;
@@ -125,8 +125,8 @@ namespace CarBSP {
   class CarOptimizerTask : public BSPOptimizerTask {
     Q_OBJECT
   public:
-    CarOptimizerTask(QObject* parent=NULL);
-    CarOptimizerTask(int argc, char **argv, QObject* parent=NULL);
+    CarOptimizerTask(QObject* parent=nullptr);
+    CarOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
     virtual void run();
     void stage_plot_callback(boost::shared_ptr<CarOptPlotter> plotter, OptProb*, DblVec& x);
   };

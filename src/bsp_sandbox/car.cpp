@@ -43,8 +43,8 @@ namespace CarBSP {
   }
 
   void CarBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma) {
-    assert (state != NULL);
-    assert (sigma != NULL);
+    assert (state != nullptr);
+    assert (sigma != nullptr);
     if ((*state)(2) > 2*PI) {
       (*state)(2) = 2*PI;
     } else if ((*state)(2) < -2*PI) {
@@ -219,11 +219,11 @@ namespace CarBSP {
              car_helper(boost::static_pointer_cast<CarBSPProblemHelper>(helper)) {}
 
   void CarPlotter::compute_distmap(QImage* distmap, StateT* state, double approx_factor) {
-    assert(distmap != NULL);
+    assert(distmap != nullptr);
     for (int j = 0; j < distmap->height(); ++j) {
       QRgb *line = (QRgb*) distmap->scanLine(j);
       for (int i = 0; i < distmap->width(); ++i) {
-        if (state == NULL) {
+        if (state == nullptr) {
           line[i] = qRgb(0, 0, 0);
         } else {
           double x = unscale_x(i),
@@ -264,7 +264,7 @@ namespace CarBSP {
     //  if (states_opt.size() > 0) {
     //    compute_distmap(&distmap, &states_opt[0], car_helper->belief_func->approx_factor);
     //  } else {
-    //    compute_distmap(&distmap, NULL, car_helper->belief_func->approx_factor);
+    //    compute_distmap(&distmap, nullptr, car_helper->belief_func->approx_factor);
     //  }
     //}
     //painter.drawImage(0, 0, distmap);
@@ -669,7 +669,7 @@ int main(int argc, char *argv[]) {
     QObject::connect(task, SIGNAL(finished_signal()), &app, SLOT(quit()));
     return app.exec();
   } else {
-    CarOptimizerTask* task = new CarOptimizerTask(argc, argv, NULL);
+    CarOptimizerTask* task = new CarOptimizerTask(argc, argv, nullptr);
     task->run();
     return 0;
 	}

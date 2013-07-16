@@ -77,12 +77,12 @@ namespace Geometry2D {
      
     // Check if the x and y coordinates are within both lines
     //if ( x < min(x1, x2) || x > max(x1, x2) ||
-    //x < min(x3, x4) || x > max(x3, x4) ) return NULL;
+    //x < min(x3, x4) || x > max(x3, x4) ) return nullptr;
     //if ( y < min(y1, y2) || y > max(y1, y2) ||
-    //y < min(y3, y4) || y > max(y3, y4) ) return NULL;
+    //y < min(y3, y4) || y > max(y3, y4) ) return nullptr;
      
     // Return the point of intersection
-    if (intersection != NULL) {
+    if (intersection != nullptr) {
       intersection->x() = x;
       intersection->y() = y;
     }
@@ -153,7 +153,7 @@ namespace Geometry2D {
   }
 
   void truncate_beams(const vector<Beam2D> beams, const vector<Segment>& segments, vector<Beam2D>* truncated_beams) {
-    assert (truncated_beams != NULL);
+    assert (truncated_beams != nullptr);
     truncated_beams->clear();
     for (int i = 0; i < beams.size(); ++i) {
       truncated_beams->push_back(truncate_beam(beams[i], segments));
@@ -236,7 +236,7 @@ namespace Geometry2D {
 
   void partition(const Beam2D& beam, int nparts, vector<Beam2D>* beams) {
     assert (nparts > 0);
-    assert (beams != NULL);
+    assert (beams != nullptr);
     beams->clear();
     double x1 = beam.a.x(), y1 = beam.a.y(), x2 = beam.b.x(), y2 = beam.b.y();
     double dx = (x2 - x1) / nparts, dy = (y2 - y1) / nparts;
@@ -258,8 +258,8 @@ namespace Geometry2D {
   }
 
   void truncate_belief(const vector<Beam2D>& beams, const Vector2d& cur_mean, const Matrix2d& cur_cov, Vector2d* out_mean, Matrix2d* out_cov) {
-    assert (out_mean != NULL);
-    assert (out_cov != NULL);
+    assert (out_mean != nullptr);
+    assert (out_cov != nullptr);
     Point p1 = beams[0].a;
     Point p2 = beams.back().b;
     Point max_point = p1;

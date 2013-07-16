@@ -83,8 +83,8 @@ namespace Geometry2D {
   // truncate to cx <= d
   template< class VecT, class MatT >
   void truncate_gaussian(const VecT& c, double d, const VecT& cur_mean, const MatT& cur_cov, VecT* out_mean, MatT* out_cov) {
-    assert (out_mean != NULL);
-    assert (out_cov != NULL);
+    assert (out_mean != nullptr);
+    assert (out_cov != nullptr);
     assert (cur_mean.size() == cur_cov.rows());
     assert (cur_mean.size() == cur_cov.cols());
     double y_mean = c.dot(cur_mean);
@@ -99,8 +99,8 @@ namespace Geometry2D {
 
   //template< class VecT, class MatT >
   //void truncate_gaussian(const VecT& c, double d, const VecT& cur_mean, const MatT& cur_cov, VecT* out_mean, MatT* out_cov) {
-  //  assert (out_mean != NULL);
-  //  assert (out_cov != NULL);
+  //  assert (out_mean != nullptr);
+  //  assert (out_cov != nullptr);
   //  assert (cur_mean.size() == cur_cov.rows());
   //  assert (cur_mean.size() == cur_cov.cols());
 

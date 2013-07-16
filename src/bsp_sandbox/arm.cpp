@@ -61,8 +61,8 @@ namespace ArmBSP {
 
   void ArmBSPPlanner::custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state) {
     if (truncated_gaussian == WithTruncatedGaussian) {
-      assert (state != NULL);
-      assert (sigma != NULL);
+      assert (state != nullptr);
+      assert (sigma != nullptr);
 
       vector<Beam2D> actual_fov;
       helper->fov_from_state(actual_state, &actual_fov);
@@ -262,8 +262,8 @@ namespace ArmBSP {
   }
 
   void ArmPlotter::compute_distmap(QImage* distmap, StateT* state, double approx_factor) {
-    assert(distmap != NULL);
-    if (state != NULL) {
+    assert(distmap != nullptr);
+    if (state != nullptr) {
       vector<Beam2D> cur_fov;
       arm_helper->fov_from_state(*state, &cur_fov);
       for (int j = 0; j < distmap->height(); ++j) {
@@ -296,7 +296,7 @@ namespace ArmBSP {
       if (states.size() > 0) {
         compute_distmap(&distmap, &states[0], arm_helper->belief_func->approx_factor);
       } else {
-        compute_distmap(&distmap, NULL, arm_helper->belief_func->approx_factor);
+        compute_distmap(&distmap, nullptr, arm_helper->belief_func->approx_factor);
       }
     }
     if (states.size() > 0) {
@@ -385,7 +385,7 @@ namespace ArmBSP {
     if (simulated_positions.size() > 0) {
       compute_distmap(&distmap, &simulated_positions.back(), -1);
     } else {
-      compute_distmap(&distmap, NULL, -1);
+      compute_distmap(&distmap, nullptr, -1);
     }
     painter.drawImage(0, 0, distmap);
     if (simulated_positions.size() <= 0) {
