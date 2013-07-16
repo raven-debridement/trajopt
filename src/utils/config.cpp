@@ -3,7 +3,7 @@ using namespace std;
 
 namespace util {
 
-void CommandParser::read(int argc, char* argv[]) {
+void CommandParser::read(int argc, char* argv[], bool allow_unregistered) {
   // create boost options_description based on variables, parser
   po::options_description od;
   od.add_options()("help,h", "produce help message");
@@ -13,10 +13,18 @@ void CommandParser::read(int argc, char* argv[]) {
     }
   }
   po::variables_map vm;
-  po::store(po::command_line_parser(argc, argv)
-      .options(od)
-      .run()
-      , vm);
+  if (allow_unregistered) {
+    po::store(po::command_line_parser(argc, argv)
+        .options(od)
+        .allow_unregistered()
+        .run()
+        , vm);
+  } else {
+    po::store(po::command_line_parser(argc, argv)
+        .options(od)
+        .run()
+        , vm);
+  }
   if (vm.count("help")) {
     std::cout << "usage: " << argv[0] << " [options]" << std::endl;
     std::cout << od << std::endl;

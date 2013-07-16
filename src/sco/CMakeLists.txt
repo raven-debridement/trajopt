@@ -14,7 +14,7 @@ set(SCO_SOURCE_FILES
 )
 
 if (NOT APPLE)
-  set (HAVE_BPMPD TRUE)
+  set (HAVE_BPMPD FALSE)
 endif()
 
 
