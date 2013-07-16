@@ -50,6 +50,27 @@ namespace BSP {
       return operator()(b, u, z_ptr, observation_masks_ptr, state_error_out);
     }
 
+    virtual void linearize(const BeliefT& b // state
+                         , const ControlT& u // control
+                         , BeliefGradT* output_A // df/dx
+                         , BeliefControlGradT* output_B // df/du
+                         , BeliefT* output_c // df/dm
+                          ) const {
+      if (output_A) {
+        boost::function<BeliefT (const BeliefT& )> f_b;
+        f_b = boost::bind(&BeliefFunc::operator(), this, _1, u, nullptr, nullptr, nullptr);
+        num_diff(f_b, b, belief_dim, this->epsilon, output_A);
+      }
+      if (output_B) {
+        boost::function<BeliefT (const ControlT& )> f_u;
+        f_u = boost::bind(&BeliefFunc::operator(), this, b, _1, nullptr, nullptr, nullptr);
+        num_diff(f_u, u, belief_dim, this->epsilon, output_B);
+      }
+      if (output_c) {
+        *output_c = this->call(b, u);
+      }
+    }
+
     virtual void extract_state(const BeliefT& belief, StateT* output_state) const {
       assert (belief.size() == belief_dim);
       assert (output_state != nullptr);

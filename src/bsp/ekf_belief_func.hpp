@@ -20,7 +20,7 @@ namespace BSP {
     EkfBeliefFunc() : BeliefFunc<_StateFuncT, _ObserveFuncT, _BeliefT>() {}
 
     EkfBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-      BeliefFunc<_StateFuncT, _ObserveFuncT, _BeliefT>() {}
+      BeliefFunc<_StateFuncT, _ObserveFuncT, _BeliefT>(helper, f, h) {}
 
     virtual BeliefT operator()(const BeliefT& b, const ControlT& u, ObserveT* z_ptr=nullptr, ObserveT* observation_masks_ptr=nullptr, StateT* state_error_out=nullptr) const {
       StateT             x(this->state_dim), new_x(this->state_dim);
