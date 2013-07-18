@@ -11,6 +11,7 @@
 #include <utils/stl_to_string.hpp>
 #include "utils/logging.hpp"
 #include "openrave_userdata_utils.hpp"
+#include "bullet_collision_checker.hpp"
 using namespace util;
 using namespace std;
 using namespace trajopt;
@@ -40,34 +41,21 @@ ostream &operator<<(ostream &stream, const btTransform& v) {
 #pragma GCC diagnostic pop
 #endif
 
-class CollisionObjectWrapper : public btCollisionObject {
-public:
-  CollisionObjectWrapper(KinBody::Link* link) : m_link(link), m_index(-1) {}
-  vector<boost::shared_ptr<void> > m_data;
-  KinBody::Link* m_link;
-  int m_index; // index into collision matrix
-  template<class T>
-  void manage(T* t) { // manage memory of this object
-    m_data.push_back(boost::shared_ptr<T>(t));
-  }
-  template<class T>
-  void manage(boost::shared_ptr<T> t) {
-    m_data.push_back(t);
-  }
-};
-typedef CollisionObjectWrapper COW;
-typedef boost::shared_ptr<CollisionObjectWrapper> COWPtr;
+
 
 inline const KinBody::Link* getLink(const btCollisionObject* o) {
   return static_cast<const CollisionObjectWrapper*>(o)->m_link;
 }
 
 
-extern void nearCallback(btBroadphasePair& collisionPair,
-    btCollisionDispatcher& dispatcher, const btDispatcherInfo& dispatchInfo);
-
-
-
+// only used for AllVsAll
+void nearCallback(btBroadphasePair& collisionPair,
+    btCollisionDispatcher& dispatcher, const btDispatcherInfo& dispatchInfo) {
+  BulletCollisionChecker* cc = static_cast<BulletCollisionChecker*>(dispatcher.m_userData);
+  if ( cc->CanCollide(static_cast<CollisionObjectWrapper*>(collisionPair.m_pProxy0->m_clientObject),
+                      static_cast<CollisionObjectWrapper*>(collisionPair.m_pProxy1->m_clientObject)))
+    dispatcher.defaultNearCallback(collisionPair, dispatcher, dispatchInfo);
+}
 
 btVector3 toBt(const OR::Vector& v){
   return btVector3(v[0], v[1], v[2]);
@@ -94,44 +82,14 @@ bool isIdentity(const OpenRAVE::Transform& T) {
       fabs(T.rot[3]) < e;
 }
 
-
-void GetAverageSupport(const btConvexShape* shape, const btVector3& localNormal, float& outsupport, btVector3& outpt) {
-  btVector3 ptSum(0,0,0);
-  float ptCount = 0;
-  float maxSupport=-1000;
-  const float EPSILON = 1e-3;
-  const btPolyhedralConvexShape* pshape = dynamic_cast<const btPolyhedralConvexShape*>(shape);
-  if (pshape) {
-    int nPts = pshape->getNumVertices();
-
-    for (int i=0; i < nPts; ++i) {
-      btVector3 pt;
-      pshape->getVertex(i, pt);
-//      cout << "pt: " << pt << endl;
-      float sup  = pt.dot(localNormal);
-      if (sup > maxSupport + EPSILON) {
-        ptCount=1;
-        ptSum = pt;
-        maxSupport = sup;
-      }
-      else if (sup < maxSupport - EPSILON) {
-      }
-      else {
-        ptCount += 1;
-        ptSum += pt;
-      }
-    }
-    outsupport = maxSupport;
-    outpt = ptSum / ptCount;
-  }
-  else  {
-    outpt = shape->localGetSupportingVertexWithoutMargin(localNormal);
-    outsupport = localNormal.dot(outpt);
-  }
 }
 
+namespace trajopt {
 
-btCollisionShape* createShapePrimitive(OR::KinBody::Link::GeometryPtr geom, bool useTrimesh, CollisionObjectWrapper* cow) {
+
+
+
+btCollisionShape* BulletCollisionChecker::createShapePrimitive(OR::KinBody::Link::GeometryPtr geom, bool useTrimesh, CollisionObjectWrapper* cow) const {
 
   btCollisionShape* subshape=0;
 
@@ -211,7 +169,7 @@ btCollisionShape* createShapePrimitive(OR::KinBody::Link::GeometryPtr geom, bool
 }
 
 
-COWPtr CollisionObjectFromLink(OR::KinBody::LinkPtr link, bool useTrimesh) {
+COWPtr BulletCollisionChecker::CollisionObjectFromLink(OR::KinBody::LinkPtr link, bool useTrimesh) const {
   LOG_DEBUG("creating bt collision object from from %s",link->GetName().c_str());
 
   const std::vector<boost::shared_ptr<OpenRAVE::KinBody::Link::Geometry> > & geometries=link->GetGeometries();
@@ -255,8 +213,8 @@ COWPtr CollisionObjectFromLink(OR::KinBody::LinkPtr link, bool useTrimesh) {
 
 
 
-void RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
-    OpenRAVE::EnvironmentBase& env, vector<OpenRAVE::GraphHandlePtr>& handles) {
+void BulletCollisionChecker::RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
+    OpenRAVE::EnvironmentBase& env, vector<OpenRAVE::GraphHandlePtr>& handles) const {
 
   typedef map<btCollisionShape*, HullResult > Shape2Inds;
   Shape2Inds gHullCache;
@@ -315,104 +273,6 @@ void RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
     break;
   }
 }
-
-
-class BulletCollisionChecker : public CollisionChecker {
-  btCollisionWorld* m_world;
-  btBroadphaseInterface* m_broadphase;
-  btCollisionDispatcher* m_dispatcher;
-  btCollisionConfiguration* m_coll_config;
-  typedef map<const OR::KinBody::Link*, CollisionObjectWrapper*> Link2Cow;
-  Link2Cow m_link2cow;
-  double m_contactDistance;
-  vector<KinBodyPtr> m_prevbodies;
-  typedef std::pair<const KinBody::Link*, const KinBody::Link*> LinkPair;
-  set< LinkPair > m_excludedPairs;
-  Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> m_allowedCollisionMatrix;
-
-public:
-  BulletCollisionChecker(OR::EnvironmentBaseConstPtr env);
-  ~BulletCollisionChecker();
-
-  ///////// public interface /////////
-  virtual void SetContactDistance(float distance);
-  virtual double GetContactDistance() {return m_contactDistance;}
-  virtual void PlotCollisionGeometry(vector<OpenRAVE::GraphHandlePtr>& handles);
-  virtual void ExcludeCollisionPair(const KinBody::Link& link0, const KinBody::Link& link1) {
-    m_excludedPairs.insert(LinkPair(&link0, &link1));
-    COW *cow0 = GetCow(&link0), *cow1 = GetCow(&link1);
-    if (cow0 && cow1) m_allowedCollisionMatrix(cow0->m_index, cow1->m_index) = 0;
-  }
-  virtual void IncludeCollisionPair(const KinBody::Link& link0, const KinBody::Link& link1) {
-    m_excludedPairs.erase(LinkPair(&link0, &link1));
-    COW *cow0 = GetCow(&link0), *cow1 = GetCow(&link1);
-    if (cow0 && cow1) m_allowedCollisionMatrix(cow0->m_index, cow1->m_index) = 1;
-  }
-  // collision checking
-  virtual void AllVsAll(vector<Collision>& collisions);
-  virtual void LinksVsAll(const vector<KinBody::LinkPtr>& links, vector<Collision>& collisions, short filterMask);
-  virtual void LinkVsAll(const KinBody::Link& link, vector<Collision>& collisions, short filterMask);
-  virtual void ContinuousCheckTrajectory(const TrajArray& traj, Configuration& rad, vector<Collision>&);
-  virtual void CastVsAll(Configuration& rad, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions);
-  ////
-  ///////
-
-  CollisionObjectWrapper* GetCow(const KinBody::Link* link) {
-    Link2Cow::iterator it = m_link2cow.find(link);
-    return (it == m_link2cow.end()) ? 0 : it->second;
-  }
-  void SetCow(const KinBody::Link* link, COW* cow) {m_link2cow[link] = cow;}
-  void LinkVsAll_NoUpdate(const KinBody::Link& link, vector<Collision>& collisions, short filterMask);
-  void UpdateBulletFromRave();
-  void AddKinBody(const OR::KinBodyPtr& body);
-  void RemoveKinBody(const OR::KinBodyPtr& body);
-  void AddAndRemoveBodies(const vector<OR::KinBodyPtr>& curVec, const vector<OR::KinBodyPtr>& prevVec, vector<KinBodyPtr>& addedBodies);
-  bool CanCollide(const CollisionObjectWrapper* cow0, const CollisionObjectWrapper* cow1) {
-    return m_allowedCollisionMatrix(cow0->m_index, cow1->m_index);
-  }
-  void SetLinkIndices();
-  void UpdateAllowedCollisionMatrix();
-  void CheckShapeCast(btCollisionShape* shape, const btTransform& tf0, const btTransform& tf1,
-      CollisionObjectWrapper* cow, btCollisionWorld* world, vector<Collision>& collisions);
-
-
-};
-
-struct CollisionCollector : public btCollisionWorld::ContactResultCallback {
-  std::vector<Collision>& m_collisions;
-  const CollisionObjectWrapper* m_cow;
-  BulletCollisionChecker* m_cc;
-
-  CollisionCollector(vector<Collision>& collisions, CollisionObjectWrapper* cow, BulletCollisionChecker* cc) :
-    m_collisions(collisions), m_cow(cow), m_cc(cc) {}
-  virtual btScalar addSingleResult(btManifoldPoint& cp,
-      const btCollisionObjectWrapper* colObj0Wrap,int partId0,int index0,
-      const btCollisionObjectWrapper* colObj1Wrap,int partId1,int index1) {
-    if (cp.m_distance1 > m_cc->GetContactDistance()) return 0;
-    const KinBody::Link* linkA = getLink(colObj0Wrap->getCollisionObject());
-    const KinBody::Link* linkB = getLink(colObj1Wrap->getCollisionObject());
-    m_collisions.push_back(Collision(linkA, linkB, toOR(cp.m_positionWorldOnA), toOR(cp.m_positionWorldOnB),
-        toOR(cp.m_normalWorldOnB), cp.m_distance1));
-    LOG_DEBUG("CollisionCollector: adding collision %s-%s (%.4f)", linkA->GetName().c_str(), linkB->GetName().c_str(), cp.m_distance1);
-    return 1;
-  }
-  bool needsCollision(btBroadphaseProxy* proxy0) const {
-    return (proxy0->m_collisionFilterGroup & m_collisionFilterMask)
-        && (m_collisionFilterGroup & proxy0->m_collisionFilterMask)
-        && m_cc->CanCollide(m_cow, static_cast<CollisionObjectWrapper*>(proxy0->m_clientObject));
-  }
-};
-
-
-// only used for AllVsAll
-void nearCallback(btBroadphasePair& collisionPair,
-    btCollisionDispatcher& dispatcher, const btDispatcherInfo& dispatchInfo) {
-  BulletCollisionChecker* cc = static_cast<BulletCollisionChecker*>(dispatcher.m_userData);
-  if ( cc->CanCollide(static_cast<CollisionObjectWrapper*>(collisionPair.m_pProxy0->m_clientObject),
-                      static_cast<CollisionObjectWrapper*>(collisionPair.m_pProxy1->m_clientObject)))
-    dispatcher.defaultNearCallback(collisionPair, dispatcher, dispatchInfo);
-}
-
 
 BulletCollisionChecker::BulletCollisionChecker(OR::EnvironmentBaseConstPtr env) :
   CollisionChecker(env) {
@@ -513,14 +373,7 @@ void BulletCollisionChecker::LinkVsAll_NoUpdate(const KinBody::Link& link, vecto
   m_world->contactTest(cow, cc);
 }
 
-struct KinBodyCollisionData;
-typedef boost::shared_ptr<KinBodyCollisionData> CDPtr;
-struct KinBodyCollisionData : public OpenRAVE::UserData {
-  OpenRAVE::KinBodyWeakPtr body;
-  std::vector<KinBody::Link*> links;
-  std::vector<COWPtr> cows;
-  KinBodyCollisionData(OR::KinBodyPtr _body) : body(_body) {}
-};
+
 
 void BulletCollisionChecker::AddKinBody(const OR::KinBodyPtr& body) {
   CDPtr cd(new KinBodyCollisionData(body));
@@ -561,24 +414,7 @@ void BulletCollisionChecker::RemoveKinBody(const OR::KinBodyPtr& body) {
   trajopt::RemoveUserData(*body, "bt");
 }
 
-template <typename T>
-void SetDifferences(const vector<T>& A, const vector<T>& B, vector<T>& AMinusB, vector<T>& BMinusA) {
-  set<T> Aset, Bset;
-  AMinusB.clear();
-  BMinusA.clear();
-  BOOST_FOREACH(const T& a, A) {
-    Aset.insert(a);
-  }
-  BOOST_FOREACH(const T& b, B) {
-    Bset.insert(b);
-  }
-  BOOST_FOREACH(const T& a, A) {
-    if (Bset.count(a) == 0) AMinusB.push_back(a);
-  }
-  BOOST_FOREACH(const T& b, B) {
-    if (Aset.count(b) == 0) BMinusA.push_back(b);
-  }
-}
+
 
 void BulletCollisionChecker::AddAndRemoveBodies(const vector<KinBodyPtr>& curVec, const vector<KinBodyPtr>& prevVec, vector<KinBodyPtr>& toAdd) {
   vector<KinBodyPtr> toRemove;
@@ -654,6 +490,28 @@ void BulletCollisionChecker::PlotCollisionGeometry(vector<OpenRAVE::GraphHandleP
   }
 }
 
+CollisionCollector::CollisionCollector(vector<Collision>& collisions, CollisionObjectWrapper* cow, BulletCollisionChecker* cc) :
+  m_collisions(collisions), m_cow(cow), m_cc(cc) {}
+
+btScalar CollisionCollector::addSingleResult(btManifoldPoint& cp,
+    const btCollisionObjectWrapper* colObj0Wrap,int partId0,int index0,
+    const btCollisionObjectWrapper* colObj1Wrap,int partId1,int index1) {
+  if (cp.m_distance1 > m_cc->GetContactDistance()) return 0;
+  const KinBody::Link* linkA = getLink(colObj0Wrap->getCollisionObject());
+  const KinBody::Link* linkB = getLink(colObj1Wrap->getCollisionObject());
+  m_collisions.push_back(Collision(linkA, linkB, toOR(cp.m_positionWorldOnA), toOR(cp.m_positionWorldOnB),
+      toOR(cp.m_normalWorldOnB), cp.m_distance1));
+  LOG_DEBUG("CollisionCollector: adding collision %s-%s (%.4f)", linkA->GetName().c_str(), linkB->GetName().c_str(), cp.m_distance1);
+  return 1;
+}
+bool CollisionCollector::needsCollision(btBroadphaseProxy* proxy0) const {
+  return (proxy0->m_collisionFilterGroup & m_collisionFilterMask)
+      && (m_collisionFilterGroup & proxy0->m_collisionFilterMask)
+      && m_cc->CanCollide(m_cow, static_cast<CollisionObjectWrapper*>(proxy0->m_clientObject));
+}
+
+}
+
 
 
 
@@ -670,8 +528,10 @@ vector<btTransform> rightMultiplyAll(const vector<btTransform>& xs, const btTran
 
 }
 
-void ContinuousCheckShape(btCollisionShape* shape, const vector<btTransform>& transforms,
-    KinBody::Link* link, btCollisionWorld* world, vector<Collision>& collisions) {
+namespace trajopt {
+
+void BulletCollisionChecker::ContinuousCheckShape(btCollisionShape* shape, const vector<btTransform>& transforms,
+    KinBody::Link* link, btCollisionWorld* world, vector<Collision>& collisions) const {
   if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
     for (int i=0; i < transforms.size()-1; ++i) {
       btCollisionWorld::ClosestConvexResultCallback ccc(btVector3(NAN, NAN, NAN), btVector3(NAN, NAN, NAN));
@@ -802,85 +662,6 @@ class CompoundHullShape : public btConvexShape {
 };
 #endif
 
-
-struct CastHullShape : public btConvexShape {
-public:
-  btConvexShape* m_shape;
-  btTransform m_t01, m_t10; // T_0_1 = T_w_0^-1 * T_w_1
-  CastHullShape(btConvexShape* shape, const btTransform& t01) : m_shape(shape), m_t01(t01) {
-    m_shapeType = CUSTOM_CONVEX_SHAPE_TYPE;
-
-
-
-  }
-  btVector3   localGetSupportingVertex(const btVector3& vec)const {
-    btVector3 sv0 = m_shape->localGetSupportingVertex(vec);
-    btVector3 sv1 = m_t01*m_shape->localGetSupportingVertex(vec*m_t01.getBasis());
-    return (vec.dot(sv0) > vec.dot(sv1)) ? sv0 : sv1;
-  }
-#if 0
-  void project(const btTransform& trans, const btVector3& dir, btScalar& min, btScalar& max) const {
-    m_children[0]->project(trans, dir, min, max);
-    for (int i=1; i < m_children.size(); ++i) {
-      btScalar newmin, newmax;
-      m_children[i]->project(trans, dir, newmin, newmax);
-      btSetMin(min, newmin);
-      btSetMax(max, newmax);
-    }
-  }
-#endif
-
-  //notice that the vectors should be unit length
-  void    batchedUnitVectorGetSupportingVertexWithoutMargin(const btVector3* vectors,btVector3* supportVerticesOut,int numVectors) const {
-    throw std::runtime_error("not implemented");
-  }
-
-  ///getAabb's default implementation is brute force, expected derived classes to implement a fast dedicated version
-  void getAabb(const btTransform& t_w0,btVector3& aabbMin,btVector3& aabbMax) const {
-    m_shape->getAabb(t_w0, aabbMin, aabbMax);
-    btVector3 min1, max1;
-    m_shape->getAabb(t_w0*m_t01, min1, max1 );
-    aabbMin.setMin(min1);
-    aabbMax.setMax(max1);
-  }
-
-  virtual void getAabbSlow(const btTransform& t,btVector3& aabbMin,btVector3& aabbMax) const {
-    throw std::runtime_error("shouldn't happen");
-  }
-
-  virtual void    setLocalScaling(const btVector3& scaling) {}
-  virtual const btVector3& getLocalScaling() const {
-    static btVector3 out(1,1,1);
-    return out;
-  }
-
-  virtual void    setMargin(btScalar margin) {}
-  virtual btScalar    getMargin() const {return 0;}
-
-  virtual int     getNumPreferredPenetrationDirections() const {return 0;}
-  virtual void    getPreferredPenetrationDirection(int index, btVector3& penetrationVector) const {throw std::runtime_error("not implemented");}
-
-
-  virtual void calculateLocalInertia(btScalar, btVector3&) const {throw std::runtime_error("not implemented");}
-  virtual const char* getName() const {return "CastHull";}
-  virtual btVector3 localGetSupportingVertexWithoutMargin(const btVector3& v) const {return localGetSupportingVertex(v);}
-
-  void calculateContactTime(Collision& col) {    
-    // float support0 = localGetSupportingVertex(col.)
-  }
-
-};
-
-
-struct CastCollisionCollector : public CollisionCollector {
-  CastCollisionCollector(vector<Collision>& collisions, CollisionObjectWrapper* cow, BulletCollisionChecker* cc) :
-    CollisionCollector(collisions, cow, cc) {}  
-  virtual btScalar addSingleResult(btManifoldPoint& cp,
-      const btCollisionObjectWrapper* colObj0Wrap,int partId0,int index0,
-      const btCollisionObjectWrapper* colObj1Wrap,int partId1,int index1);
-};
-
-
 btScalar CastCollisionCollector::addSingleResult(btManifoldPoint& cp,
     const btCollisionObjectWrapper* colObj0Wrap,int partId0,int index0,
     const btCollisionObjectWrapper* colObj1Wrap,int partId1,int index1) {      
@@ -961,6 +742,41 @@ btScalar CastCollisionCollector::addSingleResult(btManifoldPoint& cp,
       return retval;          
 }
 
+void CastCollisionCollector::GetAverageSupport(const btConvexShape* shape, const btVector3& localNormal, float& outsupport, btVector3& outpt) const {
+  btVector3 ptSum(0,0,0);
+  float ptCount = 0;
+  float maxSupport=-1000;
+  const float EPSILON = 1e-3;
+  const btPolyhedralConvexShape* pshape = dynamic_cast<const btPolyhedralConvexShape*>(shape);
+  if (pshape) {
+    int nPts = pshape->getNumVertices();
+
+    for (int i=0; i < nPts; ++i) {
+      btVector3 pt;
+      pshape->getVertex(i, pt);
+//      cout << "pt: " << pt << endl;
+      float sup  = pt.dot(localNormal);
+      if (sup > maxSupport + EPSILON) {
+        ptCount=1;
+        ptSum = pt;
+        maxSupport = sup;
+      }
+      else if (sup < maxSupport - EPSILON) {
+      }
+      else {
+        ptCount += 1;
+        ptSum += pt;
+      }
+    }
+    outsupport = maxSupport;
+    outpt = ptSum / ptCount;
+  }
+  else  {
+    outpt = shape->localGetSupportingVertexWithoutMargin(localNormal);
+    outsupport = localNormal.dot(outpt);
+  }
+}
+
 void BulletCollisionChecker::CheckShapeCast(btCollisionShape* shape, const btTransform& tf0, const btTransform& tf1,
     CollisionObjectWrapper* cow, btCollisionWorld* world, vector<Collision>& collisions) {
   if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
@@ -1013,10 +829,6 @@ void BulletCollisionChecker::CastVsAll(Configuration& rad, const vector<KinBody:
 }
 
 }
-
-
-
-
 
 
 namespace trajopt {
