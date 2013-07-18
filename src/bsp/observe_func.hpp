@@ -27,7 +27,13 @@ namespace BSP {
       return operator()(x, n);
     }
 
-    virtual ObserveT observation_masks(const StateT& x, double approx_factor=-1) const = 0;
+    virtual ObserveT observation_masks(const StateT& x, double approx_factor=-1) const {
+      ObserveT masks(observe_dim);
+      for (int i = 0; i < observe_dim; ++i) {
+        masks(i) = 1;
+      }
+      return masks;
+    }
 
     virtual ObserveT real_observation_masks(const StateT& x) const {
       return observation_masks(x);

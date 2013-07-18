@@ -1,3 +1,5 @@
+#pragma once
+
 #include "trajopt/common.hpp"
 #include "json_marshal.hpp"
 #include <boost/function.hpp>
@@ -271,5 +273,5 @@ struct JointConstraintInfo : public TermInfo, public MakesConstraint {
 };
 
 
-
+TRAJOPT_API RobotAndDOFPtr RADFromName(const string& name, OpenRAVE::RobotBasePtr robot);
 }
