@@ -125,6 +125,7 @@ namespace BSP {
       control_ubs = ubs;
     }
 
+
     virtual void configure_problem(OptProb& prob) {
       create_state_variables(prob);
       create_sigma_variables(prob);
@@ -136,7 +137,10 @@ namespace BSP {
       add_start_sigma_constraint(prob);
       add_goal_constraint(prob);
       add_belief_constraint(prob);
+      add_collision_constraint(prob);
     }
+
+    virtual void add_collision_constraint(OptProb& prob) {}
 
     virtual void create_state_variables(OptProb& prob) {
       BSP::AddVarArray(prob, T+1, state_dim, "state", state_vars);

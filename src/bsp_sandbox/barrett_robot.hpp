@@ -68,6 +68,7 @@ namespace BarrettRobotBSP {
   public:
     typedef typename BeliefConstraint<BarrettRobotBeliefFunc>::Ptr BeliefConstraintPtr;
     virtual void add_goal_constraint(OptProb& prob);
+    virtual void add_collision_constraint(OptProb& prob);
     BarrettRobotBSPProblemHelper();
 
     RobotBasePtr robot;
