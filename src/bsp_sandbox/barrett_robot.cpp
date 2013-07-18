@@ -115,7 +115,9 @@ namespace BarrettRobotBSP {
   }
 
   void BarrettRobotBSPProblemHelper::add_collision_constraint(OptProb& prob) {
-
+    for (int i = 0; i <= T; ++i) {
+      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint(0.025, 1, rad, state_vars.row(i))));
+    }
   }
 
   BarrettRobotStateFunc::BarrettRobotStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}

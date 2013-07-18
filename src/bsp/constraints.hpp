@@ -84,4 +84,20 @@ namespace BSP {
     int state_noise_dim;
   };
 
+  class BeliefSingleTimestepCollisionEvaluator : public SingleTimestepCollisionEvaluator {
+  public:
+    BeliefSingleTimestepCollisionEvaluator(ConfigurationPtr rad, const VarVector& vars) :
+      SingleTimestepCollisionEvaluator(rad, vars) {}
+    
+  };
+
+  class BeliefCollisionConstraint : public CollisionConstraint {
+  public:
+    /* constructor for single timestep */
+    BeliefCollisionConstraint(double dist_pen, double coeff, RobotAndDOFPtr rad, const VarVector& vars) :
+      CollisionConstraint(dist_pen, coeff, rad, vars) {
+      this->m_calc.reset(new BeliefSingleTimestepCollisionEvaluator(rad, vars));
+    }
+  };
+
 }
