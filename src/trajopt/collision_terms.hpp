@@ -11,11 +11,18 @@ namespace trajopt {
 typedef std::map<const OR::KinBody::Link*, int> Link2Int;
 
 
-struct CollisionEvaluator {
+struct TRAJOPT_API CollisionEvaluator {
   virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs) = 0;
   virtual void CalcDists(const DblVec& x, DblVec& exprs) = 0;
   virtual void CalcCollisions(const DblVec& x, vector<Collision>& collisions) = 0;
   void GetCollisionsCached(const DblVec& x, vector<Collision>&);
+  virtual void CollisionsToDistances(const vector<Collision>& collisions, const Link2Int& m_link2ind,
+    DblVec& dists);
+  virtual void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad,
+    const Link2Int& link2ind, const VarVector& vars, const DblVec& dofvals, vector<AffExpr>& exprs, bool isTimestep1);
+  virtual void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad, const Link2Int& link2ind,
+    const VarVector& vars0, const VarVector& vars1, const DblVec& vals0, const DblVec& vals1,
+    vector<AffExpr>& exprs);
   virtual ~CollisionEvaluator() {}
   virtual VarVector GetVars()=0;
 
@@ -23,7 +30,7 @@ struct CollisionEvaluator {
 };
 typedef boost::shared_ptr<CollisionEvaluator> CollisionEvaluatorPtr;
 
-struct SingleTimestepCollisionEvaluator : public CollisionEvaluator {
+struct TRAJOPT_API SingleTimestepCollisionEvaluator : public CollisionEvaluator {
 public:
   SingleTimestepCollisionEvaluator(ConfigurationPtr rad, const VarVector& vars);
   /**
@@ -81,7 +88,7 @@ public:
   virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
   virtual double value(const vector<double>&);
   void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
-private:
+protected:
   CollisionEvaluatorPtr m_calc;
   double m_dist_pen;
   double m_coeff;
@@ -95,7 +102,7 @@ public:
   virtual ConvexConstraintsPtr convex(const vector<double>& x, Model* model);
   virtual DblVec value(const vector<double>&);
   void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
-private:
+protected:
   CollisionEvaluatorPtr m_calc;
   double m_dist_pen;
   double m_coeff;

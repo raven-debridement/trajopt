@@ -19,7 +19,7 @@ using namespace std;
 namespace trajopt {
 
 
-void CollisionsToDistances(const vector<Collision>& collisions, const Link2Int& m_link2ind,
+void CollisionEvaluator::CollisionsToDistances(const vector<Collision>& collisions, const Link2Int& m_link2ind,
     DblVec& dists) {
   // Note: this checking (that the links are in the list we care about) is probably unnecessary
   // since we're using LinksVsAll
@@ -34,7 +34,7 @@ void CollisionsToDistances(const vector<Collision>& collisions, const Link2Int& 
   }
 }
 
-void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad,
+void CollisionEvaluator::CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad,
     const Link2Int& link2ind, const VarVector& vars, const DblVec& dofvals, vector<AffExpr>& exprs, bool isTimestep1) {
 
   exprs.clear();
@@ -61,7 +61,7 @@ void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Config
   LOG_DEBUG("%ld distance expressions\n", exprs.size());
 }
 
-void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad, const Link2Int& link2ind,
+void CollisionEvaluator::CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad, const Link2Int& link2ind,
     const VarVector& vars0, const VarVector& vars1, const DblVec& vals0, const DblVec& vals1,
     vector<AffExpr>& exprs) {
   vector<AffExpr> exprs0, exprs1;
