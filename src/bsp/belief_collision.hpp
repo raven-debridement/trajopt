@@ -231,7 +231,7 @@ namespace BSPCollision {
     }
 
     void RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
-        OpenRAVE::EnvironmentBase& env, vector<OpenRAVE::GraphHandlePtr>& handles) const {
+        OpenRAVE::EnvironmentBase& env, vector<OpenRAVE::GraphHandlePtr>& handles, OR::RaveVector<float> color = OR::RaveVector<float>(1,1,1,.1)) const {
       switch (shape->getShapeType()) {
       case COMPOUND_SHAPE_PROXYTYPE:
       case CONVEX_HULL_SHAPE_PROXYTYPE:
@@ -247,7 +247,7 @@ namespace BSPCollision {
           btVector3 tf_vertices[hull->numVertices()];
           for (int i=0; i<hull->numVertices(); i++) tf_vertices[i] = tf * vertices[i];
 
-          handles.push_back(OSGViewer::GetOrCreate(env.shared_from_this())->drawtrimesh((float*)tf_vertices, 16, (int*) indices, num_triangles, OR::RaveVector<float>(1,1,1,.1)));
+          handles.push_back(OSGViewer::GetOrCreate(env.shared_from_this())->drawtrimesh((float*)tf_vertices, 16, (int*) indices, num_triangles, color));
           return;
         }
       }
@@ -255,20 +255,20 @@ namespace BSPCollision {
     }
 
     void PlotCastHull(btCollisionShape* shape, const vector<btTransform>& tfi,
-		    CollisionObjectWrapper* cow, vector<OpenRAVE::GraphHandlePtr>& handles) {
+		    CollisionObjectWrapper* cow, vector<OpenRAVE::GraphHandlePtr>& handles, OR::RaveVector<float> color) {
 	    if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
         vector<btTransform> t0i(tfi.size());
         // transform all the points with respect to the first transform
         for (int i=0; i<tfi.size(); i++) t0i[i] = tfi[0].inverseTimes(tfi[i]);
         MultiCastHullShape* shape = new MultiCastHullShape(convex, t0i);
-        RenderCollisionShape(shape, tfi[0], *boost::const_pointer_cast<OpenRAVE::EnvironmentBase>(m_env), handles);
+        RenderCollisionShape(shape, tfi[0], *boost::const_pointer_cast<OpenRAVE::EnvironmentBase>(m_env), handles, color);
         SetTransparency(handles.back(), 0.2);
         delete shape;
       } else if (btCompoundShape* compound = dynamic_cast<btCompoundShape*>(shape)) {
         for (int child_ind = 0; child_ind < compound->getNumChildShapes(); ++child_ind) {
           vector<btTransform> tfi_child(tfi.size());
           for (int i=0; i<tfi.size(); i++) tfi_child[i] = tfi[i]*compound->getChildTransform(child_ind);
-          PlotCastHull(compound->getChildShape(child_ind), tfi_child, cow, handles);
+          PlotCastHull(compound->getChildShape(child_ind), tfi_child, cow, handles, color);
         }
       } else {
 		    throw std::runtime_error("I can only plot convex shapes and compound shapes made of convex shapes");
@@ -290,7 +290,8 @@ namespace BSPCollision {
         assert(m_link2cow[links[i_link].get()] != NULL);
         CollisionObjectWrapper* cow = m_link2cow[links[i_link].get()];
         vector<btTransform>& tfi = multi_tf[i_link];
-        PlotCastHull(cow->getCollisionShape(), multi_tf[i_link], cow, handles);
+        float color_param = ((float)i_link)/((float)(nlinks-1));
+        PlotCastHull(cow->getCollisionShape(), multi_tf[i_link], cow, handles, OR::RaveVector<float>(color_param, 1.0-color_param, 0));
       }
     }
     virtual void MultiCastVsAll(Configuration& rad, const vector<KinBody::LinkPtr>& links,
