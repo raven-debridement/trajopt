@@ -42,5 +42,8 @@ QT4_WRAP_CPP(needle_qt_headers_moc ${needle_qt_headers})
 add_executable(needle needle.cpp geometry_2d.cpp ${needle_qt_headers_moc})
 target_link_libraries(needle bsp trajopt ${QT_LIBRARIES})
 
-add_executable(barrett_robot barrett_robot.cpp)#../trajopt/kinematic_terms.cpp ../trajopt/problem_description.cpp)
-target_link_libraries(barrett_robot trajopt bsp sco)
+add_executable(barrett_robot barrett_robot.cpp)
+target_link_libraries(barrett_robot bsp trajopt)
+
+add_executable(three_links_robot three_links_robot.cpp)
+target_link_libraries(three_links_robot bsp trajopt)

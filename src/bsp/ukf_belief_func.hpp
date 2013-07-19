@@ -36,8 +36,7 @@ namespace BSP {
 
       StateT x(this->state_dim);
       VarianceT sigma(this->state_dim, this->state_dim);
-      extract_state(b, &x);
-      extract_sigma(b, &sigma);
+      extract_state_and_sigma(b, &x, &sigma);
 
 	    // propagate sigma points through f
       StateNoiseT state_noise = StateNoiseT::Zero(this->state_noise_dim);

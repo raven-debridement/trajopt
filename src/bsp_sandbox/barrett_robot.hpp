@@ -85,7 +85,6 @@ namespace BarrettRobotBSP {
     BarrettRobotOptimizerTask(QObject* parent=nullptr);
     BarrettRobotOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
     void run();
-    void stage_plot_callback(BarrettRobotBSPProblemHelperPtr helper, OSGViewerPtr viewer, OptProb*, DblVec& x);
   };
 
   class BarrettRobotBSPPlanner : public BSPPlanner<BarrettRobotBSPProblemHelper> {

@@ -64,7 +64,7 @@ namespace BSP {
     vector<StateT> simulated_positions; 
     DblVec result;
 
-    BSPPlanner() : initialized(false) {
+    BSPPlanner() : initialized(false), method(DiscontinuousBeliefSpace), noise_level(1.) {
       n_alpha_iterations = 3;
     }
 

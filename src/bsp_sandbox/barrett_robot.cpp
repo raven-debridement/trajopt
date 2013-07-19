@@ -150,17 +150,17 @@ namespace BarrettRobotBSP {
 
   BarrettRobotOptimizerTask::BarrettRobotOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
-  void BarrettRobotOptimizerTask::stage_plot_callback(BarrettRobotBSPProblemHelperPtr helper, OSGViewerPtr viewer, OptProb* prob, DblVec& x) {
-    OpenRAVEPlotterMixin<BarrettRobotBSPProblemHelper>::plot(helper, helper->rad, viewer, prob, x);
-  }
-
   void BarrettRobotOptimizerTask::run() {
     int T = 26;
-    bool plotting = false;
+    bool sim_plotting = false;
+    bool stage_plotting = false;
+    bool first_step_only = false;
 
     {
       Config config;
-      config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
+      config.add(new Parameter<bool>("sim_plotting", &sim_plotting, "sim_plotting"));
+      config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
+      config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
       CommandParser parser(config);
       parser.read(argc, argv, true);
     }
@@ -204,13 +204,23 @@ namespace BarrettRobotBSP {
 
 
     boost::function<void(OptProb*, DblVec&)> opt_callback;
-    if (plotting) {
+    if (stage_plotting || sim_plotting) {
       viewer = OSGViewer::GetOrCreate(env);
       initialize_viewer(viewer);
-      opt_callback = boost::bind(&BarrettRobotOptimizerTask::stage_plot_callback, this, planner->helper, viewer, _1, _2);
+    }
+    if (stage_plotting) {
+      opt_callback = boost::bind(&OpenRAVEPlotterMixin<BarrettRobotBSPPlanner>::stage_plot_callback, 
+                                 planner, planner->helper->rad, viewer, _1, _2);
     }
 
-    planner->solve(opt_callback, 1, 1);
+    while (!planner->finished()) {
+      planner->solve(opt_callback, 1, 1);
+      planner->simulate_execution();
+      if (first_step_only) break;
+      if (sim_plotting) {
+        OpenRAVEPlotterMixin<BarrettRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
+      }
+    }
 
     RaveDestroy();
   }

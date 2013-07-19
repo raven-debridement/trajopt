@@ -1,5 +1,5 @@
 #include "common.hpp"
-#include "bsp_problem_helper.hpp"
+#include "bsp_planner.hpp"
 #include <openrave-core.h>
 #include <openrave/openrave.h>
 
@@ -17,9 +17,9 @@ namespace BSP {
     return OpenRAVE::Transform(M);
   }
 
-  template< class BSPProblemHelperT >
+  template< class BSPPlannerT >
   struct OpenRAVEPlotterMixin {
-    void plot(boost::shared_ptr<BSPProblemHelperT> helper, RobotAndDOFPtr rad, OSGViewerPtr viewer, OptProb* prob, DblVec& x) {
+    static void stage_plot_callback(boost::shared_ptr<BSPPlannerT> planner, RobotAndDOFPtr rad, OSGViewerPtr viewer, OptProb* prob, DblVec& x) {
       vector<GraphHandlePtr> handles;
       handles.clear();
       BOOST_FOREACH(CostPtr& cost, prob->getCosts()) {
@@ -33,12 +33,25 @@ namespace BSP {
           plotter->Plot(x, *(rad->GetEnv()), handles);
         }
       }
-      for (int i = 0; i <= helper->T; ++i) {
-        rad->SetDOFValues(toDblVec(getVec(x, helper->state_vars.row(i))));
+      for (int i = 0; i <= planner->helper->T; ++i) {
+        rad->SetDOFValues(toDblVec(getVec(x, planner->helper->state_vars.row(i))));
         handles.push_back(viewer->PlotKinBody(rad->GetRobot()));
         SetTransparency(handles.back(), .35);
       }
 
+      viewer->Idle();
+    }
+
+    static void sim_plot_callback(boost::shared_ptr<BSPPlannerT> planner, RobotAndDOFPtr rad, OSGViewerPtr viewer) {
+      vector<GraphHandlePtr> handles;
+      handles.clear();
+      for (int i = 0; i < planner->simulated_positions.size(); ++i) {
+      cout << "plotting " << planner->simulated_positions[i].transpose() << endl;
+        rad->SetDOFValues(toDblVec(planner->simulated_positions[i]));
+        handles.push_back(viewer->PlotKinBody(rad->GetRobot()));
+        SetTransparency(handles.back(), .35);
+      }
+      cout << "plot finished" << endl;
       viewer->Idle();
     }
   };
