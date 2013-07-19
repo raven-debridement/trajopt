@@ -57,11 +57,6 @@ namespace BSP {
     (*sigma) = (*sigma) * (sigma->transpose());
   }
 
-  //template<typename T, size_t N>
-  //T* end(T (&ra)[N]) {
-  //  return ra + N;
-  //}
-
   void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<double>& lbs, const vector<double>& ubs, const vector<string>& name_prefix, const vector<VarArray*>& newvars);
 
   void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<string>& name_prefix, const vector<VarArray*>& newvars);

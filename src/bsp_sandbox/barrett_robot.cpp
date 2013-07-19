@@ -14,19 +14,6 @@ namespace BarrettRobotBSP {
     return vector<T>(arr.begin(), arr.end());
   }
 
-  OpenRAVE::Transform matrixToTransform(const Matrix4d& X) {
-    OpenRAVE::TransformMatrix M;
-    M.trans.x = X(0, 3);
-    M.trans.y = X(1, 3);
-    M.trans.z = X(2, 3);
-    for (int row = 0; row < 3; ++row) {
-      for (int col = 0; col < 3; ++col) {
-        M.m[row*4+col] = X(row, col);
-      }
-    }
-    return OpenRAVE::Transform(M);
-  }
-
   vector<Vector7d> get_initial_trajectory(int T) {
     vector<Vector7d> ret;
     ifstream traj_file(string(DATA_DIR) + "/barrett_traj.txt", ifstream::in);
@@ -109,7 +96,7 @@ namespace BarrettRobotBSP {
   }
 
   void BarrettRobotBSPProblemHelper::add_goal_constraint(OptProb& prob) {
-    VectorXd coeffs(6); coeffs << 2, 2, 2, 2, 2, 2;
+    VectorXd coeffs(6); coeffs << 1, 1, 1, 1, 1, 1;
     VectorOfVectorPtr f(new CartPoseErrCalculator(matrixToTransform(goal_trans), rad, link));
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, state_vars.row(T), coeffs, EQ, "goal")));
   }
@@ -156,38 +143,20 @@ namespace BarrettRobotBSP {
   BarrettRobotBeliefFunc::BarrettRobotBeliefFunc() : EkfBeliefFunc<BarrettRobotStateFunc, BarrettRobotObserveFunc, BeliefT>() {}
 
   BarrettRobotBeliefFunc::BarrettRobotBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-             EkfBeliefFunc<BarrettRobotStateFunc, BarrettRobotObserveFunc, BeliefT>(helper, f, h), barrett_robot_helper(boost::static_pointer_cast<BarrettRobotBSPProblemHelper>(helper)) {}
+             EkfBeliefFunc<BarrettRobotStateFunc, BarrettRobotObserveFunc, BeliefT>(helper, f, h),
+             barrett_robot_helper(boost::static_pointer_cast<BarrettRobotBSPProblemHelper>(helper)) {}
 
   BarrettRobotOptimizerTask::BarrettRobotOptimizerTask(QObject* parent) : BSPOptimizerTask(parent) {}
 
   BarrettRobotOptimizerTask::BarrettRobotOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
   void BarrettRobotOptimizerTask::stage_plot_callback(BarrettRobotBSPProblemHelperPtr helper, OSGViewerPtr viewer, OptProb* prob, DblVec& x) {
-    vector<GraphHandlePtr> handles;
-    handles.clear();
-    BOOST_FOREACH(CostPtr& cost, prob->getCosts()) {
-      if (Plotter* plotter = dynamic_cast<Plotter*>(cost.get())) {
-        plotter->Plot(x, *(helper->rad->GetEnv()), handles);
-      }
-    }
-    vector<ConstraintPtr> constraints = prob->getConstraints();
-    BOOST_FOREACH(ConstraintPtr& cnt, constraints) {
-      if (Plotter* plotter = dynamic_cast<Plotter*>(cnt.get())) {
-        plotter->Plot(x, *(helper->rad->GetEnv()), handles);
-      }
-    }
-    for (int i = 0; i <= helper->T; ++i) {
-      helper->rad->SetDOFValues(toDblVec(getVec(x, helper->state_vars.row(i))));
-      handles.push_back(viewer->PlotKinBody(helper->rad->GetRobot()));
-      SetTransparency(handles.back(), .35);
-    }
-
-    viewer->Idle();
+    OpenRAVEPlotterMixin<BarrettRobotBSPProblemHelper>::plot(helper, helper->rad, viewer, prob, x);
   }
 
   void BarrettRobotOptimizerTask::run() {
     int T = 26;
-    bool plotting = true;
+    bool plotting = false;
 
     {
       Config config;
@@ -251,7 +220,7 @@ namespace BarrettRobotBSP {
 using namespace BarrettRobotBSP;
 
 int main(int argc, char *argv[]) {
-	BarrettRobotOptimizerTask* task = new BarrettRobotOptimizerTask(argc, argv, nullptr);
-  task->run();
+	BarrettRobotOptimizerTask task(argc, argv);
+  task.run();
 	return 0;
 }

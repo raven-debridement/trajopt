@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bsp/bsp.hpp"
+#include "bsp/openrave_utils.hpp"
 #include "trajopt/kinematic_terms.hpp"
 #include "trajopt/problem_description.hpp"
 #include "geometry_2d.hpp"
@@ -44,7 +45,7 @@ namespace BarrettRobotBSP {
 
     BarrettRobotStateFunc();
     BarrettRobotStateFunc(BSPProblemHelperBasePtr helper);
-    virtual StateT operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const ;
+    StateT operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const ;
   };
 
   class BarrettRobotObserveFunc : public ObserveFunc<StateT, ObserveT, ObserveNoiseT> {
@@ -53,7 +54,7 @@ namespace BarrettRobotBSP {
     BarrettRobotBSPProblemHelperPtr barrett_robot_helper;
     BarrettRobotObserveFunc();
     BarrettRobotObserveFunc(BSPProblemHelperBasePtr helper);
-    virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
+    ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
   };
 
   class BarrettRobotBeliefFunc : public EkfBeliefFunc<BarrettRobotStateFunc, BarrettRobotObserveFunc, BeliefT> {
@@ -67,9 +68,9 @@ namespace BarrettRobotBSP {
   class BarrettRobotBSPProblemHelper : public BSPProblemHelper<BarrettRobotBeliefFunc> {
   public:
     typedef typename BeliefConstraint<BarrettRobotBeliefFunc>::Ptr BeliefConstraintPtr;
-    virtual void add_goal_constraint(OptProb& prob);
-    virtual void add_collision_term(OptProb& prob);
-    virtual void configure_problem(OptProb& prob);
+    void add_goal_constraint(OptProb& prob);
+    void add_collision_term(OptProb& prob);
+    void configure_problem(OptProb& prob);
     BarrettRobotBSPProblemHelper();
 
     RobotBasePtr robot;
@@ -78,19 +79,20 @@ namespace BarrettRobotBSP {
     Matrix4d goal_trans;
   };
 
-  class BarrettRobotOptimizerTask : public BSPOptimizerTask {
+  class BarrettRobotOptimizerTask : public BSPOptimizerTask,
+                                    public OpenRAVEPlotterMixin<BarrettRobotBSPProblemHelper> {
   public:
     BarrettRobotOptimizerTask(QObject* parent=nullptr);
     BarrettRobotOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
-    virtual void run();
+    void run();
     void stage_plot_callback(BarrettRobotBSPProblemHelperPtr helper, OSGViewerPtr viewer, OptProb*, DblVec& x);
   };
 
   class BarrettRobotBSPPlanner : public BSPPlanner<BarrettRobotBSPProblemHelper> {
   public:
-    virtual void initialize();
+    void initialize();
     BarrettRobotBSPPlanner();
-    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time=true);
+    void initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time=true);
     RobotBasePtr robot;
     RobotAndDOFPtr rad;
     Matrix4d goal_trans;

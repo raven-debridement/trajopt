@@ -83,14 +83,14 @@ namespace BSP {
       belief_func.reset(new BeliefFuncT(this->shared_from_this(), state_func, observe_func));
     }
 
-    virtual int get_state_dim() const { return state_dim; }
-    virtual int get_control_dim() const { return control_dim; }
-    virtual int get_observe_dim() const { return observe_dim; }
-    virtual int get_state_noise_dim() const { return state_noise_dim; }
-    virtual int get_observe_noise_dim() const { return observe_noise_dim; }
-    virtual int get_belief_dim() const { return belief_dim; }
-    virtual int get_sigma_dof() const { return sigma_dof; }
-    virtual int get_T() const { return T; }
+    int get_state_dim() const { return state_dim; }
+    int get_control_dim() const { return control_dim; }
+    int get_observe_dim() const { return observe_dim; }
+    int get_state_noise_dim() const { return state_noise_dim; }
+    int get_observe_noise_dim() const { return observe_noise_dim; }
+    int get_belief_dim() const { return belief_dim; }
+    int get_sigma_dof() const { return sigma_dof; }
+    int get_T() const { return T; }
 
     void set_state_dim(int new_state_dim) {
       state_dim = new_state_dim;
