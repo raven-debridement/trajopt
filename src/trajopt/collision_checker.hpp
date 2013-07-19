@@ -16,7 +16,7 @@ enum CastCollisionType {
   CCType_Between
 };
 
-struct Collision {
+struct TRAJOPT_API Collision {
   const OR::KinBody::Link* linkA;
   const OR::KinBody::Link* linkB;
   OR::Vector ptA, ptB, normalB2A; /* normal points from 2 to 1 */

@@ -15,7 +15,7 @@ struct TRAJOPT_API CollisionEvaluator {
   virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs) = 0;
   virtual void CalcDists(const DblVec& x, DblVec& exprs) = 0;
   virtual void CalcCollisions(const DblVec& x, vector<Collision>& collisions) = 0;
-  void GetCollisionsCached(const DblVec& x, vector<Collision>&);
+  virtual void GetCollisionsCached(const DblVec& x, vector<Collision>&);
   virtual void CollisionsToDistances(const vector<Collision>& collisions, const Link2Int& m_link2ind,
     DblVec& dists);
   virtual void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad,

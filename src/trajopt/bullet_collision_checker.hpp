@@ -20,7 +20,7 @@ using namespace OpenRAVE;
 
 namespace trajopt {
 
-class CollisionObjectWrapper : public btCollisionObject {
+class TRAJOPT_API CollisionObjectWrapper : public btCollisionObject {
 public:
   CollisionObjectWrapper(KinBody::Link* link) : m_link(link), m_index(-1) {}
   vector<boost::shared_ptr<void> > m_data;
@@ -38,19 +38,7 @@ public:
 typedef CollisionObjectWrapper COW;
 typedef boost::shared_ptr<CollisionObjectWrapper> COWPtr;
 
-class BulletCollisionChecker : public CollisionChecker {
-  btCollisionWorld* m_world;
-  btBroadphaseInterface* m_broadphase;
-  btCollisionDispatcher* m_dispatcher;
-  btCollisionConfiguration* m_coll_config;
-  typedef map<const OR::KinBody::Link*, CollisionObjectWrapper*> Link2Cow;
-  Link2Cow m_link2cow;
-  double m_contactDistance;
-  vector<KinBodyPtr> m_prevbodies;
-  typedef std::pair<const KinBody::Link*, const KinBody::Link*> LinkPair;
-  set< LinkPair > m_excludedPairs;
-  Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> m_allowedCollisionMatrix;
-
+class TRAJOPT_API BulletCollisionChecker : public CollisionChecker {
 public:
   BulletCollisionChecker(OR::EnvironmentBaseConstPtr env);
   ~BulletCollisionChecker();
@@ -97,16 +85,27 @@ public:
       CollisionObjectWrapper* cow, btCollisionWorld* world, vector<Collision>& collisions);
 
 protected:
+  btCollisionWorld* m_world;
+  btBroadphaseInterface* m_broadphase;
+  btCollisionDispatcher* m_dispatcher;
+  btCollisionConfiguration* m_coll_config;
+  typedef map<const OR::KinBody::Link*, CollisionObjectWrapper*> Link2Cow;
+  Link2Cow m_link2cow;
+  double m_contactDistance;
+  vector<KinBodyPtr> m_prevbodies;
+  typedef std::pair<const KinBody::Link*, const KinBody::Link*> LinkPair;
+  set< LinkPair > m_excludedPairs;
+  Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> m_allowedCollisionMatrix;
   btCollisionShape* createShapePrimitive(OR::KinBody::Link::GeometryPtr geom, bool useTrimesh, CollisionObjectWrapper* cow) const;
   COWPtr CollisionObjectFromLink(OR::KinBody::LinkPtr link, bool useTrimesh) const;
-  void RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
+  virtual void RenderCollisionShape(btCollisionShape* shape, const btTransform& tf,
     OpenRAVE::EnvironmentBase& env, vector<OpenRAVE::GraphHandlePtr>& handles) const;
   void ContinuousCheckShape(btCollisionShape* shape, const vector<btTransform>& transforms,
     KinBody::Link* link, btCollisionWorld* world, vector<Collision>& collisions) const;
 
 };
 
-struct CollisionCollector : public btCollisionWorld::ContactResultCallback {
+struct TRAJOPT_API CollisionCollector : public btCollisionWorld::ContactResultCallback {
   std::vector<Collision>& m_collisions;
   const CollisionObjectWrapper* m_cow;
   BulletCollisionChecker* m_cc;

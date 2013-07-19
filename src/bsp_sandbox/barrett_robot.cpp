@@ -73,14 +73,14 @@ namespace BarrettRobotBSP {
     opt.merit_error_coeff_          = 10;
     opt.merit_coeff_increase_ratio_ = 10;
     opt.max_merit_coeff_increases_  = 5;
-    opt.trust_shrink_ratio_         = 0.8;
-    opt.trust_expand_ratio_         = 1.2;
-    opt.min_trust_box_size_         = 0.001;
-    opt.min_approx_improve_         = 1e-2;
-    opt.min_approx_improve_frac_    = 1e-4;
+    opt.trust_shrink_ratio_         = .1;
+    opt.trust_expand_ratio_         = 1.5;
+    opt.min_trust_box_size_         = 1e-4;
+    opt.min_approx_improve_         = 1e-4;
+    opt.min_approx_improve_frac_    = -INFINITY;
     opt.improve_ratio_threshold_    = 0.25;
-    opt.trust_box_size_             = 1;
-    opt.cnt_tolerance_              = 1e-06;
+    opt.trust_box_size_             = 1e-1;
+    opt.cnt_tolerance_              = 1e-4;
   }
 
   void BarrettRobotBSPPlanner::initialize() {
@@ -109,15 +109,23 @@ namespace BarrettRobotBSP {
   }
 
   void BarrettRobotBSPProblemHelper::add_goal_constraint(OptProb& prob) {
-    VectorXd coeffs(6); coeffs << 1, 1, 1, 1, 1, 1;
+    VectorXd coeffs(6); coeffs << 2, 2, 2, 2, 2, 2;
     VectorOfVectorPtr f(new CartPoseErrCalculator(matrixToTransform(goal_trans), rad, link));
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, state_vars.row(T), coeffs, EQ, "goal")));
   }
 
-  void BarrettRobotBSPProblemHelper::add_collision_constraint(OptProb& prob) {
+  void BarrettRobotBSPProblemHelper::add_collision_term(OptProb& prob) {
     for (int i = 0; i <= T; ++i) {
-      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint(0.025, 1, rad, state_vars.row(i))));
+      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
+      prob.addCost(CostPtr(new BeliefCollisionCost<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
     }
+    BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
+    cc->SetContactDistance(0.065);
+  }
+
+  void BarrettRobotBSPProblemHelper::configure_problem(OptProb& prob) {
+    BSPProblemHelper<BarrettRobotBeliefFunc>::configure_problem(prob);
+    add_collision_term(prob);
   }
 
   BarrettRobotStateFunc::BarrettRobotStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
@@ -154,9 +162,20 @@ namespace BarrettRobotBSP {
 
   BarrettRobotOptimizerTask::BarrettRobotOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
-  void BarrettRobotOptimizerTask::stage_plot_callback(BarrettRobotBSPProblemHelperPtr helper, OSGViewerPtr viewer, OptProb*, DblVec& x) {
+  void BarrettRobotOptimizerTask::stage_plot_callback(BarrettRobotBSPProblemHelperPtr helper, OSGViewerPtr viewer, OptProb* prob, DblVec& x) {
     vector<GraphHandlePtr> handles;
-
+    handles.clear();
+    BOOST_FOREACH(CostPtr& cost, prob->getCosts()) {
+      if (Plotter* plotter = dynamic_cast<Plotter*>(cost.get())) {
+        plotter->Plot(x, *(helper->rad->GetEnv()), handles);
+      }
+    }
+    vector<ConstraintPtr> constraints = prob->getConstraints();
+    BOOST_FOREACH(ConstraintPtr& cnt, constraints) {
+      if (Plotter* plotter = dynamic_cast<Plotter*>(cnt.get())) {
+        plotter->Plot(x, *(helper->rad->GetEnv()), handles);
+      }
+    }
     for (int i = 0; i <= helper->T; ++i) {
       helper->rad->SetDOFValues(toDblVec(getVec(x, helper->state_vars.row(i))));
       handles.push_back(viewer->PlotKinBody(helper->rad->GetRobot()));

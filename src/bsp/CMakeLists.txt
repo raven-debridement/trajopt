@@ -18,6 +18,7 @@ set(BSP_SOURCE_FILES
   costs.cpp
   optimizers.cpp
   utils.cpp
+  ../trajopt/bullet_unity.cpp
 )
 
 SET(QT_HEADERS bsp_optimizer_task.hpp bsp_qt_plotter.hpp)

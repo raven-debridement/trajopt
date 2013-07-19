@@ -190,8 +190,7 @@ namespace BSP {
         BeliefT belief(helper->belief_dim);
         belief_func->compose_belief(start, matrix_sqrt(start_sigma), &belief);
         belief = belief_func->call(belief, controls.front(), &observe, &observe_masks, &current_state_error);//, true, is_observe_valid);
-        belief_func->extract_state(belief, &start);
-        belief_func->extract_sigma(belief, &start_sigma);
+        belief_func->extract_state_and_sigma(belief, &start, &start_sigma);
         StateT prev_start = start;
         custom_simulation_update(&start, &start_sigma, current_position);
         current_state_error += start - prev_start;

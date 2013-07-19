@@ -35,8 +35,7 @@ namespace BSP {
       StateNoiseT        zero_state_noise = StateNoiseT::Zero(this->state_noise_dim);
       ObserveNoiseT      zero_observe_noise = ObserveNoiseT::Zero(this->observe_noise_dim);
 
-      extract_state(b, &x);
-      extract_sigma(b, &sigma);
+      extract_state_and_sigma(b, &x, &sigma);
 
       this->f->linearize(x, u, zero_state_noise, &A, nullptr, &M);
 

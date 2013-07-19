@@ -19,6 +19,7 @@ namespace BSP {
 
     double epsilon;
     double approx_factor;
+    double sigma_pts_scale;
     BSPProblemHelperBasePtr helper;
     StateFuncPtr f;
     ObserveFuncPtr h;
@@ -26,7 +27,7 @@ namespace BSP {
     BeliefFunc() : epsilon(DefaultEpsilon), approx_factor(0.5) {}
 
     BeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-      ProblemState(helper), helper(helper), f(f), h(h), epsilon(DefaultEpsilon), approx_factor(0.5) {}
+      ProblemState(helper), helper(helper), f(f), h(h), epsilon(DefaultEpsilon), sigma_pts_scale(2), approx_factor(0.5) {}
 
     void set_approx_factor(double new_approx_factor) {
       approx_factor = new_approx_factor;
@@ -83,6 +84,16 @@ namespace BSP {
       sqrt_sigma_vec_to_sqrt_sigma(belief.tail(sigma_dof), output_sqrt_sigma, state_dim);
     }
 
+    void extract_state_and_sqrt_sigma(const BeliefT& belief, StateT* output_state, VarianceT* output_sqrt_sigma) const {
+      extract_state(belief, output_state);
+      extract_sqrt_sigma(belief, output_sqrt_sigma);
+    }
+
+    void extract_state_and_sigma(const BeliefT& belief, StateT* output_state, VarianceT* output_sigma) const {
+      extract_state(belief, output_state);
+      extract_sigma(belief, output_sigma);
+    }
+
     virtual void compose_belief(const StateT& state, const VarianceT& sqrt_sigma, BeliefT* output_belief) const {
       assert (state.size() == state_dim);
       assert (output_belief != nullptr);
@@ -99,6 +110,49 @@ namespace BSP {
       assert (belief.size() == belief_dim);
       assert (output_sigma != nullptr);
       sqrt_sigma_vec_to_sigma(belief.tail(sigma_dof), output_sigma, state_dim);
+    }
+
+    virtual StateT sigma_point(const StateT& state, const VarianceT& sqrt_sigma, int sigma_pt_ind) const {
+      assert (0 <= sigma_pt_ind && sigma_pt_ind <= 2*state_dim);
+      if (sigma_pt_ind == 0) {
+        return state;
+      } else {
+        if (sigma_pt_ind % 2 == 1) {
+          return state + sigma_pts_scale*sqrt_sigma.col( (sigma_pt_ind-1) / 2 );
+        } else {
+          return state - sigma_pts_scale*sqrt_sigma.col( (sigma_pt_ind-1) / 2 );
+        }
+      }
+    }
+    
+    virtual StateT sigma_point(const BeliefT& belief, int sigma_pt_ind) const {
+      StateT state;
+      VarianceT sqrt_sigma;
+      extract_state_and_sqrt_sigma(belief, &state, &sqrt_sigma);
+      return sigma_point(state, sqrt_sigma, sigma_pt_ind);
+    }
+
+    virtual void sigma_points(const BeliefT& belief, vector<DblVec>* output_sigma_points) const {
+      assert (output_sigma_points != nullptr);
+      StateT state;
+      VarianceT sqrt_sigma;
+      extract_state_and_sqrt_sigma(belief, &state, &sqrt_sigma);
+      output_sigma_points->clear();
+      for (int i = 0; i <= 2*state_dim; ++i) {
+        output_sigma_points->push_back( toDblVec(sigma_point(state, sqrt_sigma, i)) );
+      }
+    }
+
+    virtual void sigma_points_grad(const BeliefT& belief, int sigma_pt_ind, SigmaPointsGradT* output_grad) const {
+      assert (output_grad != nullptr);
+      output_grad->resize(state_dim, belief_dim);
+      BeliefT belief_plus = belief, belief_minus = belief;
+      for (int i = 0; i < belief_dim; ++i) {
+        belief_plus(i) += epsilon;
+        belief_minus(i) -= epsilon;
+        output_grad->col(i) = (sigma_point(belief_plus, sigma_pt_ind) - sigma_point(belief_minus, sigma_pt_ind)) / (2*epsilon);
+        belief_plus(i) = belief_minus(i) = belief(i);
+      }
     }
   };
 

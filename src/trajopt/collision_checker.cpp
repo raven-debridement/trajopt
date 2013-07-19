@@ -17,6 +17,7 @@ boost::shared_ptr<CollisionChecker> CollisionChecker::GetOrCreate(OR::Environmen
   UserDataPtr ud = GetUserData(env, "trajopt_cc");
   if (!ud) {
     LOG_INFO("creating bullet collision checker for environment");
+     //throw std::runtime_error("not implemented");
     ud =  CreateCollisionChecker(env.shared_from_this());
     SetUserData(env, "trajopt_cc", ud);
   }

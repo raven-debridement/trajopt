@@ -38,6 +38,7 @@
   typedef typename StateFuncT::scalar_type scalar_type;                                                                               \
                                                                                                                                       \
   typedef Matrix<scalar_type, _belief_dim, _belief_dim> BeliefGradT;                                                                  \
+  typedef Matrix<scalar_type, _state_dim, _belief_dim> SigmaPointsGradT;                                                                  \
   typedef Matrix<scalar_type, _belief_dim, _control_dim> BeliefControlGradT;                                                          \
   typedef Matrix<scalar_type, _state_dim, _state_dim> VarianceT;                                                                      \
   typedef Matrix<scalar_type, _observe_dim, _observe_dim> ObserveMatT;                                                                \
