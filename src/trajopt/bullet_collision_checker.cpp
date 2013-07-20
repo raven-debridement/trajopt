@@ -92,6 +92,20 @@ bool isIdentity(const OpenRAVE::Transform& T) {
 			fabs(T.rot[3]) < e;
 }
 
+Matrix4d toMatrix(const btTransform& b) {
+    btMatrix3x3 rot = b.getBasis();
+    btVector3 origin = b.getOrigin();
+    Matrix4d ret;
+    ret << rot[0][0], rot[0][1], rot[0][2], origin[0],
+           rot[1][0], rot[1][1], rot[1][2], origin[1],
+           rot[2][0], rot[2][1], rot[2][2], origin[2],
+                   0,         0,         0,         1;
+    return ret;
+  }
+
+  Vector3d toVector(const btVector3& v) {
+    return Vector3d(v.x(), v.y(), v.z());
+  }
 
 
 
@@ -988,6 +1002,7 @@ public:
 	}
 	btVector3   localGetSupportingVertex(const btVector3& vec)const {
 		vector<btVector3> svi (m_t0i.size());
+    cout << "localGetSupportingVertex called with parameter vec = " << toVector(vec).transpose() << endl;
 		double max_vec_dot_sv = -INFINITY;
 		int max_ind = -1;
 		m_shape->localGetSupportingVertex(vec);
@@ -1152,6 +1167,8 @@ void BulletCollisionChecker::CheckShapeMultiCast(btCollisionShape* shape, const 
 		cc.m_collisionFilterGroup = RobotFilter;
 		world->contactTest(obj, cc);
 
+    cout << "detected " << collisions.size() << " collision(s)" << endl;
+    throw std::runtime_error("bsp collision debug breakpoint");
 		delete obj;
 		delete shape;
 	}
