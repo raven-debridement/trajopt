@@ -4,11 +4,7 @@
 #include "trajopt/bullet_collision_checker.hpp"
 #include "sco/expr_vec_ops.hpp"
 
-namespace BSPCollision {
-
-  inline const KinBody::Link* getLink(const btCollisionObject* o) {
-    return static_cast<const CollisionObjectWrapper*>(o)->m_link;
-  }
+namespace {
 
   btVector3 toBt(const OR::Vector& v){
     return btVector3(v[0], v[1], v[2]);
@@ -40,7 +36,13 @@ namespace BSPCollision {
   Vector3d toVector(const btVector3& v) {
     return Vector3d(v.x(), v.y(), v.z());
   }
-  
+}
+
+namespace BSPCollision {
+
+  inline const KinBody::Link* getLink(const btCollisionObject* o) {
+    return static_cast<const CollisionObjectWrapper*>(o)->m_link;
+  }
 
   class MultiCastHullShape : public btConvexShape {
   public:
