@@ -96,7 +96,7 @@ namespace BarrettRobotBSP {
   }
 
   void BarrettRobotBSPProblemHelper::add_goal_constraint(OptProb& prob) {
-    VectorXd coeffs(6); coeffs << 1, 1, 1, 1, 1, 1;
+    VectorXd coeffs(6); coeffs << 2, 2, 2, 2, 2, 2;
     VectorOfVectorPtr f(new CartPoseErrCalculator(matrixToTransform(goal_trans), rad, link));
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, state_vars.row(T), coeffs, EQ, "goal")));
   }

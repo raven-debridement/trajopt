@@ -91,6 +91,7 @@ vector<string> getCntNames(const vector<ConstraintPtr>& cnts) {
 void printCostInfo(const vector<double>& old_cost_vals, const vector<double>& model_cost_vals, const vector<double>& new_cost_vals,
                   const vector<double>& old_cnt_vals, const vector<double>& model_cnt_vals, const vector<double>& new_cnt_vals,
     const vector<string>& cost_names, const vector<string>& cnt_names, double merit_coeff) {
+    double total_control_cost = 0;
     printf("%15s | %10s | %10s | %10s | %10s\n", "", "oldexact", "dapprox", "dexact", "ratio");
     printf("%15s | %10s---%10s---%10s---%10s\n", "COSTS", "----------", "----------", "----------", "----------");
     for (size_t i=0; i < old_cost_vals.size(); ++i) {
@@ -100,7 +101,11 @@ void printCostInfo(const vector<double>& old_cost_vals, const vector<double>& mo
         printf("%15s | %10.3e | %10.3e | %10.3e | %10.3e\n", cost_names[i].c_str(), old_cost_vals[i], approx_improve, exact_improve, exact_improve/approx_improve);
       else
         printf("%15s | %10.3e | %10.3e | %10.3e | %10s\n",cost_names[i].c_str(), old_cost_vals[i], approx_improve, exact_improve, "  ------  ");
+      if (cost_names[i] == "control") {
+        total_control_cost += old_cost_vals[i];
+       }
     }
+    printf("\x1b[32m %15s | %10.3e\x1b[0m\n", "total control cost", total_control_cost);
     if (cnt_names.size() == 0) return;
     printf("%15s | %10s---%10s---%10s---%10s\n", "CONSTRAINTS", "----------", "----------", "----------", "----------");
     for (size_t i=0; i < old_cnt_vals.size(); ++i) {

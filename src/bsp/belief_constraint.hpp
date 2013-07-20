@@ -23,7 +23,7 @@ namespace BSP {
       ControlT cur_control = getVec(xvec, cur_control_vars);
       BeliefT next_belief = getVec(xvec, next_belief_vars);
 
-      return toDblVec(next_belief - f->call(cur_belief, cur_control));
+      return toDblVec(2*(next_belief - f->call(cur_belief, cur_control)));
     }
     ConvexConstraintsPtr convex(const vector<double>& xvec, Model* model) {
       BeliefT cur_belief = getVec(xvec, cur_belief_vars);
@@ -37,14 +37,14 @@ namespace BSP {
       ConvexConstraintsPtr out(new ConvexConstraints(model));
 
       for (int i = 0; i < belief_dim; ++i) {
-        AffExpr aff(next_belief_vars[i]);
+        AffExpr aff(exprMult(next_belief_vars[i], 2));
         for (int j = 0; j < belief_dim; ++j) {
-          exprInc(aff, exprMult(exprSub(AffExpr(cur_belief_vars[j]), cur_belief[j]), -A(i, j)));
+          exprInc(aff, exprMult(exprSub(AffExpr(cur_belief_vars[j]), cur_belief[j]), -2*A(i, j)));
         }
         for (int j = 0; j < control_dim; ++j) {
-          exprInc(aff, exprMult(exprSub(AffExpr(cur_control_vars[j]), cur_control[j]), -B(i, j)));
+          exprInc(aff, exprMult(exprSub(AffExpr(cur_control_vars[j]), cur_control[j]), -2*B(i, j)));
         }
-        exprInc(aff, -c(i));
+        exprInc(aff, -2*c(i));
         out->addEqCnt(aff);
       }
 
