@@ -207,8 +207,8 @@ void InitInfo::fromJson(const Json::Value& v) {
 			data.resize(n_steps, b_dim+u_dim);
 			VectorXd theta;
 			//gPCI->rad->composeBelief(toVectorXd(gPCI->rad->GetDOFValues()), rt_Sigma0, theta);
-			VectorXd x;
 			const DblVec& xvec = gPCI->rad->GetDOFValues();
+			VectorXd x(xvec.size());
 			for(int i = 0; i < xvec.size(); ++i) { x[i] = xvec[i]; }
 
 			//cout << x << endl;
