@@ -19,17 +19,14 @@ namespace PointRobotBSP {
 
   // This will generate a bunch of types like StateT, ControlT, etc.
   BSP_TYPEDEFS(
-      7, // state_dim
-      7, // state_noise_dim
-      7, // control_dim
-      3, // observe_dim
-      3, // observe_noise_dim
-      28, // sigma_dof
-      35 // belief_dim
+      2, // state_dim
+      2, // state_noise_dim
+      2, // control_dim
+      2, // observe_dim
+      2, // observe_noise_dim
+      3, // sigma_dof
+      5 // belief_dim
   );
-
-  typedef Matrix<double, 7, 1> Vector7d;
-  typedef Matrix<double, 7, 7> Matrix7d;
 
   // state: { {robot_dofs} }
   // control: { {d_robot_dofs} }

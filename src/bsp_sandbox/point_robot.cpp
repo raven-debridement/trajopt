@@ -14,46 +14,18 @@ namespace PointRobotBSP {
     return vector<T>(arr.begin(), arr.end());
   }
 
-  vector<Vector7d> get_initial_trajectory(int T) {
-    vector<Vector7d> ret;
-    ifstream traj_file(string(DATA_DIR) + "/point_traj.txt", ifstream::in);
-    if (!traj_file.is_open()) {
-      cout << "error while loading initial trajectory!" << endl;
-      RaveDestroy();
-      exit(1);
-    }
-    for (int i = 0; i <= T; ++i) {
-      Vector7d cur_traj;
-      for (int j = 0; j < 7; ++j) {
-        traj_file >> cur_traj(j);
-      }
-      ret.push_back(cur_traj);
-    }
-    return ret;
-  }
-
-  deque<Vector7d> get_initial_controls(const vector<Vector7d>& initial_trajectory) {
-    deque<Vector7d> ret;
-    for (int i = 0; i < (int)initial_trajectory.size() - 1; ++i) {
-      ret.push_back(initial_trajectory[i+1] - initial_trajectory[i]);
-    }
-    return ret;
-  }
-
-  void initialize_robot(RobotBasePtr robot, const Vector7d& start) {
-    robot->SetDOFValues(vec(std::array<double, 4>{{1.3, 1.3, 1.3, 0.5}}), false, vec(std::array<int, 4>{{7, 8, 9, 10}}));
-    robot->SetActiveDOFs(vec(std::array<int, 7>{{0, 1, 2, 3, 4, 5, 6}}));
-    robot->SetActiveDOFValues(toDblVec(start));
+  void initialize_robot(RobotBasePtr robot, const Vector2d& start) {
+    robot->SetDOFValues(toDblVec(start));
   }
 
   void initialize_viewer(OSGViewerPtr viewer) {
-    osg::Vec3d osg_eye(0, 0, 4);
-    osg::Vec3d osg_center(0, 0, 0);
-    osg::Vec3d osg_up(0, 1, 0);
-    viewer->m_handler->setTransformation(osg_eye, osg_center, osg_up);
+    //osg::Vec3d osg_eye(0, 0, 4);
+    //osg::Vec3d osg_center(0, 0, 0);
+    //osg::Vec3d osg_up(0, 1, 0);
+    //viewer->m_handler->setTransformation(osg_eye, osg_center, osg_up);
   }
 
-  PointRobotBSPPlanner::BarrettRobotBSPPlanner() : BSPPlanner<BarrettRobotBSPProblemHelper>() {}
+  PointRobotBSPPlanner::PointRobotBSPPlanner() : BSPPlanner<PointRobotBSPProblemHelper>() {}
 
   void PointRobotBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time) {
     opt.max_iter_                   = 350;
@@ -81,18 +53,18 @@ namespace PointRobotBSP {
     helper->set_state_bounds(lbs, ubs);
   }
 
-  PointRobotBSPProblemHelper::BarrettRobotBSPProblemHelper() : BSPProblemHelper<BarrettRobotBeliefFunc>() {
+  PointRobotBSPProblemHelper::PointRobotBSPProblemHelper() : BSPProblemHelper<PointRobotBeliefFunc>() {
 
-    set_state_dim(7);
-    set_sigma_dof(28);
-    set_observe_dim(3);
-    set_control_dim(7);
+    set_state_dim(2);
+    set_sigma_dof(3);
+    set_observe_dim(2);
+    set_control_dim(2);
 
-    set_control_bounds( vector<double>(7, -0.3), vector<double>(7, 0.3) );
+    set_control_bounds( vector<double>(2, -0.5), vector<double>(2, 0.5) );
 
-    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * sqrt(10));
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * sqrt(10));
-    set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.1);
+    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * sqrt(2));
+    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * sqrt(2));
+    set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.05);
   }
 
   void PointRobotBSPProblemHelper::add_goal_constraint(OptProb& prob) {
@@ -104,10 +76,10 @@ namespace PointRobotBSP {
   void PointRobotBSPProblemHelper::add_collision_term(OptProb& prob) {
     for (int i = 0; i <= T; ++i) {
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<PointRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
-      prob.addCost(CostPtr(new BeliefCollisionCost<PointRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
+      prob.addCost(CostPtr(new BeliefCollisionCost<PointRobotBeliefFunc>(0.1, 1, rad, belief_vars.row(i), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
-    cc->SetContactDistance(0.065);
+    cc->SetContactDistance(0.14);
   }
 
   void PointRobotBSPProblemHelper::configure_problem(OptProb& prob) {
@@ -115,43 +87,39 @@ namespace PointRobotBSP {
     add_collision_term(prob);
   }
 
-  PointRobotStateFunc::BarrettRobotStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
+  PointRobotStateFunc::PointRobotStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
 
-  PointRobotStateFunc::BarrettRobotStateFunc(BSPProblemHelperBasePtr helper) :
+  PointRobotStateFunc::PointRobotStateFunc(BSPProblemHelperBasePtr helper) :
                             StateFunc<StateT, ControlT, StateNoiseT>(helper), point_robot_helper(boost::static_pointer_cast<PointRobotBSPProblemHelper>(helper)) {}
 
   StateT PointRobotStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
     return x + u + 0.01 * m;
   }
 
-  PointRobotObserveFunc::BarrettRobotObserveFunc() : ObserveFunc<StateT, ObserveT, ObserveNoiseT>() {}
+  PointRobotObserveFunc::PointRobotObserveFunc() : ObserveFunc<StateT, ObserveT, ObserveNoiseT>() {}
 
-  PointRobotObserveFunc::BarrettRobotObserveFunc(BSPProblemHelperBasePtr helper) :
+  PointRobotObserveFunc::PointRobotObserveFunc(BSPProblemHelperBasePtr helper) :
               ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), point_robot_helper(boost::static_pointer_cast<PointRobotBSPProblemHelper>(helper)) {}
 
   ObserveT PointRobotObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
     ObserveT ret(observe_dim);
     Vector3d trans = forward_kinematics(x);
-    Vector3d beacon(-1.0, 0.0, 0.5);
-    double dist = 3.0 * (trans(0) - beacon(0)) * (trans(0) - beacon(0));
-    ret(0) = 1.0 / (1.0 + dist) + 0.1 * n(0);
-    ret(1) = x(0) + 0.01 * n(1);
-    ret(2) = x(3) + 0.01 * n(2);
-    return ret;
+		double scale = (0.5*(5.0 - trans[0])*(5.0 - trans[0])+0.001);
+    return x.head<2>() + scale * n;
   }
 
-  PointRobotBeliefFunc::BarrettRobotBeliefFunc() : EkfBeliefFunc<BarrettRobotStateFunc, BarrettRobotObserveFunc, BeliefT>() {}
+  PointRobotBeliefFunc::PointRobotBeliefFunc() : EkfBeliefFunc<PointRobotStateFunc, PointRobotObserveFunc, BeliefT>() {}
 
-  PointRobotBeliefFunc::BarrettRobotBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-             EkfBeliefFunc<PointRobotStateFunc, BarrettRobotObserveFunc, BeliefT>(helper, f, h),
+  PointRobotBeliefFunc::PointRobotBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
+             EkfBeliefFunc<PointRobotStateFunc, PointRobotObserveFunc, BeliefT>(helper, f, h),
              point_robot_helper(boost::static_pointer_cast<PointRobotBSPProblemHelper>(helper)) {}
 
-  PointRobotOptimizerTask::BarrettRobotOptimizerTask(QObject* parent) : BSPOptimizerTask(parent) {}
+  PointRobotOptimizerTask::PointRobotOptimizerTask(QObject* parent) : BSPOptimizerTask(parent) {}
 
-  PointRobotOptimizerTask::BarrettRobotOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
+  PointRobotOptimizerTask::PointRobotOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
   void PointRobotOptimizerTask::run() {
-    int T = 26;
+    int T = 19;
     bool sim_plotting = false;
     bool stage_plotting = false;
     bool first_step_only = false;
@@ -165,8 +133,8 @@ namespace PointRobotBSP {
       parser.read(argc, argv, true);
     }
 
-    string manip_name("arm");
-    string link_name("wam7");
+    string manip_name("base");
+    string link_name("Base");
 
     RaveInitialize();
     EnvironmentBasePtr env = RaveCreateEnvironment();
@@ -175,21 +143,23 @@ namespace PointRobotBSP {
     OSGViewerPtr viewer;
     RobotBasePtr robot = GetRobot(*env);
 
-    auto initial_trajectory = get_initial_trajectory(T);
-    auto initial_controls = get_initial_controls(initial_trajectory);
+    Vector2d start = Vector2d::Zero();
+    Matrix2d start_sigma = Matrix2d::Identity() * 0.2 * 0.2;
 
-    Vector7d start = initial_trajectory[0];
-    Matrix7d start_sigma = Matrix7d::Identity() * 0.22 * 0.22;
+    deque<Vector2d> initial_controls;
+    for (int i = 0; i < T; ++i) {
+      initial_controls.push_back(Vector2d::Zero());
+    }
 
     Matrix4d goal_trans;
-    goal_trans <<  0,  0, 1, 0.6,
-                   0,  1, 0, 0.4,
-                  -1,  0, 0, 0.6,
-                   0,  0, 0,   1;
+    goal_trans <<  1, 0, 0, 0,
+                   0, 1, 0, 3,
+                   0, 0, 1, 0,
+                   0, 0, 0, 1;
 
     initialize_robot(robot, start);
 
-    PointRobotBSPPlannerPtr planner(new BarrettRobotBSPPlanner());
+    PointRobotBSPPlannerPtr planner(new PointRobotBSPPlanner());
 
     planner->start = start;
     planner->start_sigma = start_sigma;
