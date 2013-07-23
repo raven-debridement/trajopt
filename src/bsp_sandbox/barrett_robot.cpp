@@ -103,8 +103,8 @@ namespace BarrettRobotBSP {
 
   void BarrettRobotBSPProblemHelper::add_collision_term(OptProb& prob) {
     for (int i = 0; i <= T; ++i) {
-      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
-      prob.addCost(CostPtr(new BeliefCollisionCost<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
+      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
+      //prob.addCost(CostPtr(new BeliefCollisionCost<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
     cc->SetContactDistance(0.065);

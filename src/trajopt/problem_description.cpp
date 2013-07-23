@@ -570,10 +570,16 @@ RobotAndDOFPtr RADFromName(const string& name, RobotBasePtr robot) {
     else if (component == "base") {
       affinedofs |= DOF_X | DOF_Y | DOF_RotationAxis;
     }
+    else if (component == "base_point") {
+      affinedofs |= DOF_X | DOF_Y;
+    }
     else if (KinBody::JointPtr joint = robot->GetJoint(component)) {
       dof_inds.push_back(joint->GetDOFIndex());
     }
+    
     else PRINT_AND_THROW( boost::format("error in reading manip description: %s must be a manipulator, link, or 'base'")%component );
+    cout << "component: " << component << endl;
+    cout << "affine dofs: " << affinedofs << endl;
   }
   return RobotAndDOFPtr(new RobotAndDOF(robot, dof_inds, affinedofs, rotationaxis));
 }

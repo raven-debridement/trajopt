@@ -76,12 +76,16 @@ namespace PointRobotBSP {
     Matrix4d goal_trans;
   };
 
+  class PointRobotBSPPlanner;
+
   class PointRobotOptimizerTask : public BSPOptimizerTask,
                                     public OpenRAVEPlotterMixin<PointRobotBSPProblemHelper> {
   public:
     PointRobotOptimizerTask(QObject* parent=nullptr);
     PointRobotOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
     void run();
+    void stage_plot_callback(boost::shared_ptr<PointRobotBSPPlanner> planner, OSGViewerPtr viewer, OptProb* prob, DblVec& x);
+    void sim_plot_callback(boost::shared_ptr<PointRobotBSPPlanner> planner, OSGViewerPtr viewer);
   };
 
   class PointRobotBSPPlanner : public BSPPlanner<PointRobotBSPProblemHelper> {

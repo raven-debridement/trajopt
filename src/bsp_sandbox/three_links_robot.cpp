@@ -106,7 +106,7 @@ namespace ThreeLinksRobotBSP {
 
   ObserveT ThreeLinksRobotObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
     Vector3d trans = forward_kinematics(x);
-    double scale = 0.5*(trans(1)+0.2)*(trans(1)+0.2)+1;
+    double scale = 0.5*(trans(1)+0.2)*(trans(1)+0.2)+0.01;
     return trans + scale * n;
   }
 
@@ -147,6 +147,7 @@ namespace ThreeLinksRobotBSP {
     OSGViewerPtr viewer;
     RobotBasePtr robot = GetRobot(*env);
 
+
     Vector3d start = Vector3d::Zero();
     Matrix3d start_sigma = Matrix3d::Identity();
     deque<Vector3d> initial_controls;
@@ -163,6 +164,10 @@ namespace ThreeLinksRobotBSP {
     initialize_robot(robot, start);
 
     ThreeLinksRobotBSPPlannerPtr planner(new ThreeLinksRobotBSPPlanner());
+
+    //cout << robot->GetDOFValues() << endl;
+
+    cout << "initial trans: " << forward_kinematics(start).transpose() << endl;
 
     planner->start = start;
     planner->start_sigma = start_sigma;

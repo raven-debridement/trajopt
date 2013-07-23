@@ -694,6 +694,76 @@ GraphHandlePtr OSGViewer::PlotAxes(const OpenRAVE::Transform& T, float size) {
   AddCylinderBetweenPoints(o, z, size/10, osg::Vec4(0,0,1,1), group, false);
   return GraphHandlePtr(new OsgGraphHandle(group, m_root.get()));
 }
+
+OpenRAVE::GraphHandlePtr OSGViewer::PlotEllipsoid(const osg::Matrix& T, const RaveVectorf& color) {
+  osg::Geode *geode = new osg::Geode;
+
+	TessellationHints* hints = new TessellationHints;
+	hints->setDetailRatio(.5f);
+
+	osg::Sphere* sphere = new osg::Sphere();
+	osg::ShapeDrawable* sphereDrawable = new osg::ShapeDrawable(sphere, hints);
+	geode->addDrawable(sphereDrawable);
+
+	osg::Material* pMaterial = new osg::Material;
+	pMaterial->setDiffuse( osg::Material::FRONT_AND_BACK, toOsgVec4(color));
+	geode->getOrCreateStateSet()->setAttribute( pMaterial, osg::StateAttribute::OVERRIDE );
+
+	osg::MatrixTransform* mt = new osg::MatrixTransform(T);
+
+	mt->addChild(geode);
+
+	return GraphHandlePtr(new OsgGraphHandle(mt, m_root.get()));
+}
+
+
+OpenRAVE::GraphHandlePtr OSGViewer::PlotEllipseXYContour(const osg::Matrix& T, const RaveVectorf& color, bool dotted) {
+	osg::Geometry* geometry = new osg::Geometry;
+
+	const int num_lines = 360;
+	const float line_ind_to_rad = 2*3.14159/num_lines;
+
+	// set up vertices
+	osg::Vec3Array* vertices = new osg::Vec3Array(num_lines*2);
+	geometry->setVertexArray(vertices);
+	if (!dotted) {
+		vertices->resize(num_lines*2);
+		int i;
+		for (i=0; i<num_lines-1; i++) {
+			(*vertices)[2*i].set(cos(line_ind_to_rad * i), sin(line_ind_to_rad * i), 0);
+			(*vertices)[2*i+1].set(cos(line_ind_to_rad * (i+1)), sin(line_ind_to_rad * (i+1)), 0);
+		}
+		(*vertices)[2*i].set((*vertices)[2*i-1]);
+		(*vertices)[2*i+1].set((*vertices)[0]);
+	} else {
+		vertices->resize(num_lines);
+		for (int i=0; i<num_lines; i++) {
+			(*vertices)[i].set(cos(line_ind_to_rad * i), sin(line_ind_to_rad * i), 0);
+		}
+	}
+
+	// set up colours
+	osg::Vec4Array* colors = new osg::Vec4Array();
+	colors->push_back(toOsgVec4(color));
+	geometry->setColorArray(colors);
+	geometry->setColorBinding(osg::Geometry::BIND_OVERALL);
+
+	// set up the primitive set to draw lines
+	geometry->addPrimitiveSet(new osg::DrawArrays(osg::PrimitiveSet::LINES,0,vertices->size()));
+
+	geometry->setUseDisplayList(false);
+
+	osg::Geode* geode = new osg::Geode;
+	geode->addDrawable(geometry);
+	geode->getOrCreateStateSet()->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+
+	osg::MatrixTransform* mt = new osg::MatrixTransform(T);
+	mt->addChild(geode);
+
+	return GraphHandlePtr(new OsgGraphHandle(mt, m_root.get()));
+}
+
+
 GraphHandlePtr OSGViewer::PlotSphere(const OpenRAVE::Vector& pt, float radius) {
   osg::Geode* geode = new osg::Geode;
   osg::Sphere* sphere = new osg::Sphere(toOsgVec3(pt), radius);

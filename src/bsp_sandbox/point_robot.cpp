@@ -48,9 +48,6 @@ namespace PointRobotBSP {
     helper->rad = rad;
     helper->link = link;
     helper->goal_trans = goal_trans;
-    vector<double> lbs, ubs;
-    rad->GetDOFLimits(lbs, ubs);
-    helper->set_state_bounds(lbs, ubs);
   }
 
   PointRobotBSPProblemHelper::PointRobotBSPProblemHelper() : BSPProblemHelper<PointRobotBeliefFunc>() {
@@ -60,10 +57,11 @@ namespace PointRobotBSP {
     set_observe_dim(2);
     set_control_dim(2);
 
+    set_state_bounds( vector<double>(2, -INFINITY), vector<double>(2, INFINITY) );
     set_control_bounds( vector<double>(2, -0.5), vector<double>(2, 0.5) );
 
-    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * sqrt(2));
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * sqrt(2));
+    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
+    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.05);
   }
 
@@ -75,8 +73,8 @@ namespace PointRobotBSP {
 
   void PointRobotBSPProblemHelper::add_collision_term(OptProb& prob) {
     for (int i = 0; i <= T; ++i) {
-      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<PointRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
-      prob.addCost(CostPtr(new BeliefCollisionCost<PointRobotBeliefFunc>(0.1, 1, rad, belief_vars.row(i), belief_func, link)));
+      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<PointRobotBeliefFunc>(0.1, 1, rad, belief_vars.row(i), belief_func, link)));
+      //prob.addCost(CostPtr(new BeliefCollisionCost<PointRobotBeliefFunc>(0.1, 1, rad, belief_vars.row(i), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
     cc->SetContactDistance(0.14);
@@ -102,7 +100,6 @@ namespace PointRobotBSP {
               ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), point_robot_helper(boost::static_pointer_cast<PointRobotBSPProblemHelper>(helper)) {}
 
   ObserveT PointRobotObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
-    ObserveT ret(observe_dim);
     Vector3d trans = forward_kinematics(x);
 		double scale = (0.5*(5.0 - trans[0])*(5.0 - trans[0])+0.001);
     return x.head<2>() + scale * n;
@@ -115,8 +112,43 @@ namespace PointRobotBSP {
              point_robot_helper(boost::static_pointer_cast<PointRobotBSPProblemHelper>(helper)) {}
 
   PointRobotOptimizerTask::PointRobotOptimizerTask(QObject* parent) : BSPOptimizerTask(parent) {}
-
+  
   PointRobotOptimizerTask::PointRobotOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
+
+  void PointRobotOptimizerTask::stage_plot_callback(boost::shared_ptr<PointRobotBSPPlanner> planner, OSGViewerPtr viewer, OptProb* prob, DblVec& x) {
+    vector<GraphHandlePtr> handles;
+    handles.clear();
+    OpenRAVEPlotterMixin<PointRobotBSPPlanner>::plot_opt_trajectory(planner, planner->rad, viewer, prob, x, &handles);
+    vector<double> color_params;
+    for (int i = 0; i <= planner->T; ++i) {
+      color_params.push_back(((double)i)/((double)planner->T-1.0));
+    }
+    StateT state;
+    VarianceT sigma;
+    Vector3d mean;
+    Matrix3d cov;
+    for (int i = 0; i <= planner->T; ++i) {
+      BeliefT b = getVec(x, planner->helper->belief_vars.row(i));
+      planner->helper->belief_func->extract_state_and_sigma(b, &state, &sigma);
+      belief_to_endeffector_noise(planner->rad, planner->link, state, sigma, &mean, &cov);
+      handles.push_back(viewer->PlotEllipseXYContour(gaussian_as_transform(mean, cov), OR::Vector(0,color_params[i],1.0-color_params[i],1)));
+    }
+    BeliefT b = getVec(x, planner->helper->belief_vars.row(0));
+    for (int i = 0; i <= planner->T; ++i) {
+      planner->helper->belief_func->extract_state_and_sigma(b, &state, &sigma);
+      belief_to_endeffector_noise(planner->rad, planner->link, state, sigma, &mean, &cov);
+      handles.push_back(viewer->PlotEllipseXYContour(gaussian_as_transform(mean, cov), OR::Vector(0,color_params[i],1.0-color_params[i],1), true)); 
+      if (i < planner->T) b = planner->helper->belief_func->call(b, getVec(x, planner->helper->control_vars.row(i)));
+    }
+    viewer->Idle();
+  }
+
+  void PointRobotOptimizerTask::sim_plot_callback(boost::shared_ptr<PointRobotBSPPlanner> planner, OSGViewerPtr viewer) {
+    vector<GraphHandlePtr> handles;
+    handles.clear();
+    OpenRAVEPlotterMixin<PointRobotBSPPlanner>::plot_sim_trajectory(planner, planner->rad, viewer, &handles);
+    viewer->Idle();
+  }
 
   void PointRobotOptimizerTask::run() {
     int T = 19;
@@ -133,7 +165,7 @@ namespace PointRobotBSP {
       parser.read(argc, argv, true);
     }
 
-    string manip_name("base");
+    string manip_name("base_point");
     string link_name("Base");
 
     RaveInitialize();
@@ -142,6 +174,7 @@ namespace PointRobotBSP {
     env->Load(string(DATA_DIR) + "/point.env.xml");
     OSGViewerPtr viewer;
     RobotBasePtr robot = GetRobot(*env);
+
 
     Vector2d start = Vector2d::Zero();
     Matrix2d start_sigma = Matrix2d::Identity() * 0.2 * 0.2;
@@ -153,7 +186,7 @@ namespace PointRobotBSP {
 
     Matrix4d goal_trans;
     goal_trans <<  1, 0, 0, 0,
-                   0, 1, 0, 3,
+                   0, 1, 0, 5,
                    0, 0, 1, 0,
                    0, 0, 0, 1;
 
@@ -172,6 +205,7 @@ namespace PointRobotBSP {
     planner->method = BSP::DiscontinuousBeliefSpace;
     planner->initialize();
 
+    cout << "dof: " << planner->rad->GetDOF() << endl;
 
     boost::function<void(OptProb*, DblVec&)> opt_callback;
     if (stage_plotting || sim_plotting) {
@@ -179,8 +213,8 @@ namespace PointRobotBSP {
       initialize_viewer(viewer);
     }
     if (stage_plotting) {
-      opt_callback = boost::bind(&OpenRAVEPlotterMixin<PointRobotBSPPlanner>::stage_plot_callback, 
-                                 planner, planner->helper->rad, viewer, _1, _2);
+      opt_callback = boost::bind(&PointRobotOptimizerTask::stage_plot_callback, this, //OpenRAVEPlotterMixin<PointRobotBSPPlanner>::stage_plot_callback, 
+                                 planner, viewer, _1, _2);
     }
 
     while (!planner->finished()) {
@@ -188,7 +222,7 @@ namespace PointRobotBSP {
       planner->simulate_execution();
       if (first_step_only) break;
       if (sim_plotting) {
-        OpenRAVEPlotterMixin<PointRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
+        sim_plot_callback(planner, viewer);//OpenRAVEPlotterMixin<PointRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
       }
     }
 
