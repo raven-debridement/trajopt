@@ -5,9 +5,6 @@
 #include "trajopt/kinematic_terms.hpp"
 #include "trajopt/problem_description.hpp"
 #include "geometry_2d.hpp"
-#include <QtCore>
-#include <QImage>
-#include <qevent.h>
 #include <openrave-core.h>
 #include <openrave/openrave.h>
 #include <array>

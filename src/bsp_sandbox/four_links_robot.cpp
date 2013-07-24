@@ -132,7 +132,7 @@ namespace FourLinksRobotBSP {
                             StateFunc<StateT, ControlT, StateNoiseT>(helper), four_links_robot_helper(boost::static_pointer_cast<FourLinksRobotBSPProblemHelper>(helper)) {}
 
   StateT FourLinksRobotStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    Vector3d noise_scale(0.08, 0.13, 0.18);
+    Vector4d noise_scale(0.01, 0.08, 0.13, 0.18);
     return x + u + noise_scale.asDiagonal() * m;
   }
 
