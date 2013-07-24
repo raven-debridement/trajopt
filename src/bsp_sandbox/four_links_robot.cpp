@@ -1,8 +1,5 @@
 #include "bsp/bsp.hpp"
-
-
 #include "four_links_robot.hpp"
-#include "four_links_robot_forward_kinematics.hpp"
 #include "sco/sco_fwd.hpp"
 
 using namespace std;
@@ -16,7 +13,7 @@ namespace FourLinksRobotBSP {
     return vector<T>(arr.begin(), arr.end());
   }
 
-  void initialize_robot(RobotBasePtr robot, const Vector3d& start) {
+  void initialize_robot(RobotBasePtr robot, const Vector4d& start) {
     robot->SetDOFValues(toDblVec(start));
   }
 
@@ -49,7 +46,9 @@ namespace FourLinksRobotBSP {
     helper->robot = robot;
     helper->rad = rad;
     helper->link = link;
-    helper->goal_trans = goal_trans;
+    helper->goal_pos = goal_pos;
+    helper->base_config = base_config;
+    helper->link_lengths = link_lengths;
     vector<double> lbs, ubs;
     rad->GetDOFLimits(lbs, ubs);
     helper->set_state_bounds(lbs, ubs);
@@ -87,7 +86,7 @@ namespace FourLinksRobotBSP {
     return res;
   }
 
-  Vector2d FourLinksRobotBSPProblemHelper::angle_to_endpoint_position(const Vector3d& angle) const {
+  Vector2d FourLinksRobotBSPProblemHelper::angle_to_endpoint_position(const Vector4d& angle) const {
     Vector4d l3; l3 << link_lengths(0), link_lengths(1), link_lengths(2), link_lengths(3);
     TransT mat = angle_to_transform(angle);
     return base_config.head<2>() + mat * l3;
@@ -97,7 +96,7 @@ namespace FourLinksRobotBSP {
 
     set_state_dim(4);
     set_sigma_dof(10);
-    set_observe_dim(3);
+    set_observe_dim(2);
     set_control_dim(4);
 
     set_control_bounds( vector<double>(4, -0.4), vector<double>(4, 0.4) );
@@ -143,9 +142,9 @@ namespace FourLinksRobotBSP {
               ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), four_links_robot_helper(boost::static_pointer_cast<FourLinksRobotBSPProblemHelper>(helper)) {}
 
   ObserveT FourLinksRobotObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
-    Vector3d trans = forward_kinematics(x);
-    double scale = 0.5*(trans(1)+0.2)*(trans(1)+0.2)+0.01;
-    return trans + scale * n;
+    Vector2d pos = four_links_robot_helper->angle_to_endpoint_position(x);
+    double scale = 0.5*(pos.y()-3)*(pos.y()-3)+0.01;
+    return pos + scale * n;
   }
 
   FourLinksRobotBeliefFunc::FourLinksRobotBeliefFunc() : EkfBeliefFunc<FourLinksRobotStateFunc, FourLinksRobotObserveFunc, BeliefT>() {}
@@ -199,10 +198,6 @@ namespace FourLinksRobotBSP {
 
     FourLinksRobotBSPPlannerPtr planner(new FourLinksRobotBSPPlanner());
 
-    //cout << robot->GetDOFValues() << endl;
-
-    cout << "initial trans: " << forward_kinematics(start).transpose() << endl;
-
     planner->start = start;
     planner->start_sigma = start_sigma;
     planner->goal_pos = goal_pos;
@@ -210,6 +205,7 @@ namespace FourLinksRobotBSP {
     planner->T = T;
     planner->controls = initial_controls;
     planner->robot = robot;
+    planner->base_config = Vector3d(0, 0, 0);
     planner->noise_level = noise_level;
     planner->rad = RADFromName(manip_name, robot);
     planner->link = planner->rad->GetRobot()->GetLink(link_name);

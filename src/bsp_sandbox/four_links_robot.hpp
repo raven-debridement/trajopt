@@ -22,13 +22,14 @@ namespace FourLinksRobotBSP {
       4, // state_dim
       4, // state_noise_dim
       4, // control_dim
-      3, // observe_dim
-      3, // observe_noise_dim
+      2, // observe_dim
+      2, // observe_noise_dim
       10, // sigma_dof
       14 // belief_dim
   );
 
   typedef Matrix<double, 2, 4> TransT;
+  typedef Matrix<double, 10, 1> Vector10d;
 
   // state: { {robot_dofs} }
   // control: { {d_robot_dofs} }
@@ -70,9 +71,15 @@ namespace FourLinksRobotBSP {
     void add_goal_constraint(OptProb& prob);
     void add_collision_term(OptProb& prob);
     void configure_problem(OptProb& prob);
+    TransT angle_to_transform(const Vector4d& angle) const;
+    Vector10d angle_to_joint_positions(const Vector4d& angle) const;
+    Vector2d angle_to_endpoint_position(const Vector4d& angle) const;
     FourLinksRobotBSPProblemHelper();
 
+    Vector2d goal_pos;
     Vector4d link_lengths;
+    Vector3d base_config;
+
     RobotBasePtr robot;
     RobotAndDOFPtr rad;
     KinBody::LinkPtr link;
@@ -102,6 +109,8 @@ namespace FourLinksRobotBSP {
     RobotBasePtr robot;
     RobotAndDOFPtr rad;
     Vector2d goal_pos;
+    Vector4d link_lengths;
+    Vector3d base_config;
     KinBody::LinkPtr link;
   };
 
