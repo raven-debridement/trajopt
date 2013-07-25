@@ -18,10 +18,10 @@ namespace FourLinksRobotBSP {
   }
 
   void initialize_viewer(OSGViewerPtr viewer) {
-    //osg::Vec3d osg_eye(0, 0, 4);
-    //osg::Vec3d osg_center(0, 0, 0);
-    //osg::Vec3d osg_up(0, 1, 0);
-    //viewer->m_handler->setTransformation(osg_eye, osg_center, osg_up);
+    osg::Vec3d osg_eye(0, 0, 4);
+    osg::Vec3d osg_center(0, 0, 0);
+    osg::Vec3d osg_up(0, 1, 0);
+    viewer->m_handler->setTransformation(osg_eye, osg_center, osg_up);
   }
 
   FourLinksRobotBSPPlanner::FourLinksRobotBSPPlanner() : BSPPlanner<FourLinksRobotBSPProblemHelper>() {}
@@ -31,12 +31,15 @@ namespace FourLinksRobotBSP {
     opt.merit_error_coeff_          = 10;
     opt.merit_coeff_increase_ratio_ = 10;
     opt.max_merit_coeff_increases_  = 5;
-    opt.trust_shrink_ratio_         = .1;
-    opt.trust_expand_ratio_         = 1.5;
+    //opt.trust_shrink_ratio_         = .1;
+    opt.trust_shrink_ratio_         = .8;
+    //opt.trust_expand_ratio_         = 1.5;
+    opt.trust_expand_ratio_         = 1.2;
     opt.min_trust_box_size_         = 1e-4;
     opt.min_approx_improve_         = 1e-4;
     opt.min_approx_improve_frac_    = -INFINITY;
-    opt.improve_ratio_threshold_    = 0.25;
+    //opt.improve_ratio_threshold_    = 0.25;
+    opt.improve_ratio_threshold_    = 0.15;
     opt.trust_box_size_             = 1e-1;
     opt.cnt_tolerance_              = 1e-4;
   }
@@ -86,6 +89,11 @@ namespace FourLinksRobotBSP {
     return res;
   }
 
+  void FourLinksRobotBSPProblemHelper::initialize() {
+    BSPProblemHelper<FourLinksRobotBeliefFunc>::initialize();
+    belief_func->sigma_pts_scale = 0.5;
+  }
+
   Vector2d FourLinksRobotBSPProblemHelper::angle_to_endpoint_position(const Vector4d& angle) const {
     Vector4d l3; l3 << link_lengths(0), link_lengths(1), link_lengths(2), link_lengths(3);
     TransT mat = angle_to_transform(angle);
@@ -99,10 +107,12 @@ namespace FourLinksRobotBSP {
     set_observe_dim(2);
     set_control_dim(4);
 
-    set_control_bounds( vector<double>(4, -0.4), vector<double>(4, 0.4) );
+    //set_control_bounds( vector<double>(4, -0.4), vector<double>(4, 0.4) );
+    set_control_bounds( vector<double>(4, -0.1), vector<double>(4, 0.1) );
 
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim));
+    //set_control_cost(Vector4d(60, 40, 20, 10).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
@@ -113,12 +123,17 @@ namespace FourLinksRobotBSP {
   }
 
   void FourLinksRobotBSPProblemHelper::add_collision_term(OptProb& prob) {
-    for (int i = 0; i <= T; ++i) {
-      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
-      prob.addCost(CostPtr(new BeliefCollisionCost<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_func, link)));
+    for (int i = 0; i < T; ++i) {
+    //for (int i = 0; i < T; ++i) {
+      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_func, link)));
+      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      //prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.05, 30, rad, state_vars.row(i), state_vars.row(i+1))));
+      prob.addCost(CostPtr(new BeliefCollisionCost<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
-    BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
-    cc->SetContactDistance(0.09);
+    //BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
+    CollisionChecker::GetOrCreate(*(rad->GetEnv()))->SetContactDistance(0.09);
+    //cc->SetContactDistance(0.09);
   }
 
   void FourLinksRobotBSPProblemHelper::configure_problem(OptProb& prob) {
@@ -143,8 +158,8 @@ namespace FourLinksRobotBSP {
 
   ObserveT FourLinksRobotObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
     Vector2d pos = four_links_robot_helper->angle_to_endpoint_position(x);
-    double scale = 0.5*(pos.y()-3)*(pos.y()-3)+0.01;
-    return pos + scale * n;
+    //double scale = 0.5*(pos.y()-3)*(pos.y()-3)+0.01;
+    return pos + 0.1 * n;
   }
 
   FourLinksRobotBeliefFunc::FourLinksRobotBeliefFunc() : EkfBeliefFunc<FourLinksRobotStateFunc, FourLinksRobotObserveFunc, BeliefT>() {}
@@ -157,12 +172,14 @@ namespace FourLinksRobotBSP {
 
   FourLinksRobotOptimizerTask::FourLinksRobotOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
-  void FourLinksRobotOptimizerTask::run() {
+  int FourLinksRobotOptimizerTask::run() {
     int T = 25;
     bool sim_plotting = false;
     bool stage_plotting = false;
     bool first_step_only = false;
     double noise_level = 1.;
+
+    string data_dir = get_current_directory() + "/../data";
 
     {
       Config config;
@@ -170,29 +187,33 @@ namespace FourLinksRobotBSP {
       config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
       config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
       config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
+      config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
       CommandParser parser(config);
       parser.read(argc, argv, true);
     }
-
+    
     string manip_name("arm");
     string link_name("Finger");
 
     RaveInitialize();
     EnvironmentBasePtr env = RaveCreateEnvironment();
     env->StopSimulation();
-    env->Load(string(DATA_DIR) + "/four_links.env.xml");
+    //env->Load(data_dir + "/four_links.env.xml");
+    env->Load(data_dir + "/four_links_2.env.xml");
     OSGViewerPtr viewer;
     RobotBasePtr robot = GetRobot(*env);
 
 
-    Vector4d start(PI/2, PI/4, PI/2, PI/4);
-    Matrix4d start_sigma = Matrix4d::Identity() * 0.1;
+    //Vector4d start(PI/2, PI/6, 2*PI/3, PI/6);
+    Vector4d start(-PI/4, 0, 0, 0);
+    Matrix4d start_sigma = Matrix4d::Identity() * 0.05;
     deque<Vector4d> initial_controls;
     for (int i = 0; i < T; ++i) {
       initial_controls.push_back(Vector4d::Zero());
     }
 
-    Vector2d goal_pos(-3.75, 2);
+    //Vector2d goal_pos(-3, 2.5);
+    Vector2d goal_pos(-2.5, 4);
 
     initialize_robot(robot, start);
 
@@ -201,7 +222,8 @@ namespace FourLinksRobotBSP {
     planner->start = start;
     planner->start_sigma = start_sigma;
     planner->goal_pos = goal_pos;
-    planner->link_lengths = Vector4d(2, 1, 1, 1);
+    //planner->link_lengths = Vector4d(2, 2, 2, 1);
+    planner->link_lengths = Vector4d(2, 2, 2, 2);
     planner->T = T;
     planner->controls = initial_controls;
     planner->robot = robot;
@@ -218,6 +240,7 @@ namespace FourLinksRobotBSP {
       viewer = OSGViewer::GetOrCreate(env);
       initialize_viewer(viewer);
     }
+
     if (stage_plotting) {
       opt_callback = boost::bind(&OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::stage_plot_callback, 
                                  planner, planner->helper->rad, viewer, _1, _2);
@@ -241,6 +264,5 @@ using namespace FourLinksRobotBSP;
 
 int main(int argc, char *argv[]) {
 	FourLinksRobotOptimizerTask task(argc, argv);
-  task.run();
-	return 0;
+  return task.run();
 }

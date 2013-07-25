@@ -27,7 +27,7 @@ namespace BSP {
     BeliefFunc() : epsilon(DefaultEpsilon), approx_factor(0.5) {}
 
     BeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-      ProblemState(helper), helper(helper), f(f), h(h), epsilon(DefaultEpsilon), sigma_pts_scale(2), approx_factor(0.5) {}
+      ProblemState(helper), helper(helper), f(f), h(h), epsilon(DefaultEpsilon), sigma_pts_scale(0.01), approx_factor(0.5) {}
 
     void set_approx_factor(double new_approx_factor) {
       approx_factor = new_approx_factor;
@@ -138,6 +138,7 @@ namespace BSP {
       VarianceT sqrt_sigma;
       extract_state_and_sqrt_sigma(belief, &state, &sqrt_sigma);
       output_sigma_points->clear();
+      //output_sigma_points->push_back( toDblVec(sigma_point(state, sqrt_sigma, 0)) );
       for (int i = 0; i <= 2*state_dim; ++i) {
         output_sigma_points->push_back( toDblVec(sigma_point(state, sqrt_sigma, i)) );
       }

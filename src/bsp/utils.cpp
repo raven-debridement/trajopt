@@ -1,5 +1,13 @@
 #include "common.hpp"
 #include "utils.hpp"
+#include <stdio.h>  /* defines FILENAME_MAX */
+#ifdef WINDOWS
+  #include <direct.h>
+  #define GetCurrentDir _getcwd
+#else
+  #include <unistd.h>
+  #define GetCurrentDir getcwd
+#endif
 
 namespace BSP {
   void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<double>& lbs, const vector<double>& ubs, const vector<string>& name_prefix, const vector<VarArray*>& newvars) {
@@ -69,6 +77,14 @@ namespace BSP {
 
   double sigmoid(double x) {
     return 1. / (1. + exp(-x));
+  }
+
+  string get_current_directory() {
+    char cCurrentPath[FILENAME_MAX];
+    if (!GetCurrentDir(cCurrentPath, sizeof(cCurrentPath))) {
+      throw std::runtime_error("cannot get current path");
+    }
+    return string(cCurrentPath);
   }
 
 }

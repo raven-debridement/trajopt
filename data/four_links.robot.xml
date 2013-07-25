@@ -39,8 +39,8 @@
       <offsetfrom>Arm0</offsetfrom>
       <Translation>2 0 0</Translation>
       <Geom type="box">
-        <Translation>0.5 0.0 0</Translation>
-        <Extents>0.5 0.075 0.05</Extents>
+        <Translation>1 0.0 0</Translation>
+        <Extents>1 0.075 0.05</Extents>
       </Geom>
     </Body>
     <!-- declare a hinge joint -->
@@ -55,10 +55,10 @@
  	<!-- the third movable link-->
     <Body name="Arm2" type="dynamic">
       <offsetfrom>Arm1</offsetfrom>
-      <Translation>1 0 0</Translation>
+      <Translation>2 0 0</Translation>
       <Geom type="box">
-        <Translation>0.5 0 0</Translation>
-        <Extents>0.5 0.05 0.05</Extents>
+        <Translation>1 0 0</Translation>
+        <Extents>1 0.05 0.05</Extents>
       </Geom>
     </Body>
     <!-- declare a hinge joint -->
@@ -72,7 +72,7 @@
   <!-- the fourth movable link-->
     <Body name="Arm3" type="dynamic">
       <offsetfrom>Arm2</offsetfrom>
-      <Translation>1 0 0</Translation>
+      <Translation>2 0 0</Translation>
       <Geom type="box">
         <Translation>0.5 0 0</Translation>
         <Extents>0.5 0.04 0.04</Extents>

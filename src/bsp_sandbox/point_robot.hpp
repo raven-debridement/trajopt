@@ -83,7 +83,7 @@ namespace PointRobotBSP {
   public:
     PointRobotOptimizerTask(QObject* parent=nullptr);
     PointRobotOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
-    void run();
+    int run();
     void stage_plot_callback(boost::shared_ptr<PointRobotBSPPlanner> planner, OSGViewerPtr viewer, OptProb* prob, DblVec& x);
     void sim_plot_callback(boost::shared_ptr<PointRobotBSPPlanner> planner, OSGViewerPtr viewer);
   };

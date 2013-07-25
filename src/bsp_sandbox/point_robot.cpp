@@ -58,11 +58,11 @@ namespace PointRobotBSP {
     set_control_dim(2);
 
     set_state_bounds( vector<double>(2, -INFINITY), vector<double>(2, INFINITY) );
-    set_control_bounds( vector<double>(2, -0.5), vector<double>(2, 0.5) );
+    set_control_bounds( vector<double>(2, -10), vector<double>(2, 10) );
 
-    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
-    set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.05);
+    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
+    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
+    set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.01);
   }
 
   void PointRobotBSPProblemHelper::add_goal_constraint(OptProb& prob) {
@@ -72,9 +72,10 @@ namespace PointRobotBSP {
   }
 
   void PointRobotBSPProblemHelper::add_collision_term(OptProb& prob) {
-    for (int i = 0; i <= T; ++i) {
-      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<PointRobotBeliefFunc>(0.1, 1, rad, belief_vars.row(i), belief_func, link)));
-      //prob.addCost(CostPtr(new BeliefCollisionCost<PointRobotBeliefFunc>(0.1, 1, rad, belief_vars.row(i), belief_func, link)));
+    for (int i = 0; i < T; ++i) {
+      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<PointRobotBeliefFunc>(0.1, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      //prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.1, 1, rad, state_vars.row(i), state_vars.row(i+1))));
+      //prob.addCost(CostPtr(new BeliefCollisionCost<PointRobotBeliefFunc>(0.1, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
     cc->SetContactDistance(0.14);
@@ -150,8 +151,8 @@ namespace PointRobotBSP {
     viewer->Idle();
   }
 
-  void PointRobotOptimizerTask::run() {
-    int T = 19;
+  int PointRobotOptimizerTask::run() {
+    int T = 4;
     bool sim_plotting = false;
     bool stage_plotting = false;
     bool first_step_only = false;
@@ -235,6 +236,5 @@ using namespace PointRobotBSP;
 
 int main(int argc, char *argv[]) {
 	PointRobotOptimizerTask task(argc, argv);
-  task.run();
-	return 0;
+  return task.run();
 }

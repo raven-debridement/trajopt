@@ -12,7 +12,10 @@ namespace BSP {
     typedef typename BeliefFuncT::Ptr BeliefFuncPtr;
 
     /* constructor for single timestep */
-    BeliefCollisionCost(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars, BeliefFuncPtr belief_func, OR::KinBody::LinkPtr endeffector) : Cost("belief_collision"), m_dist_pen(dist_pen), m_coeff(coeff), m_calc(new BeliefSingleTimestepCollisionEvaluator<BeliefFuncT>(rad, vars, belief_func, endeffector)) {}
+    BeliefCollisionCost(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars, BeliefFuncPtr belief_func, OR::KinBody::LinkPtr endeffector) : Cost("belief_collision"), m_dist_pen(dist_pen), m_coeff(coeff), m_calc(new BeliefDiscreteCollisionEvaluator<BeliefFuncT>(rad, vars, belief_func, endeffector)) {}
+
+    /* constructor for continuous */
+    BeliefCollisionCost(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1, BeliefFuncPtr belief_func, OR::KinBody::LinkPtr endeffector) : Cost("belief_collision"), m_dist_pen(dist_pen), m_coeff(coeff), m_calc(new BeliefContinuousCollisionEvaluator<BeliefFuncT>(rad, vars0, vars1, belief_func, endeffector)) {}
 
     ConvexObjectivePtr convex(const vector<double>& x, Model* model) {
       ConvexObjectivePtr out(new ConvexObjective(model));
@@ -39,7 +42,7 @@ namespace BSP {
       BeliefCollisionPlotterMixin<BeliefFuncT>::Plot(x, env, handles, m_calc, m_dist_pen);
     }
   protected:
-    boost::shared_ptr< BeliefSingleTimestepCollisionEvaluator<BeliefFuncT> > m_calc;
+    boost::shared_ptr<BeliefCollisionEvaluator> m_calc;
     double m_dist_pen;
     double m_coeff;
 

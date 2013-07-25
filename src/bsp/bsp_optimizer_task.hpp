@@ -12,7 +12,7 @@ namespace BSP {
     char **argv;
     BSPOptimizerTask(QObject* parent=nullptr);
     BSPOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
-    virtual void run() = 0;
+    virtual int run() = 0;
 
     void wait_to_proceed(boost::function<void()> f, bool wait=true) {
       if (wait) {

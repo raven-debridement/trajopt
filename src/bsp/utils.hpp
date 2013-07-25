@@ -100,5 +100,7 @@ namespace BSP {
   void seed_random();
 
   double sigmoid(double x);
+
+  string get_current_directory();
   
 }

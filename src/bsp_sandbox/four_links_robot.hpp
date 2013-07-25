@@ -68,6 +68,7 @@ namespace FourLinksRobotBSP {
     void add_goal_constraint(OptProb& prob);
     void add_collision_term(OptProb& prob);
     void configure_problem(OptProb& prob);
+    void initialize();
     TransT angle_to_transform(const Vector4d& angle) const;
     Vector10d angle_to_joint_positions(const Vector4d& angle) const;
     Vector2d angle_to_endpoint_position(const Vector4d& angle) const;
@@ -88,7 +89,7 @@ namespace FourLinksRobotBSP {
   public:
     FourLinksRobotOptimizerTask(QObject* parent=nullptr);
     FourLinksRobotOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
-    void run();
+    int run();
   };
 
   class FourLinksRobotGoalError : public VectorOfVector {

@@ -23,12 +23,13 @@ namespace BSP {
     void Plot(const DblVec& x,
               OR::EnvironmentBase& env,
               std::vector<OR::GraphHandlePtr>& handles,
-              boost::shared_ptr< BeliefSingleTimestepCollisionEvaluator<BeliefFuncT> > m_calc,
+              boost::shared_ptr<BeliefCollisionEvaluator> m_calc,
               double m_dist_pen) {
       vector<BeliefCollision> collisions;
       m_calc->GetCollisionsCached(x, collisions);
       PlotCollisions(collisions, env, handles, m_dist_pen);
       m_calc->CustomPlot(x, handles);
     }
+    
   };
 }
