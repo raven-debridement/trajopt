@@ -182,7 +182,7 @@ namespace PointRobotBSP {
 
     deque<Vector2d> initial_controls;
     for (int i = 0; i < T; ++i) {
-      initial_controls.push_back(Vector2d::Zero());
+      initial_controls.push_back((Vector2d(0, 5) - start) / T);//Vector2d::Zero());
     }
 
     Matrix4d goal_trans;
