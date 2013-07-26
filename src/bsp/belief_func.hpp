@@ -27,7 +27,7 @@ namespace BSP {
     BeliefFunc() : epsilon(DefaultEpsilon), approx_factor(0.5) {}
 
     BeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h) :
-      ProblemState(helper), helper(helper), f(f), h(h), epsilon(DefaultEpsilon), sigma_pts_scale(0.01), approx_factor(0.5) {}
+      ProblemState(helper), helper(helper), f(f), h(h), epsilon(DefaultEpsilon), sigma_pts_scale(2), approx_factor(0.5) {}
 
     void set_approx_factor(double new_approx_factor) {
       approx_factor = new_approx_factor;

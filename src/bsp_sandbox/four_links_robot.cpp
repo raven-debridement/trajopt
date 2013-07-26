@@ -127,13 +127,13 @@ namespace FourLinksRobotBSP {
     //for (int i = 0; i < T; ++i) {
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_func, link)));
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
-      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
       //prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.05, 30, rad, state_vars.row(i), state_vars.row(i+1))));
-      prob.addCost(CostPtr(new BeliefCollisionCost<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      //prob.addCost(CostPtr(new BeliefCollisionCost<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
-    //BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
-    CollisionChecker::GetOrCreate(*(rad->GetEnv()))->SetContactDistance(0.09);
-    //cc->SetContactDistance(0.09);
+    BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
+    //CollisionChecker::GetOrCreate(*(rad->GetEnv()))->SetContactDistance(0.09);
+    cc->SetContactDistance(0.09);
   }
 
   void FourLinksRobotBSPProblemHelper::configure_problem(OptProb& prob) {

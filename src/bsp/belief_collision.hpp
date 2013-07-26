@@ -55,7 +55,15 @@ namespace BSPCollision {
 
   void computeSupportingWeights(const vector<btVector3>& v, const btVector3& p, vector<float>& alpha) {
     alpha.resize(v.size());
-    switch ( v.size() )
+    int vsize = v.size();
+    // if the three vertices are on the same line, only use the first two
+    if (vsize == 3 && ((v[1] - v[0]).cross(v[2] - v[0])).length2() < BSP::eps) {
+      vsize = 2;
+    }
+
+    
+      
+    switch ( vsize )
     {
     case 1:
     {
@@ -73,6 +81,17 @@ namespace BSPCollision {
     case 3:
     {
       btVector3 bary = barycentricCoordinates(v[0], v[1], v[2], p);
+      if (isnan(bary[0]) || isnan(bary[1]) || isnan(bary[2])) {
+        cout << "calculating bary centric coordinates" << endl;
+        cout << "three points: " << endl;
+        cout << toVector(v[0]).transpose() << endl;
+        cout << toVector(v[1]).transpose() << endl;
+        cout << toVector(v[2]).transpose() << endl;
+        cout << "for: " << endl;
+        cout << toVector(p).transpose() << endl;
+        throw runtime_error("nan!");
+      }
+        
       alpha[0] = bary[0];
       alpha[1] = bary[1];
       alpha[2] = bary[2];
@@ -275,7 +294,8 @@ namespace BSPCollision {
 
       vector<float> sup;
       vector<btVector3> ptWorld;
-      compute_points_and_supports(shape, shape->m_ti, normalWorldFromShape, m_cow, &sup, &ptWorld);
+      compute_points_and_supports(shape->m_shape, shape->m_ti, normalWorldFromShape, m_cow, &sup, &ptWorld);
+      //compute_points_and_supports(shape, shape->m_ti, normalWorldFromShape, m_cow, &sup, &ptWorld);
 
       vector<float> sups;
       vector<btVector3> max_ptWorlds;
@@ -288,6 +308,11 @@ namespace BSPCollision {
       const btVector3& ptOnShape = shapeIsFirst ? cp.m_positionWorldOnA : cp.m_positionWorldOnB;
       BeliefCollision& collision = m_collisions.back();
       computeSupportingWeights(max_ptWorlds, ptOnShape, collision.mi[0].alpha);
+
+      cout << "alpha size: " << collision.mi[0].alpha.size() << endl;
+      for (auto& i : collision.mi[0].alpha) {
+        cout << "alpha: " << i << endl;
+      }
 
       collision.mi[0].instance_ind = instance_inds;
       return 1;
@@ -354,16 +379,19 @@ namespace BSPCollision {
       for (auto& t : shape->m_t1i) {
         cout << toMatrix(t) << endl << endl;
       }
-      //compute_points_and_supports(shape, shape->m_t0i, normalWorldFromCast, m_cow, &sup0, &ptWorld0);
-      //compute_points_and_supports(shape, shape->m_t1i, normalWorldFromCast, m_cow, &sup1, &ptWorld1);
+      compute_points_and_supports(shape->m_shape, shape->m_t0i, normalWorldFromCast, m_cow, &sup0, &ptWorld0);
+      compute_points_and_supports(shape->m_shape, shape->m_t1i, normalWorldFromCast, m_cow, &sup1, &ptWorld1);
       SigmaHullShape* shape0 = new SigmaHullShape(shape->m_shape, shape->m_t0i);
       SigmaHullShape* shape1 = new SigmaHullShape(shape->m_shape, shape->m_t1i);
-      vector<btTransform> trans_m_t1i;
-      for (int i = 0; i < shape->m_t1i.size(); ++i) {
-        trans_m_t1i.push_back(shape->m_t1i[0].inverseTimes(shape->m_t1i[i]));
-      }
-      compute_points_and_supports(shape0, shape->m_t0i, normalWorldFromCast, m_cow, &sup0, &ptWorld0);
-      compute_points_and_supports(shape1, trans_m_t1i, normalWorldFromCast, m_cow, &sup1, &ptWorld1);
+      //vector<btTransform> trans_m_t1i;
+      //for (int i = 0; i < shape->m_t1i.size(); ++i) {
+      //  trans_m_t1i.push_back(shape->m_t1i[0].inverseTimes(shape->m_t1i[i]));
+      //}
+      //compute_points_and_supports(shape0, shape->m_t0i, normalWorldFromCast, m_cow, &sup0, &ptWorld0);
+      //compute_points_and_supports(shape1, trans_m_t1i, normalWorldFromCast, m_cow, &sup1, &ptWorld1);
+
+      btVector3 ptOnShape0 = shape0->localGetSupportingVertex(normalWorldFromCast);
+      btVector3 ptOnShape1 = shape1->localGetSupportingVertex(normalWorldFromCast);
       //compute_points_and_supports(shape1, shape->m_t1i, normalWorldFromCast, m_cow, &sup1, &ptWorld1);
 
       delete shape0;
@@ -390,8 +418,19 @@ namespace BSPCollision {
       assert(max_ptWorlds1.size()<4);
 
       const btVector3& ptOnCast = castShapeIsFirst ? cp.m_positionWorldOnA : cp.m_positionWorldOnB;
-      computeSupportingWeights(max_ptWorlds0, ptOnCast, collision.mi[0].alpha);
-      computeSupportingWeights(max_ptWorlds1, ptOnCast, collision.mi[1].alpha);
+      
+      computeSupportingWeights(max_ptWorlds0, ptOnShape0, collision.mi[0].alpha);
+      computeSupportingWeights(max_ptWorlds1, ptOnShape1, collision.mi[1].alpha);
+      cout << "alpha size 0: " << collision.mi[0].alpha.size() << endl;
+      for (auto& i : collision.mi[0].alpha) {
+        cout << "alpha 0: " << i << endl;
+      }
+      cout << "alpha size 1: " << collision.mi[1].alpha.size() << endl;
+      for (auto& i : collision.mi[1].alpha) {
+        cout << "alpha 1: " << i << endl;
+      }
+      //computeSupportingWeights(max_ptWorlds0, ptOnCast, collision.mi[0].alpha);
+      //computeSupportingWeights(max_ptWorlds1, ptOnCast, collision.mi[1].alpha);
 
       collision.mi[0].instance_ind = instance_inds0;
       collision.mi[1].instance_ind = instance_inds1;
@@ -771,17 +810,20 @@ namespace BSPCollision {
 	          //MatrixXd pos_jac = rad.PositionJacobian(endeffector->GetIndex(), col.ptA);
 	          MatrixXd pos_jac = rad.PositionJacobian(itA->second, col.ptA);
             VectorXd dist_grad = toVector3d(col.normalB2A).transpose()*pos_jac*grad;
+            cout << "dist grad A: " << dist_grad.transpose() << endl;
             exprInc(dist_a, varDot(dist_grad, theta_vars));
             exprInc(dist_a, -dist_grad.dot(toVectorXd(theta_vals)));
           }
           if (linkBFound) {
 	          MatrixXd pos_jac = rad.PositionJacobian(itB->second, (isTimestep1 && (col.cctype == CCType_Between)) ? col.ptB1 : col.ptB);
             VectorXd dist_grad = -toVector3d(col.normalB2A).transpose()*pos_jac*grad;
+            cout << "dist grad B: " << dist_grad.transpose() << endl;
             exprInc(dist_a, varDot(dist_grad, theta_vars));
             exprInc(dist_a, -dist_grad.dot(toVectorXd(theta_vals)));
           }
           if (linkAFound || linkBFound) {
             exprScale(dist_a, col.mi[isTimestep1].alpha[i]);
+            cout << "alpha: " << col.mi[isTimestep1].alpha[i] << endl;
             exprInc(dist, dist_a);
           }
         }

@@ -60,7 +60,7 @@ namespace PointRobotBSP {
     set_state_bounds( vector<double>(2, -INFINITY), vector<double>(2, INFINITY) );
     set_control_bounds( vector<double>(2, -10), vector<double>(2, 10) );
 
-    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
+    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.01);
   }
@@ -73,7 +73,9 @@ namespace PointRobotBSP {
 
   void PointRobotBSPProblemHelper::add_collision_term(OptProb& prob) {
     for (int i = 0; i < T; ++i) {
+    //for (int i = 0; i <= T; ++i) {
       prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<PointRobotBeliefFunc>(0.1, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<PointRobotBeliefFunc>(0.1, 1, rad, belief_vars.row(i), belief_func, link)));
       //prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.1, 1, rad, state_vars.row(i), state_vars.row(i+1))));
       //prob.addCost(CostPtr(new BeliefCollisionCost<PointRobotBeliefFunc>(0.1, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
@@ -102,7 +104,7 @@ namespace PointRobotBSP {
 
   ObserveT PointRobotObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
     Vector3d trans = forward_kinematics(x);
-		double scale = (0.5*(5.0 - trans[0])*(5.0 - trans[0])+0.001);
+		double scale = (0.5*(5.0 - trans[0])*(5.0 - trans[0])+0.01);
     return x.head<2>() + scale * n;
   }
 
@@ -182,7 +184,8 @@ namespace PointRobotBSP {
 
     deque<Vector2d> initial_controls;
     for (int i = 0; i < T; ++i) {
-      initial_controls.push_back((Vector2d(0, 5) - start) / T);//Vector2d::Zero());
+      //initial_controls.push_back((Vector2d(0, 5) - start) / T);//Vector2d::Zero());
+      initial_controls.push_back(Vector2d::Zero());
     }
 
     Matrix4d goal_trans;
