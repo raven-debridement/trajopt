@@ -31,6 +31,7 @@ namespace ArmBSP {
   typedef Matrix<double, 8, 1> Vector8d;
   typedef Matrix<double, 6, 1> Vector6d;
   typedef Matrix<double, 6, 6> Matrix6d;
+  typedef Matrix<double, 10, 1> Vector10d;
   typedef Matrix<double, 2, 3> TransT;
 
   class ArmBSPProblemHelper;

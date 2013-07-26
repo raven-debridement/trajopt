@@ -1,4 +1,4 @@
-<Robot name="4DOFRobot">
+<Robot name="3DOFRobot">
   <KinBody>
     <!-- Create the base body, it should never move-->
     <!-- Note that all translations and rotations are with respect to this base-->
@@ -7,8 +7,8 @@
       <Translation>0.0  0.0  0.0</Translation>
       <Geom type="cylinder">
         <rotationaxis>1 0 0 90</rotationaxis>
-        <radius>0.3</radius>
-        <height>0.2</height>
+        <radius>0.03</radius>
+        <height>0.02</height>
         <diffuseColor>0.05 0.05 0.05</diffuseColor>
       </Geom>
     </Body>
@@ -21,8 +21,8 @@
       <!-- Translation relative to Base-->
       <Translation>0 0 0</Translation>
       <Geom type="box">
-        <Translation>1 0 0</Translation>
-        <Extents>1 0.1 0.05</Extents>
+        <Translation>0.08 0 0</Translation>
+        <Extents>0.08 0.01 0.005</Extents>
       </Geom>
     </Body>
     <!-- declare a circular hinge joint (circular joints have no limits) -->
@@ -37,10 +37,10 @@
     <!-- the second movable link-->
     <Body name="Arm1" type="dynamic">
       <offsetfrom>Arm0</offsetfrom>
-      <Translation>2 0 0</Translation>
+      <Translation>0.16 0 0</Translation>
       <Geom type="box">
-        <Translation>0.5 0.0 0</Translation>
-        <Extents>0.5 0.075 0.05</Extents>
+        <Translation>0.08 0.0 0</Translation>
+        <Extents>0.08 0.0075 0.005</Extents>
       </Geom>
     </Body>
     <!-- declare a hinge joint -->
@@ -55,10 +55,10 @@
  	<!-- the third movable link-->
     <Body name="Arm2" type="dynamic">
       <offsetfrom>Arm1</offsetfrom>
-      <Translation>1 0 0</Translation>
+      <Translation>0.16 0 0</Translation>
       <Geom type="box">
-        <Translation>0.5 0 0</Translation>
-        <Extents>0.5 0.05 0.05</Extents>
+        <Translation>0.04 0 0</Translation>
+        <Extents>0.04 0.005 0.005</Extents>
       </Geom>
     </Body>
     <!-- declare a hinge joint -->
@@ -69,31 +69,14 @@
       <limitsdeg>-180 180</limitsdeg>
       <axis>0 0 1</axis>
     </Joint>
-  <!-- the fourth movable link-->
-    <Body name="Arm3" type="dynamic">
-      <offsetfrom>Arm2</offsetfrom>
-      <Translation>1 0 0</Translation>
-      <Geom type="box">
-        <Translation>0.5 0 0</Translation>
-        <Extents>0.5 0.04 0.04</Extents>
-      </Geom>
-    </Body>
-    <!-- declare a hinge joint -->
-    <Joint circular="true" name="Arm3" type="hinge">
-      <Body>Arm2</Body>
-      <Body>Arm3</Body>
-      <offsetfrom>Arm3</offsetfrom>
-      <limitsdeg>-180 180</limitsdeg>
-      <axis>0 0 1</axis>
-    </Joint>
 
 	<!-- link that at the endpoint of Arm2 -->
     <Body name="Finger">
-      <offsetfrom>Arm3</offsetfrom>
-      <Translation>1 0 0</Translation>
+      <offsetfrom>Arm2</offsetfrom>
+      <Translation>0.08 0 0</Translation>
     </Body>
     <Joint name="dummy" type="hinge" enable="False">
-      <Body>Arm3</Body>
+      <Body>Arm2</Body>
       <Body>Finger</Body>
       <limits>0 0</limits>
     </Joint>
@@ -115,3 +98,5 @@
     <Translation>0 0 0</Translation>
   </Manipulator>
 </Robot>
+
+
