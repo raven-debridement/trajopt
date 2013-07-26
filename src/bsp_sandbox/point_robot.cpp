@@ -37,7 +37,7 @@ namespace PointRobotBSP {
     opt.min_trust_box_size_         = 1e-4;
     opt.min_approx_improve_         = 1e-4;
     opt.min_approx_improve_frac_    = -INFINITY;
-    opt.improve_ratio_threshold_    = 0.25;
+    opt.improve_ratio_threshold_    = 0.15;
     opt.trust_box_size_             = 1e-1;
     opt.cnt_tolerance_              = 1e-4;
   }
@@ -60,9 +60,9 @@ namespace PointRobotBSP {
     set_state_bounds( vector<double>(2, -INFINITY), vector<double>(2, INFINITY) );
     set_control_bounds( vector<double>(2, -10), vector<double>(2, 10) );
 
-    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
+    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
-    set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.01);
+    set_control_cost(ControlCostT::Identity(control_dim, control_dim)*0.05);
   }
 
   void PointRobotBSPProblemHelper::add_goal_constraint(OptProb& prob) {
