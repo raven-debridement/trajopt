@@ -70,16 +70,6 @@ namespace BSPCollision {
     case 3:
     {
       btVector3 bary = barycentricCoordinates(v[0], v[1], v[2], p);
-      //if (isnan(bary[0]) || isnan(bary[1]) || isnan(bary[2])) {
-      //  cout << "calculating bary centric coordinates" << endl;
-      //  cout << "three points: " << endl;
-      //  cout << toVector(v[0]).transpose() << endl;
-      //  cout << toVector(v[1]).transpose() << endl;
-      //  cout << toVector(v[2]).transpose() << endl;
-      //  cout << "for: " << endl;
-      //  cout << toVector(p).transpose() << endl;
-      //  throw runtime_error("nan!");
-      //}
         
       alpha[0] = bary[0];
       alpha[1] = bary[1];
@@ -103,12 +93,9 @@ namespace BSPCollision {
     output_sup->resize(ts.size());
     output_ptWorld->resize(ts.size());
 
-    //cout << "computing points and supports" << endl;
     for (int i = 0; i < ts.size(); ++i) {
       btTransform tfWorld = cow->getWorldTransform() * ts[i];
-      //cout << "world transform: " << endl << toMatrix(tfWorld) << endl << endl;
       btVector3 normalLocal = normalWorldFromShape * tfWorld.getBasis();
-      //cout << "normal local: " << toVector(normalLocal).transpose() << endl;
       (*output_ptWorld)[i] = tfWorld * shape->localGetSupportingVertex(normalLocal);
       (*output_sup)[i] = normalWorldFromShape.dot((*output_ptWorld)[i]);
     }

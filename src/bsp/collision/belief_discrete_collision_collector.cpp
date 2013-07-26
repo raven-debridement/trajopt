@@ -34,7 +34,6 @@ namespace BSPCollision {
     vector<float> sup;
     vector<btVector3> ptWorld;
     compute_points_and_supports(shape->m_shape, shape->m_ti, normalWorldFromShape, m_cow, &sup, &ptWorld);
-    //compute_points_and_supports(shape, shape->m_ti, normalWorldFromShape, m_cow, &sup, &ptWorld);
 
     vector<float> sups;
     vector<btVector3> max_ptWorlds;
@@ -47,11 +46,6 @@ namespace BSPCollision {
     const btVector3& ptOnShape = shapeIsFirst ? cp.m_positionWorldOnA : cp.m_positionWorldOnB;
     BeliefCollision& collision = m_collisions.back();
     computeSupportingWeights(max_ptWorlds, ptOnShape, collision.mi[0].alpha);
-
-    ///cout << "alpha size: " << collision.mi[0].alpha.size() << endl;
-    ///for (auto& i : collision.mi[0].alpha) {
-    ///  cout << "alpha: " << i << endl;
-    ///}
 
     collision.mi[0].instance_ind = instance_inds;
     return 1;

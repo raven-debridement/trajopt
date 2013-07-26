@@ -76,23 +76,19 @@ namespace BSPCollision {
 
           AffExpr dist_a(col.distance);
           if (linkAFound) {
-	          //MatrixXd pos_jac = rad.PositionJacobian(endeffector->GetIndex(), col.ptA);
 	          MatrixXd pos_jac = rad.PositionJacobian(itA->second, col.ptA);
             VectorXd dist_grad = toVector3d(col.normalB2A).transpose()*pos_jac*grad;
-            //cout << "dist grad A: " << dist_grad.transpose() << endl;
             exprInc(dist_a, varDot(dist_grad, theta_vars));
             exprInc(dist_a, -dist_grad.dot(toVectorXd(theta_vals)));
           }
           if (linkBFound) {
 	          MatrixXd pos_jac = rad.PositionJacobian(itB->second, (isTimestep1 && (col.cctype == CCType_Between)) ? col.ptB1 : col.ptB);
             VectorXd dist_grad = -toVector3d(col.normalB2A).transpose()*pos_jac*grad;
-            //cout << "dist grad B: " << dist_grad.transpose() << endl;
             exprInc(dist_a, varDot(dist_grad, theta_vars));
             exprInc(dist_a, -dist_grad.dot(toVectorXd(theta_vals)));
           }
           if (linkAFound || linkBFound) {
             exprScale(dist_a, col.mi[isTimestep1].alpha[i]);
-            //cout << "alpha: " << col.mi[isTimestep1].alpha[i] << endl;
             exprInc(dist, dist_a);
           }
         }
