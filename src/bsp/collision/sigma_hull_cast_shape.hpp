@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bsp/common.hpp"
+#include "bsp/collision/sigma_hull_shape.hpp"
 
 namespace BSPCollision {
   class SigmaHullCastShape : public SigmaHullShape {

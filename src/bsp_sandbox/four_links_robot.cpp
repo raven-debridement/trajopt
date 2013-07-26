@@ -168,101 +168,93 @@ namespace FourLinksRobotBSP {
              EkfBeliefFunc<FourLinksRobotStateFunc, FourLinksRobotObserveFunc, BeliefT>(helper, f, h),
              four_links_robot_helper(boost::static_pointer_cast<FourLinksRobotBSPProblemHelper>(helper)) {}
 
-  FourLinksRobotOptimizerTask::FourLinksRobotOptimizerTask(QObject* parent) : BSPOptimizerTask(parent) {}
-
-  FourLinksRobotOptimizerTask::FourLinksRobotOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
-
-  int FourLinksRobotOptimizerTask::run() {
-    int T = 25;
-    bool sim_plotting = false;
-    bool stage_plotting = false;
-    bool first_step_only = false;
-    double noise_level = 1.;
-
-    string data_dir = get_current_directory() + "/../data";
-
-    {
-      Config config;
-      config.add(new Parameter<bool>("sim_plotting", &sim_plotting, "sim_plotting"));
-      config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
-      config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
-      config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
-      config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
-      CommandParser parser(config);
-      parser.read(argc, argv, true);
-    }
-    
-    string manip_name("arm");
-    string link_name("Finger");
-
-    RaveInitialize();
-    EnvironmentBasePtr env = RaveCreateEnvironment();
-    env->StopSimulation();
-    //env->Load(data_dir + "/four_links.env.xml");
-    env->Load(data_dir + "/four_links_2.env.xml");
-    OSGViewerPtr viewer;
-    RobotBasePtr robot = GetRobot(*env);
-
-
-    //Vector4d start(PI/2, PI/6, 2*PI/3, PI/6);
-    Vector4d start(-PI/4, 0, 0, 0);
-    Matrix4d start_sigma = Matrix4d::Identity() * 0.05;
-    deque<Vector4d> initial_controls;
-    for (int i = 0; i < T; ++i) {
-      initial_controls.push_back(Vector4d::Zero());
-    }
-
-    //Vector2d goal_pos(-3, 2.5);
-    Vector2d goal_pos(-2.5, 4);
-
-    initialize_robot(robot, start);
-
-    FourLinksRobotBSPPlannerPtr planner(new FourLinksRobotBSPPlanner());
-
-    planner->start = start;
-    planner->start_sigma = start_sigma;
-    planner->goal_pos = goal_pos;
-    //planner->link_lengths = Vector4d(2, 2, 2, 1);
-    planner->link_lengths = Vector4d(2, 2, 2, 2);
-    planner->T = T;
-    planner->controls = initial_controls;
-    planner->robot = robot;
-    planner->base_config = Vector3d(0, 0, 0);
-    planner->noise_level = noise_level;
-    planner->rad = RADFromName(manip_name, robot);
-    planner->link = planner->rad->GetRobot()->GetLink(link_name);
-    planner->method = BSP::DiscontinuousBeliefSpace;
-    planner->initialize();
-
-
-    boost::function<void(OptProb*, DblVec&)> opt_callback;
-    if (stage_plotting || sim_plotting) {
-      viewer = OSGViewer::GetOrCreate(env);
-      initialize_viewer(viewer);
-    }
-
-    if (stage_plotting) {
-      opt_callback = boost::bind(&OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::stage_plot_callback, 
-                                 planner, planner->helper->rad, viewer, _1, _2);
-    }
-
-    while (!planner->finished()) {
-      planner->solve(opt_callback, 1, 1);
-      planner->simulate_execution();
-      if (first_step_only) break;
-      if (sim_plotting) {
-        OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
-      }
-    }
-
-    RaveDestroy();
-  }
-
 }
 
 using namespace FourLinksRobotBSP;
 
 int main(int argc, char *argv[]) {
-	FourLinksRobotOptimizerTask task(argc, argv);
-  return task.run();
+  int T = 25;
+  bool sim_plotting = false;
+  bool stage_plotting = false;
+  bool first_step_only = false;
+  double noise_level = 1.;
+
+  string data_dir = get_current_directory() + "/../data";
+
+  {
+    Config config;
+    config.add(new Parameter<bool>("sim_plotting", &sim_plotting, "sim_plotting"));
+    config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
+    config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
+    config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
+    config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
+    CommandParser parser(config);
+    parser.read(argc, argv, true);
+  }
+  
+  string manip_name("arm");
+  string link_name("Finger");
+
+  RaveInitialize();
+  EnvironmentBasePtr env = RaveCreateEnvironment();
+  env->StopSimulation();
+  //env->Load(data_dir + "/four_links.env.xml");
+  env->Load(data_dir + "/four_links_2.env.xml");
+  OSGViewerPtr viewer;
+  RobotBasePtr robot = GetRobot(*env);
+
+
+  //Vector4d start(PI/2, PI/6, 2*PI/3, PI/6);
+  Vector4d start(-PI/4, 0, 0, 0);
+  Matrix4d start_sigma = Matrix4d::Identity() * 0.05;
+  deque<Vector4d> initial_controls;
+  for (int i = 0; i < T; ++i) {
+    initial_controls.push_back(Vector4d::Zero());
+  }
+
+  //Vector2d goal_pos(-3, 2.5);
+  Vector2d goal_pos(-2.5, 4);
+
+  initialize_robot(robot, start);
+
+  FourLinksRobotBSPPlannerPtr planner(new FourLinksRobotBSPPlanner());
+
+  planner->start = start;
+  planner->start_sigma = start_sigma;
+  planner->goal_pos = goal_pos;
+  //planner->link_lengths = Vector4d(2, 2, 2, 1);
+  planner->link_lengths = Vector4d(2, 2, 2, 2);
+  planner->T = T;
+  planner->controls = initial_controls;
+  planner->robot = robot;
+  planner->base_config = Vector3d(0, 0, 0);
+  planner->noise_level = noise_level;
+  planner->rad = RADFromName(manip_name, robot);
+  planner->link = planner->rad->GetRobot()->GetLink(link_name);
+  planner->method = BSP::DiscontinuousBeliefSpace;
+  planner->initialize();
+
+
+  boost::function<void(OptProb*, DblVec&)> opt_callback;
+  if (stage_plotting || sim_plotting) {
+    viewer = OSGViewer::GetOrCreate(env);
+    initialize_viewer(viewer);
+  }
+
+  if (stage_plotting) {
+    opt_callback = boost::bind(&OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::stage_plot_callback, 
+                               planner, planner->helper->rad, viewer, _1, _2);
+  }
+
+  while (!planner->finished()) {
+    planner->solve(opt_callback, 1, 1);
+    planner->simulate_execution();
+    if (first_step_only) break;
+    if (sim_plotting) {
+      OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
+    }
+  }
+
+  RaveDestroy();
+  return 0;
 }

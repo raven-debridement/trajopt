@@ -45,9 +45,6 @@ target_link_libraries(needle bsp bsp_qt trajopt ${QT_LIBRARIES})
 add_executable(barrett_robot barrett_robot.cpp)
 target_link_libraries(barrett_robot bsp trajopt)
 
-add_executable(three_links_robot three_links_robot.cpp)
-target_link_libraries(three_links_robot bsp trajopt)
-
 add_executable(four_links_robot four_links_robot.cpp)
 target_link_libraries(four_links_robot bsp trajopt)
 

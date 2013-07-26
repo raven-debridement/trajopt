@@ -20,7 +20,7 @@ set(BSP_SOURCE_FILES
   collision/sigma_hull_shape.cpp
   collision/sigma_hull_cast_shape.cpp
   collision/utils.cpp
-  #../trajopt/bullet_unity.cpp
+  ../trajopt/bullet_unity.cpp
 )
 
 add_library(bsp ${BSP_SOURCE_FILES})

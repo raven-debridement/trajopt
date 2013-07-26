@@ -84,14 +84,6 @@ namespace FourLinksRobotBSP {
     Matrix4d goal_trans;
   };
 
-  class FourLinksRobotOptimizerTask : public BSPOptimizerTask,
-                                    public OpenRAVEPlotterMixin<FourLinksRobotBSPProblemHelper> {
-  public:
-    FourLinksRobotOptimizerTask(QObject* parent=nullptr);
-    FourLinksRobotOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
-    int run();
-  };
-
   class FourLinksRobotGoalError : public VectorOfVector {
   public:
     FourLinksRobotBSPProblemHelperPtr helper;

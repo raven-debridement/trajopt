@@ -114,11 +114,7 @@ namespace PointRobotBSP {
              EkfBeliefFunc<PointRobotStateFunc, PointRobotObserveFunc, BeliefT>(helper, f, h),
              point_robot_helper(boost::static_pointer_cast<PointRobotBSPProblemHelper>(helper)) {}
 
-  PointRobotOptimizerTask::PointRobotOptimizerTask(QObject* parent) : BSPOptimizerTask(parent) {}
-  
-  PointRobotOptimizerTask::PointRobotOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
-
-  void PointRobotOptimizerTask::stage_plot_callback(boost::shared_ptr<PointRobotBSPPlanner> planner, OSGViewerPtr viewer, OptProb* prob, DblVec& x) {
+  void stage_plot_callback(boost::shared_ptr<PointRobotBSPPlanner> planner, OSGViewerPtr viewer, OptProb* prob, DblVec& x) {
     vector<GraphHandlePtr> handles;
     handles.clear();
     OpenRAVEPlotterMixin<PointRobotBSPPlanner>::plot_opt_trajectory(planner, planner->rad, viewer, prob, x, &handles);
@@ -146,98 +142,88 @@ namespace PointRobotBSP {
     viewer->Idle();
   }
 
-  void PointRobotOptimizerTask::sim_plot_callback(boost::shared_ptr<PointRobotBSPPlanner> planner, OSGViewerPtr viewer) {
-    vector<GraphHandlePtr> handles;
-    handles.clear();
-    OpenRAVEPlotterMixin<PointRobotBSPPlanner>::plot_sim_trajectory(planner, planner->rad, viewer, &handles);
-    viewer->Idle();
-  }
-
-  int PointRobotOptimizerTask::run() {
-    int T = 4;
-    bool sim_plotting = false;
-    bool stage_plotting = false;
-    bool first_step_only = false;
-
-    {
-      Config config;
-      config.add(new Parameter<bool>("sim_plotting", &sim_plotting, "sim_plotting"));
-      config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
-      config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
-      CommandParser parser(config);
-      parser.read(argc, argv, true);
-    }
-
-    string manip_name("base_point");
-    string link_name("Base");
-
-    RaveInitialize();
-    EnvironmentBasePtr env = RaveCreateEnvironment();
-    env->StopSimulation();
-    env->Load(string(DATA_DIR) + "/point.env.xml");
-    OSGViewerPtr viewer;
-    RobotBasePtr robot = GetRobot(*env);
-
-
-    Vector2d start = Vector2d::Zero();
-    Matrix2d start_sigma = Matrix2d::Identity() * 0.2 * 0.2;
-
-    deque<Vector2d> initial_controls;
-    for (int i = 0; i < T; ++i) {
-      //initial_controls.push_back((Vector2d(0, 5) - start) / T);//Vector2d::Zero());
-      initial_controls.push_back(Vector2d::Zero());
-    }
-
-    Matrix4d goal_trans;
-    goal_trans <<  1, 0, 0, 0,
-                   0, 1, 0, 5,
-                   0, 0, 1, 0,
-                   0, 0, 0, 1;
-
-    initialize_robot(robot, start);
-
-    PointRobotBSPPlannerPtr planner(new PointRobotBSPPlanner());
-
-    planner->start = start;
-    planner->start_sigma = start_sigma;
-    planner->goal_trans = goal_trans;
-    planner->T = T;
-    planner->controls = initial_controls;
-    planner->robot = robot;
-    planner->rad = RADFromName(manip_name, robot);
-    planner->link = planner->rad->GetRobot()->GetLink(link_name);
-    planner->method = BSP::DiscontinuousBeliefSpace;
-    planner->initialize();
-
-    cout << "dof: " << planner->rad->GetDOF() << endl;
-
-    boost::function<void(OptProb*, DblVec&)> opt_callback;
-    if (stage_plotting || sim_plotting) {
-      viewer = OSGViewer::GetOrCreate(env);
-      initialize_viewer(viewer);
-    }
-    if (stage_plotting) {
-      opt_callback = boost::bind(&PointRobotOptimizerTask::stage_plot_callback, this, //OpenRAVEPlotterMixin<PointRobotBSPPlanner>::stage_plot_callback, 
-                                 planner, viewer, _1, _2);
-    }
-
-    while (!planner->finished()) {
-      planner->solve(opt_callback, 1, 1);
-      planner->simulate_execution();
-      if (first_step_only) break;
-      if (sim_plotting) {
-        sim_plot_callback(planner, viewer);//OpenRAVEPlotterMixin<PointRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
-      }
-    }
-
-    RaveDestroy();
-  }
-
 }
 
 using namespace PointRobotBSP;
 
 int main(int argc, char *argv[]) {
-	PointRobotOptimizerTask task(argc, argv);
-  return task.run();
+  int T = 4;
+  bool sim_plotting = false;
+  bool stage_plotting = false;
+  bool first_step_only = false;
+
+  {
+    Config config;
+    config.add(new Parameter<bool>("sim_plotting", &sim_plotting, "sim_plotting"));
+    config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
+    config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
+    CommandParser parser(config);
+    parser.read(argc, argv, true);
+  }
+
+  string manip_name("base_point");
+  string link_name("Base");
+
+  RaveInitialize();
+  EnvironmentBasePtr env = RaveCreateEnvironment();
+  env->StopSimulation();
+  env->Load(string(DATA_DIR) + "/point.env.xml");
+  OSGViewerPtr viewer;
+  RobotBasePtr robot = GetRobot(*env);
+
+
+  Vector2d start = Vector2d::Zero();
+  Matrix2d start_sigma = Matrix2d::Identity() * 0.2 * 0.2;
+
+  deque<Vector2d> initial_controls;
+  for (int i = 0; i < T; ++i) {
+    //initial_controls.push_back((Vector2d(0, 5) - start) / T);//Vector2d::Zero());
+    initial_controls.push_back(Vector2d::Zero());
+  }
+
+  Matrix4d goal_trans;
+  goal_trans <<  1, 0, 0, 0,
+                 0, 1, 0, 5,
+                 0, 0, 1, 0,
+                 0, 0, 0, 1;
+
+  initialize_robot(robot, start);
+
+  PointRobotBSPPlannerPtr planner(new PointRobotBSPPlanner());
+
+  planner->start = start;
+  planner->start_sigma = start_sigma;
+  planner->goal_trans = goal_trans;
+  planner->T = T;
+  planner->controls = initial_controls;
+  planner->robot = robot;
+  planner->rad = RADFromName(manip_name, robot);
+  planner->link = planner->rad->GetRobot()->GetLink(link_name);
+  planner->method = BSP::DiscontinuousBeliefSpace;
+  planner->initialize();
+
+  cout << "dof: " << planner->rad->GetDOF() << endl;
+
+  boost::function<void(OptProb*, DblVec&)> opt_callback;
+  if (stage_plotting || sim_plotting) {
+    viewer = OSGViewer::GetOrCreate(env);
+    initialize_viewer(viewer);
+  }
+
+  if (stage_plotting) {
+    opt_callback = boost::bind(&stage_plot_callback, 
+                               planner, viewer, _1, _2);
+  }
+
+  while (!planner->finished()) {
+    planner->solve(opt_callback, 1, 1);
+    planner->simulate_execution();
+    if (first_step_only) break;
+    if (sim_plotting) {
+      OpenRAVEPlotterMixin<PointRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
+    }
+  }
+
+  RaveDestroy();
+  return 0;
 }
