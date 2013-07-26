@@ -84,7 +84,7 @@ namespace BarrettRobotBSP {
   public:
     BarrettRobotOptimizerTask(QObject* parent=nullptr);
     BarrettRobotOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
-    void run();
+    int run();
   };
 
   class BarrettRobotBSPPlanner : public BSPPlanner<BarrettRobotBSPProblemHelper> {

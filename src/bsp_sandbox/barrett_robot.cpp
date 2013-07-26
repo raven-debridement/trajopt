@@ -14,9 +14,9 @@ namespace BarrettRobotBSP {
     return vector<T>(arr.begin(), arr.end());
   }
 
-  vector<Vector7d> get_initial_trajectory(int T) {
+  vector<Vector7d> get_initial_trajectory(const string& data_dir, int T) {
     vector<Vector7d> ret;
-    ifstream traj_file(string(DATA_DIR) + "/barrett_traj.txt", ifstream::in);
+    ifstream traj_file(data_dir + "/barrett_traj.txt", ifstream::in);
     if (!traj_file.is_open()) {
       cout << "error while loading initial trajectory!" << endl;
       RaveDestroy();
@@ -102,9 +102,11 @@ namespace BarrettRobotBSP {
   }
 
   void BarrettRobotBSPProblemHelper::add_collision_term(OptProb& prob) {
-    for (int i = 0; i <= T; ++i) {
-      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
+    //for (int i = 0; i <= T; ++i) {
+    for (int i = 0; i < T; ++i) {
+      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
       //prob.addCost(CostPtr(new BeliefCollisionCost<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
+      prob.addCost(CostPtr(new BeliefCollisionCost<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
     cc->SetContactDistance(0.065);
@@ -150,17 +152,20 @@ namespace BarrettRobotBSP {
 
   BarrettRobotOptimizerTask::BarrettRobotOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
 
-  void BarrettRobotOptimizerTask::run() {
+  int BarrettRobotOptimizerTask::run() {
     int T = 26;
     bool sim_plotting = false;
     bool stage_plotting = false;
     bool first_step_only = false;
+
+    string data_dir = get_current_directory() + "/../data";
 
     {
       Config config;
       config.add(new Parameter<bool>("sim_plotting", &sim_plotting, "sim_plotting"));
       config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
       config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
+      config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
       CommandParser parser(config);
       parser.read(argc, argv, true);
     }
@@ -171,11 +176,11 @@ namespace BarrettRobotBSP {
     RaveInitialize();
     EnvironmentBasePtr env = RaveCreateEnvironment();
     env->StopSimulation();
-    env->Load(string(DATA_DIR) + "/barrett.env.xml");
+    env->Load(data_dir + "/barrett.env.xml");
     OSGViewerPtr viewer;
     RobotBasePtr robot = GetRobot(*env);
 
-    auto initial_trajectory = get_initial_trajectory(T);
+    auto initial_trajectory = get_initial_trajectory(data_dir, T);
     auto initial_controls = get_initial_controls(initial_trajectory);
 
     Vector7d start = initial_trajectory[0];
@@ -231,6 +236,5 @@ using namespace BarrettRobotBSP;
 
 int main(int argc, char *argv[]) {
 	BarrettRobotOptimizerTask task(argc, argv);
-  task.run();
-	return 0;
+  return task.run();
 }
