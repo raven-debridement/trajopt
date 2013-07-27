@@ -207,16 +207,17 @@ int main(int argc, char *argv[]) {
   RobotBasePtr robot = GetRobot(*env);
 
 
-  double initial_skew_angle = PI/8;
-  Vector4d start(PI/2, initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
+  //double initial_skew_angle = PI/8;
+  //Vector4d start(PI/2, initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
   //Vector4d start(-PI/4, 0, 0, 0);
-  Matrix4d start_sigma = Matrix4d::Identity() * 0.25;
+  Vector4d start(-5*PI/6, PI/4, PI/4, PI/4);
+  Matrix4d start_sigma = Vector4d(0.01, 0.01, 0.01, 0.25).asDiagonal();//Matrix4d::Identity() * 0.25;
   deque<Vector4d> initial_controls;
   for (int i = 0; i < T; ++i) {
     initial_controls.push_back(Vector4d::Zero());
   }
 
-  Vector2d goal_pos(-3.5, 2.5);
+  Vector2d goal_pos(2, -5);
   //Vector2d goal_pos(-2.5, 4);
 
   initialize_robot(robot, start);
