@@ -18,8 +18,8 @@ namespace FourLinksRobotBSP {
   }
 
   void initialize_viewer(OSGViewerPtr viewer) {
-    osg::Vec3d osg_eye(0, 0, 4);
-    osg::Vec3d osg_center(0, 0, 0);
+    osg::Vec3d osg_eye(0, 0, 20);
+    osg::Vec3d osg_center(0, 0, -3);
     osg::Vec3d osg_up(0, 1, 0);
     viewer->m_handler->setTransformation(osg_eye, osg_center, osg_up);
   }
@@ -31,14 +31,14 @@ namespace FourLinksRobotBSP {
     opt.merit_error_coeff_          = 10;
     opt.merit_coeff_increase_ratio_ = 10;
     opt.max_merit_coeff_increases_  = 5;
-    opt.trust_shrink_ratio_         = .1;
-    //opt.trust_shrink_ratio_         = .8;
-    opt.trust_expand_ratio_         = 1.5;
-    //opt.trust_expand_ratio_         = 1.2;
+    //opt.trust_shrink_ratio_         = .1;
+    opt.trust_shrink_ratio_         = .8;
+    //opt.trust_expand_ratio_         = 1.5;
+    opt.trust_expand_ratio_         = 1.2;
     opt.min_trust_box_size_         = 1e-4;
     opt.min_approx_improve_         = 1e-4;
     opt.min_approx_improve_frac_    = -INFINITY;
-    opt.improve_ratio_threshold_    = 0.25;
+    opt.improve_ratio_threshold_    = 0.15;
     //opt.improve_ratio_threshold_    = 0.15;
     opt.trust_box_size_             = 1e-1;
     opt.cnt_tolerance_              = 1e-4;
@@ -55,6 +55,8 @@ namespace FourLinksRobotBSP {
     helper->sigma_pts_scale = sigma_pts_scale;
     vector<double> lbs, ubs;
     rad->GetDOFLimits(lbs, ubs);
+    cout << "state bounds: " << toVectorXd(lbs).transpose() << endl;
+    cout << "state bounds: " << toVectorXd(ubs).transpose() << endl;
     helper->set_state_bounds(lbs, ubs);
   }
 
@@ -103,13 +105,13 @@ namespace FourLinksRobotBSP {
     set_observe_dim(2);
     set_control_dim(4);
 
-    set_control_bounds( vector<double>(4, -0.4), vector<double>(4, 0.4) );
-    //set_control_bounds( vec(std::array<double, 4>{{-0.1, -0.1, -0.1, -0.3}}), vec(std::array<double, 4>{{0.1, 0.1, 0.1, 0.3}}));
+    //set_control_bounds( vector<double>(4, -1), vector<double>(4, 1) );
+    set_control_bounds( vec(std::array<double, 4>{{-0.1, -0.3, -0.6, -1}}), vec(std::array<double, 4>{{0.1, 0.3, 0.6, 1}}));
 
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    set_control_cost(Vector4d(30, 20, 10, 0.1).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
-    //set_control_cost(ControlCostT::Identity(control_dim, control_dim));
+    //set_control_cost(Vector4d(10000, 1, 1, 0.1).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
+    set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
   void FourLinksRobotBSPProblemHelper::add_goal_constraint(OptProb& prob) {
@@ -123,9 +125,9 @@ namespace FourLinksRobotBSP {
     //for (int i = 0; i < T; ++i) {
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_func, link)));
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
-      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
       //prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.05, 30, rad, state_vars.row(i), state_vars.row(i+1))));
-      //prob.addCost(CostPtr(new BeliefCollisionCost<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      prob.addCost(CostPtr(new BeliefCollisionCost<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
     //CollisionChecker::GetOrCreate(*(rad->GetEnv()))->SetContactDistance(0.09);
@@ -148,7 +150,7 @@ namespace FourLinksRobotBSP {
                             StateFunc<StateT, ControlT, StateNoiseT>(helper), four_links_robot_helper(boost::static_pointer_cast<FourLinksRobotBSPProblemHelper>(helper)) {}
 
   StateT FourLinksRobotStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    Vector4d noise_scale(0.01, 0.1, 0.15, 0.28);
+    Vector4d noise_scale(0.01, 0.03, 0.05, 0.08);
     return x + u + noise_scale.asDiagonal() * m;
   }
 
@@ -159,8 +161,9 @@ namespace FourLinksRobotBSP {
 
   ObserveT FourLinksRobotObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
     Vector2d pos = four_links_robot_helper->angle_to_endpoint_position(x);
+    double scale = 0.05 * (pos - four_links_robot_helper->goal_pos).norm() + 0.01;
     //double scale = 0.5*(pos.y()-3)*(pos.y()-3)+0.01;
-    return pos + 0.1 * n;
+    return pos + scale * n;
   }
 
   FourLinksRobotBeliefFunc::FourLinksRobotBeliefFunc() : EkfBeliefFunc<FourLinksRobotStateFunc, FourLinksRobotObserveFunc, BeliefT>() {}
@@ -177,6 +180,7 @@ int main(int argc, char *argv[]) {
   int T = 25;
   bool sim_plotting = false;
   bool stage_plotting = false;
+  bool stage_result_plotting = false;
   bool first_step_only = false;
   double noise_level = 1.;
   double sigma_pts_scale = 1.5;
@@ -187,6 +191,7 @@ int main(int argc, char *argv[]) {
     Config config;
     config.add(new Parameter<bool>("sim_plotting", &sim_plotting, "sim_plotting"));
     config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
+    config.add(new Parameter<bool>("stage_result_plotting", &stage_result_plotting, "stage_result_plotting"));
     config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
     config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
     config.add(new Parameter<double>("sigma_pts_scale", &sigma_pts_scale, "sigma_pts_scale"));
@@ -208,9 +213,10 @@ int main(int argc, char *argv[]) {
 
 
   double initial_skew_angle = PI/8;
+  //Vector4d start(PI/2, 0, -PI/2, 0);//-initial_skew_angle, -PI + 2*initial_skew_angle, -initial_skew_angle);
   Vector4d start(PI/2, initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
   //Vector4d start(-PI/4, 0, 0, 0);
-  Matrix4d start_sigma = Matrix4d::Identity() * 0.25;
+  Matrix4d start_sigma = Vector4d(0.01, 0.02, 0.03, 0.05).asDiagonal();//Matrix4d::Identity() * 0.01;
   deque<Vector4d> initial_controls;
   for (int i = 0; i < T; ++i) {
     initial_controls.push_back(Vector4d::Zero());
@@ -226,7 +232,7 @@ int main(int argc, char *argv[]) {
   planner->start = start;
   planner->start_sigma = start_sigma;
   planner->goal_pos = goal_pos;
-  planner->link_lengths = Vector4d(2, 2, 2, 1);
+  planner->link_lengths = Vector4d(2, 2, 1.5, 1);
   planner->sigma_pts_scale = sigma_pts_scale;
   //planner->link_lengths = Vector4d(2, 2, 2, 2);
   planner->T = T;
@@ -241,7 +247,7 @@ int main(int argc, char *argv[]) {
 
 
   boost::function<void(OptProb*, DblVec&)> opt_callback;
-  if (stage_plotting || sim_plotting) {
+  if (stage_plotting || sim_plotting || stage_result_plotting) {
     viewer = OSGViewer::GetOrCreate(env);
     initialize_viewer(viewer);
   }
@@ -253,6 +259,9 @@ int main(int argc, char *argv[]) {
 
   while (!planner->finished()) {
     planner->solve(opt_callback, 1, 1);
+    if (stage_result_plotting) {
+      OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::stage_plot_callback(planner, planner->helper->rad, viewer, &(*(planner->prob)), planner->result);
+    }
     planner->simulate_execution();
     if (first_step_only) break;
     if (sim_plotting) {

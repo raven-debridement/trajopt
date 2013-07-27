@@ -57,6 +57,7 @@ namespace BSP {
         }
       }
       for (int i = 0; i <= planner->helper->T; ++i) {
+        cout << "dof: " << getVec(x, planner->helper->state_vars.row(i)).transpose() << endl;
         rad->SetDOFValues(toDblVec(getVec(x, planner->helper->state_vars.row(i))));
         handles->push_back(viewer->PlotKinBody(rad->GetRobot()));
         SetTransparency(handles->back(), .35);

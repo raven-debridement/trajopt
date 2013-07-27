@@ -49,6 +49,7 @@ namespace BSP {
     bool initialized;
     int n_alpha_iterations;
     BSPProblemHelperPtr helper;
+    OptProbPtr prob;
 
     int method;
     int truncated_gaussian;
@@ -123,7 +124,7 @@ namespace BSP {
         return;
       }
 
-      OptProbPtr prob(new OptProb());
+      this->prob.reset(new OptProb());//OptProbPtr prob(new OptProb());
       helper->start = start;
       helper->start_sigma = start_sigma;
       helper->initialize();
