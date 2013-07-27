@@ -52,6 +52,7 @@ namespace FourLinksRobotBSP {
     helper->goal_pos = goal_pos;
     helper->base_config = base_config;
     helper->link_lengths = link_lengths;
+    helper->sigma_pts_scale = sigma_pts_scale;
     vector<double> lbs, ubs;
     rad->GetDOFLimits(lbs, ubs);
     helper->set_state_bounds(lbs, ubs);
@@ -89,11 +90,6 @@ namespace FourLinksRobotBSP {
     return res;
   }
 
-  void FourLinksRobotBSPProblemHelper::initialize() {
-    BSPProblemHelper<FourLinksRobotBeliefFunc>::initialize();
-    belief_func->sigma_pts_scale = 0.5;
-  }
-
   Vector2d FourLinksRobotBSPProblemHelper::angle_to_endpoint_position(const Vector4d& angle) const {
     Vector4d l3; l3 << link_lengths(0), link_lengths(1), link_lengths(2), link_lengths(3);
     TransT mat = angle_to_transform(angle);
@@ -108,12 +104,12 @@ namespace FourLinksRobotBSP {
     set_control_dim(4);
 
     //set_control_bounds( vector<double>(4, -0.4), vector<double>(4, 0.4) );
-    set_control_bounds( vector<double>(4, -0.1), vector<double>(4, 0.1) );
+    set_control_bounds( vec(std::array<double, 4>{{-0.1, -0.1, -0.1, -0.3}}), vec(std::array<double, 4>{{0.1, 0.1, 0.1, 0.3}}));
 
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    //set_control_cost(Vector4d(60, 40, 20, 10).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
-    set_control_cost(ControlCostT::Identity(control_dim, control_dim));
+    set_control_cost(Vector4d(100, 100, 100, 0).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
+    //set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
   void FourLinksRobotBSPProblemHelper::add_goal_constraint(OptProb& prob) {
@@ -141,13 +137,18 @@ namespace FourLinksRobotBSP {
     add_collision_term(prob);
   }
 
+  void FourLinksRobotBSPProblemHelper::initialize() {
+    BSPProblemHelper<FourLinksRobotBeliefFunc>::initialize();
+    this->belief_func->sigma_pts_scale = sigma_pts_scale;
+  }
+
   FourLinksRobotStateFunc::FourLinksRobotStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
 
   FourLinksRobotStateFunc::FourLinksRobotStateFunc(BSPProblemHelperBasePtr helper) :
                             StateFunc<StateT, ControlT, StateNoiseT>(helper), four_links_robot_helper(boost::static_pointer_cast<FourLinksRobotBSPProblemHelper>(helper)) {}
 
   StateT FourLinksRobotStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    Vector4d noise_scale(0.01, 0.08, 0.13, 0.18);
+    Vector4d noise_scale(0.01, 0.18, 0.23, 0.28);
     return x + u + noise_scale.asDiagonal() * m;
   }
 
@@ -178,6 +179,7 @@ int main(int argc, char *argv[]) {
   bool stage_plotting = false;
   bool first_step_only = false;
   double noise_level = 1.;
+  double sigma_pts_scale = 1.5;
 
   string data_dir = get_current_directory() + "/../data";
 
@@ -187,6 +189,7 @@ int main(int argc, char *argv[]) {
     config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
     config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
     config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
+    config.add(new Parameter<double>("sigma_pts_scale", &sigma_pts_scale, "sigma_pts_scale"));
     config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
     CommandParser parser(config);
     parser.read(argc, argv, true);
@@ -198,22 +201,23 @@ int main(int argc, char *argv[]) {
   RaveInitialize();
   EnvironmentBasePtr env = RaveCreateEnvironment();
   env->StopSimulation();
-  //env->Load(data_dir + "/four_links.env.xml");
-  env->Load(data_dir + "/four_links_2.env.xml");
+  env->Load(data_dir + "/four_links.env.xml");
+  //env->Load(data_dir + "/four_links_2.env.xml");
   OSGViewerPtr viewer;
   RobotBasePtr robot = GetRobot(*env);
 
 
-  //Vector4d start(PI/2, PI/6, 2*PI/3, PI/6);
-  Vector4d start(-PI/4, 0, 0, 0);
-  Matrix4d start_sigma = Matrix4d::Identity() * 0.05;
+  double initial_skew_angle = PI/8;
+  Vector4d start(PI/2, initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
+  //Vector4d start(-PI/4, 0, 0, 0);
+  Matrix4d start_sigma = Matrix4d::Identity() * 0.01;
   deque<Vector4d> initial_controls;
   for (int i = 0; i < T; ++i) {
     initial_controls.push_back(Vector4d::Zero());
   }
 
-  //Vector2d goal_pos(-3, 2.5);
-  Vector2d goal_pos(-2.5, 4);
+  Vector2d goal_pos(-4, 2.2);
+  //Vector2d goal_pos(-2.5, 4);
 
   initialize_robot(robot, start);
 
@@ -222,8 +226,9 @@ int main(int argc, char *argv[]) {
   planner->start = start;
   planner->start_sigma = start_sigma;
   planner->goal_pos = goal_pos;
-  //planner->link_lengths = Vector4d(2, 2, 2, 1);
   planner->link_lengths = Vector4d(2, 2, 2, 2);
+  planner->sigma_pts_scale = sigma_pts_scale;
+  //planner->link_lengths = Vector4d(2, 2, 2, 2);
   planner->T = T;
   planner->controls = initial_controls;
   planner->robot = robot;
