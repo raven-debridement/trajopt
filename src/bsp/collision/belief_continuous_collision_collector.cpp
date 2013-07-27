@@ -47,8 +47,16 @@ namespace BSPCollision {
 
     compute_points_and_supports(shape->m_shape, shape->m_t0i, normalWorldFromCast, m_cow, &sup0, &ptWorld0);
     compute_points_and_supports(shape->m_shape, shape->m_t1i, normalWorldFromCast, m_cow, &sup1, &ptWorld1);
-    SigmaHullShape* shape0 = new SigmaHullShape(shape->m_shape, shape->m_t0i);
-    SigmaHullShape* shape1 = new SigmaHullShape(shape->m_shape, shape->m_t1i);
+
+    vector<btTransform> t0i, t1i;
+    for (int i = 0; i < shape->m_t0i.size(); ++i) {
+      t0i.push_back(m_cow->getWorldTransform() * shape->m_t0i[i]);
+    }
+    for (int i = 0; i < shape->m_t1i.size(); ++i) {
+      t1i.push_back(m_cow->getWorldTransform() * shape->m_t1i[i]);
+    }
+    SigmaHullShape* shape0 = new SigmaHullShape(shape->m_shape, t0i);//shape->m_t0i);
+    SigmaHullShape* shape1 = new SigmaHullShape(shape->m_shape, t1i);//shape->m_t1i);
 
     btVector3 ptOnShape0 = shape0->localGetSupportingVertex(normalWorldFromCast);
     btVector3 ptOnShape1 = shape1->localGetSupportingVertex(normalWorldFromCast);
@@ -68,7 +76,7 @@ namespace BSPCollision {
     assert(max_ptWorlds1.size()<4);
 
     const btVector3& ptOnCast = castShapeIsFirst ? cp.m_positionWorldOnA : cp.m_positionWorldOnB;
-    
+
     computeSupportingWeights(max_ptWorlds0, ptOnShape0, collision.mi[0].alpha);
     computeSupportingWeights(max_ptWorlds1, ptOnShape1, collision.mi[1].alpha);
 

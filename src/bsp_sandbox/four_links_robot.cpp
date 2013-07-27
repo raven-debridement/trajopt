@@ -31,15 +31,15 @@ namespace FourLinksRobotBSP {
     opt.merit_error_coeff_          = 10;
     opt.merit_coeff_increase_ratio_ = 10;
     opt.max_merit_coeff_increases_  = 5;
-    //opt.trust_shrink_ratio_         = .1;
-    opt.trust_shrink_ratio_         = .8;
-    //opt.trust_expand_ratio_         = 1.5;
-    opt.trust_expand_ratio_         = 1.2;
+    opt.trust_shrink_ratio_         = .1;
+    //opt.trust_shrink_ratio_         = .8;
+    opt.trust_expand_ratio_         = 1.5;
+    //opt.trust_expand_ratio_         = 1.2;
     opt.min_trust_box_size_         = 1e-4;
     opt.min_approx_improve_         = 1e-4;
     opt.min_approx_improve_frac_    = -INFINITY;
-    //opt.improve_ratio_threshold_    = 0.25;
-    opt.improve_ratio_threshold_    = 0.15;
+    opt.improve_ratio_threshold_    = 0.25;
+    //opt.improve_ratio_threshold_    = 0.15;
     opt.trust_box_size_             = 1e-1;
     opt.cnt_tolerance_              = 1e-4;
   }
@@ -103,12 +103,12 @@ namespace FourLinksRobotBSP {
     set_observe_dim(2);
     set_control_dim(4);
 
-    //set_control_bounds( vector<double>(4, -0.4), vector<double>(4, 0.4) );
-    set_control_bounds( vec(std::array<double, 4>{{-0.1, -0.1, -0.1, -0.3}}), vec(std::array<double, 4>{{0.1, 0.1, 0.1, 0.3}}));
+    set_control_bounds( vector<double>(4, -0.4), vector<double>(4, 0.4) );
+    //set_control_bounds( vec(std::array<double, 4>{{-0.1, -0.1, -0.1, -0.3}}), vec(std::array<double, 4>{{0.1, 0.1, 0.1, 0.3}}));
 
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    set_control_cost(Vector4d(100, 100, 100, 0).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
+    set_control_cost(Vector4d(30, 20, 10, 0.1).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
     //set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
@@ -148,7 +148,7 @@ namespace FourLinksRobotBSP {
                             StateFunc<StateT, ControlT, StateNoiseT>(helper), four_links_robot_helper(boost::static_pointer_cast<FourLinksRobotBSPProblemHelper>(helper)) {}
 
   StateT FourLinksRobotStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    Vector4d noise_scale(0.01, 0.18, 0.23, 0.28);
+    Vector4d noise_scale(0.01, 0.1, 0.15, 0.28);
     return x + u + noise_scale.asDiagonal() * m;
   }
 
@@ -210,13 +210,13 @@ int main(int argc, char *argv[]) {
   double initial_skew_angle = PI/8;
   Vector4d start(PI/2, initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
   //Vector4d start(-PI/4, 0, 0, 0);
-  Matrix4d start_sigma = Matrix4d::Identity() * 0.01;
+  Matrix4d start_sigma = Matrix4d::Identity() * 0.25;
   deque<Vector4d> initial_controls;
   for (int i = 0; i < T; ++i) {
     initial_controls.push_back(Vector4d::Zero());
   }
 
-  Vector2d goal_pos(-4, 2.2);
+  Vector2d goal_pos(-3.5, 2.5);
   //Vector2d goal_pos(-2.5, 4);
 
   initialize_robot(robot, start);
@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
   planner->start = start;
   planner->start_sigma = start_sigma;
   planner->goal_pos = goal_pos;
-  planner->link_lengths = Vector4d(2, 2, 2, 2);
+  planner->link_lengths = Vector4d(2, 2, 2, 1);
   planner->sigma_pts_scale = sigma_pts_scale;
   //planner->link_lengths = Vector4d(2, 2, 2, 2);
   planner->T = T;

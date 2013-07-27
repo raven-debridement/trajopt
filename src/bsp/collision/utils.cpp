@@ -1,4 +1,6 @@
 #include "bsp/collision/utils.hpp"
+#include <array>
+#include <algorithm>
 
 namespace BSPCollision {
 
@@ -35,54 +37,70 @@ namespace BSPCollision {
   
   btVector3 barycentricCoordinates(const btVector3& a, const btVector3& b, const btVector3& c, const btVector3& p) {
     btVector3 n = (b-a).cross(c-a);
-    btVector3 na = (c-b).cross(p-b);
-    btVector3 nb = (a-c).cross(p-c);
-    btVector3 nc = (b-a).cross(p-a);
-    float n_length2_inv = 1.0/n.length2();
-    return btVector3(n.dot(na)*n_length2_inv, n.dot(nb)*n_length2_inv, n.dot(nc)*n_length2_inv);
+    // if the three vertices are on the same line, only use the first two
+    if (n.length2() < BSP::eps) {
+      float l0p = (p-a).length();
+      float l01 = (b-a).length();
+      float alpha0 = l01 > 0  ?  fmin(l0p/l01, 1) : .5;
+      float alpha1 = 1 - alpha0;
+      return btVector3(alpha0, alpha1, 0);
+    } else {
+      btVector3 na = (c-b).cross(p-b);
+      btVector3 nb = (a-c).cross(p-c);
+      btVector3 nc = (b-a).cross(p-a);
+      float n_length2_inv = 1.0/n.length2();
+      return btVector3(n.dot(na)*n_length2_inv, n.dot(nb)*n_length2_inv, n.dot(nc)*n_length2_inv);
+    }
   }
 
   void computeSupportingWeights(const vector<btVector3>& v, const btVector3& p, vector<float>& alpha) {
     alpha.resize(v.size());
-    int vsize = v.size();
-    // if the three vertices are on the same line, only use the first two
-    if (vsize == 3 && ((v[1] - v[0]).cross(v[2] - v[0])).length2() < BSP::eps) {
-      vsize = 2;
-    }
-
-    
-      
-    switch ( vsize )
-    {
-    case 1:
-    {
-      alpha[0] = 1;
-      break;
-    }
-    case 2:
-    {
-      float l0p = (p-v[0]).length();
-      float l01 = (v[1]-v[0]).length();
-      alpha[0] = l01 > 0  ?  fmin(l0p/l01, 1) : .5;
-      alpha[1] = 1 - alpha[0];
-      break;
-    }
-    case 3:
-    {
-      btVector3 bary = barycentricCoordinates(v[0], v[1], v[2], p);
-        
-      alpha[0] = bary[0];
-      alpha[1] = bary[1];
-      alpha[2] = bary[2];
-      break;
-    }
-    default: {
-      for (auto& pt : v) {
-        cout << toVector(pt).transpose() << endl;
+    switch ( v.size() ) {
+      case 1: {
+        alpha[0] = 1;
+        break;
       }
-      cout << "point: " << toVector(p).transpose() << endl;
-      throw runtime_error("Unsupported case for computeSupportingWeights: v.size() = " + std::to_string(v.size()));
-    }
+      case 2: {
+        float l0p = (p-v[0]).length();
+        float l01 = (v[1]-v[0]).length();
+        alpha[0] = l01 > 0  ?  fmin(l0p/l01, 1) : .5;
+        alpha[1] = 1 - alpha[0];
+        break;
+      }
+      case 3: {
+        btVector3 bary = barycentricCoordinates(v[0], v[1], v[2], p);
+        alpha[0] = bary[0];
+        alpha[1] = bary[1];
+        alpha[2] = bary[2];
+        break;
+      }
+      default: {
+        // If v has size greater than 3, enumerate all possible 3-combinations of
+        // the vertices and compute the bary-centric representation. Choose the closest
+        // amongst them
+        float best_error = INFINITY;
+        btVector3 best_alphas;
+        std::array<int, 3> best_inds;
+        for (int i = 0; i < v.size(); ++i) {
+          for (int j = i + 1; j < v.size(); ++j) {
+            for (int k = j + 1; k < v.size(); ++k) {
+              btVector3 cur_alphas = barycentricCoordinates(v[i], v[j], v[k], p);
+              btVector3 cur_rep = cur_alphas[0] * v[i] + cur_alphas[1] * v[j] + cur_alphas[2] * v[k];
+              float cur_error = (cur_rep - p).length2();
+              if (cur_error < best_error) {
+                best_error = cur_error;
+                best_alphas = cur_alphas;
+                best_inds = std::array<int, 3>{{ i, j, k }};
+              }
+            }
+          }
+        }
+        std::fill(alpha.begin(), alpha.end(), 0);
+        for (int i = 0; i < best_inds.size(); ++i) {
+          alpha[best_inds[i]] = best_alphas[i];
+        }
+        break;
+      }
     }
   }
 
