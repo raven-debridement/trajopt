@@ -110,8 +110,8 @@ namespace FourLinksRobotBSP {
 
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    set_control_cost(Vector4d(1000000, 1000000, 1, 0.1).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
-    //set_control_cost(ControlCostT::Identity(control_dim, control_dim));
+    //set_control_cost(Vector4d(1000000, 1000000, 1, 0.1).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
+    set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
   ControlL1CostError::ControlL1CostError(const MatrixXd& R) : R(R) {}
@@ -141,7 +141,7 @@ namespace FourLinksRobotBSP {
     //for (int i = 0; i < T; ++i) {
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_func, link)));
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
-      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
       //prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.05, 30, rad, state_vars.row(i), state_vars.row(i+1))));
       //prob.addCost(CostPtr(new BeliefCollisionCost<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
@@ -193,8 +193,9 @@ namespace FourLinksRobotBSP {
 using namespace FourLinksRobotBSP;
 
 int main(int argc, char *argv[]) {
-  int T = 25;
+  int T = 10;
   bool sim_plotting = false;
+  bool sim_result_plotting = false;
   bool stage_plotting = false;
   bool stage_result_plotting = false;
   bool first_step_only = false;
@@ -206,6 +207,7 @@ int main(int argc, char *argv[]) {
   {
     Config config;
     config.add(new Parameter<bool>("sim_plotting", &sim_plotting, "sim_plotting"));
+    config.add(new Parameter<bool>("sim_result_plotting", &sim_result_plotting, "sim_result_plotting"));
     config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
     config.add(new Parameter<bool>("stage_result_plotting", &stage_result_plotting, "stage_result_plotting"));
     config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
@@ -231,15 +233,16 @@ int main(int argc, char *argv[]) {
   double initial_skew_angle = PI/8;
   //Vector4d start(PI/2, 0, -PI/2, 0);//-initial_skew_angle, -PI + 2*initial_skew_angle, -initial_skew_angle);
   //Vector4d start(PI/2, initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
-  Vector4d start(0, PI/4, -PI/2, 0);//initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
+  Vector4d start(-PI, PI/6, PI/3, 2*PI/5);//initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
+
   //Vector4d start(-PI/4, 0, 0, 0);
-  Matrix4d start_sigma = Vector4d(0.01, 0.02, 0.03, 0.05).asDiagonal();//Matrix4d::Identity() * 0.01;
+  Matrix4d start_sigma = Vector4d(0.001, 0.02, 0.03, 0.05).asDiagonal();//Matrix4d::Identity() * 0.01;
   deque<Vector4d> initial_controls;
   for (int i = 0; i < T; ++i) {
     initial_controls.push_back(Vector4d::Zero());
   }
 
-  Vector2d goal_pos(0, 2.2);
+  Vector2d goal_pos(1, -3);
   //Vector2d goal_pos(-2.5, 4);
 
   initialize_robot(robot, start);
@@ -264,7 +267,7 @@ int main(int argc, char *argv[]) {
 
 
   boost::function<void(OptProb*, DblVec&)> opt_callback;
-  if (stage_plotting || sim_plotting || stage_result_plotting) {
+  if (stage_plotting || sim_plotting || stage_result_plotting || sim_result_plotting) {
     viewer = OSGViewer::GetOrCreate(env);
     initialize_viewer(viewer);
   }
