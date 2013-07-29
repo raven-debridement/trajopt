@@ -33,8 +33,8 @@ namespace FourLinksRobotBSP {
     opt.max_merit_coeff_increases_  = 5;
     //opt.trust_shrink_ratio_         = .1;
     opt.trust_shrink_ratio_         = .8;
-    //opt.trust_expand_ratio_         = 1.5;
-    opt.trust_expand_ratio_         = 1.2;
+    opt.trust_expand_ratio_         = 1.5;
+    //opt.trust_expand_ratio_         = 1.2;
     opt.min_trust_box_size_         = 1e-4;
     opt.min_approx_improve_         = 1e-4;
     opt.min_approx_improve_frac_    = -INFINITY;
@@ -108,8 +108,8 @@ namespace FourLinksRobotBSP {
     //set_control_bounds( vector<double>(4, -1), vector<double>(4, 1) );
     set_control_bounds( vec(std::array<double, 4>{{-0.1, -0.3, -0.6, -1}}), vec(std::array<double, 4>{{0.1, 0.3, 0.6, 1}}));
 
-    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
+    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
+    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
@@ -165,7 +165,7 @@ namespace FourLinksRobotBSP {
                             StateFunc<StateT, ControlT, StateNoiseT>(helper), four_links_robot_helper(boost::static_pointer_cast<FourLinksRobotBSPProblemHelper>(helper)) {}
 
   StateT FourLinksRobotStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    Vector4d noise_scale(0.01, 0.03, 0.05, 0.08);
+    Vector4d noise_scale(0.01, 0.03, 0.03, 0.04);
     return x + u + noise_scale.asDiagonal() * m;
   }
 
@@ -177,7 +177,7 @@ namespace FourLinksRobotBSP {
   ObserveT FourLinksRobotObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
     Vector2d pos = four_links_robot_helper->angle_to_endpoint_position(x);
     //double scale = 0.05 * (pos - four_links_robot_helper->goal_pos).norm() + 0.01;
-    double scale = 0.05 * fabs(pos.x() + 5) + 0.001;
+    double scale = 0.01 * fabs(pos.x() + 3) + 0.001;
     //double scale = 0.2 * exp((pos.x() - 5) * 0.35) + 0.001;// 0.5*(pos.y()-3)*(pos.y()-3)+0.01;
     //double scale = 0.5*(pos.y()-3)*(pos.y()-3)+0.01;
     return pos + scale * n;
