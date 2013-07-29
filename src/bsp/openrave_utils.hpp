@@ -85,4 +85,21 @@ namespace BSP {
       viewer->Idle();
     }
   };
+
+  template <class BSPPlannerT>
+  bool is_sim_trajectory_in_collision(boost::shared_ptr<BSPPlannerT> planner, RobotAndDOFPtr rad, EnvironmentBasePtr env) {
+    auto cc = BulletCollisionChecker::GetOrCreate(*env);
+    TrajArray traj(planner->simulated_positions.size(), planner->simulated_positions[0].size());
+    for (int i = 0; i < planner->simulated_positions.size(); ++i) {
+      traj.row(i) = planner->simulated_positions[i];
+    }
+    vector<Collision> collisions;
+    cc->ContinuousCheckTrajectory(traj, rad, collisions);
+    for (int i = 0; i < collisions.size(); ++i) {
+      if (collisions[i].distance < 0) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

@@ -257,6 +257,7 @@ int main(int argc, char *argv[]) {
   planner->sigma_pts_scale = sigma_pts_scale;
   //planner->link_lengths = Vector4d(2, 2, 2, 2);
   planner->T = T;
+  planner->env = env;
   planner->controls = initial_controls;
   planner->robot = robot;
   planner->base_config = Vector3d(0, 0, 0);
@@ -290,6 +291,13 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  if (planner->finished()) {
+    if (is_sim_trajectory_in_collision(planner, planner->rad, env) {
+      cout << "IN COLLISION" << endl;
+    } else {
+      cout << "NOT IN COLLISION" << endl;
+    }
+  }
   RaveDestroy();
   return 0;
 }
