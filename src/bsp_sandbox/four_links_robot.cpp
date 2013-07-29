@@ -110,7 +110,7 @@ namespace FourLinksRobotBSP {
 
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    //set_control_cost(Vector4d(10000, 1, 1, 0.1).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
+    set_control_cost(Vector4d(10000, 1000, 1, 0.1).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
@@ -125,9 +125,9 @@ namespace FourLinksRobotBSP {
     //for (int i = 0; i < T; ++i) {
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_func, link)));
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
-      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
       //prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.05, 30, rad, state_vars.row(i), state_vars.row(i+1))));
-      prob.addCost(CostPtr(new BeliefCollisionCost<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      //prob.addCost(CostPtr(new BeliefCollisionCost<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
     //CollisionChecker::GetOrCreate(*(rad->GetEnv()))->SetContactDistance(0.09);
@@ -214,7 +214,8 @@ int main(int argc, char *argv[]) {
 
   double initial_skew_angle = PI/8;
   //Vector4d start(PI/2, 0, -PI/2, 0);//-initial_skew_angle, -PI + 2*initial_skew_angle, -initial_skew_angle);
-  Vector4d start(PI/2, initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
+  //Vector4d start(PI/2, initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
+  Vector4d start(0, PI/4, -PI/2, 0);//initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
   //Vector4d start(-PI/4, 0, 0, 0);
   Matrix4d start_sigma = Vector4d(0.01, 0.02, 0.03, 0.05).asDiagonal();//Matrix4d::Identity() * 0.01;
   deque<Vector4d> initial_controls;
@@ -222,7 +223,7 @@ int main(int argc, char *argv[]) {
     initial_controls.push_back(Vector4d::Zero());
   }
 
-  Vector2d goal_pos(-3.5, 2.5);
+  Vector2d goal_pos(0, 2);
   //Vector2d goal_pos(-2.5, 4);
 
   initialize_robot(robot, start);
@@ -232,7 +233,7 @@ int main(int argc, char *argv[]) {
   planner->start = start;
   planner->start_sigma = start_sigma;
   planner->goal_pos = goal_pos;
-  planner->link_lengths = Vector4d(2, 2, 1.5, 1);
+  planner->link_lengths = Vector4d(2, 2, 2, 2);
   planner->sigma_pts_scale = sigma_pts_scale;
   //planner->link_lengths = Vector4d(2, 2, 2, 2);
   planner->T = T;
