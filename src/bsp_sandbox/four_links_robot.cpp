@@ -110,14 +110,30 @@ namespace FourLinksRobotBSP {
 
     set_variance_cost(VarianceT::Identity(state_dim, state_dim));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    set_control_cost(Vector4d(10000, 1000, 1, 0.1).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
-    set_control_cost(ControlCostT::Identity(control_dim, control_dim));
+    set_control_cost(Vector4d(1000000, 1000000, 1, 0.1).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
+    //set_control_cost(ControlCostT::Identity(control_dim, control_dim));
+  }
+
+  ControlL1CostError::ControlL1CostError(const MatrixXd& R) : R(R) {}
+
+  VectorXd ControlL1CostError::operator()(const VectorXd& a) const {
+    assert(a.size() == R.cols());   
+    assert(a.size() == R.rows());   
+    return R * a;
   }
 
   void FourLinksRobotBSPProblemHelper::add_goal_constraint(OptProb& prob) {
     VectorOfVectorPtr f(new FourLinksRobotGoalError(boost::static_pointer_cast<FourLinksRobotBSPProblemHelper>(this->shared_from_this())));
     Vector2d coeffs = Vector2d::Ones();
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, state_vars.row(T), coeffs, EQ, "goal")));
+  }
+
+  void FourLinksRobotBSPProblemHelper::add_control_cost(OptProb& prob) {
+    for (int i = 0; i < T; ++i) {
+      VectorOfVectorPtr f(new ControlL1CostError(R));
+      VectorXd coeffs = VectorXd::Ones(control_dim);
+      prob.addCost(CostPtr(new CostFromErrFunc(f, control_vars.row(i), coeffs, ABS, "control_cost")));
+    }
   }
 
   void FourLinksRobotBSPProblemHelper::add_collision_term(OptProb& prob) {
@@ -223,7 +239,7 @@ int main(int argc, char *argv[]) {
     initial_controls.push_back(Vector4d::Zero());
   }
 
-  Vector2d goal_pos(0, 2);
+  Vector2d goal_pos(0, 2.2);
   //Vector2d goal_pos(-2.5, 4);
 
   initialize_robot(robot, start);

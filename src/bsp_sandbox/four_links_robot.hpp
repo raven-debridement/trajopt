@@ -66,6 +66,7 @@ namespace FourLinksRobotBSP {
   public:
     typedef typename BeliefConstraint<FourLinksRobotBeliefFunc>::Ptr BeliefConstraintPtr;
     void add_goal_constraint(OptProb& prob);
+    void add_control_cost(OptProb& prob);
     void add_collision_term(OptProb& prob);
     void configure_problem(OptProb& prob);
     void initialize();
@@ -109,5 +110,10 @@ namespace FourLinksRobotBSP {
 
   typedef boost::shared_ptr<FourLinksRobotBSPPlanner> FourLinksRobotBSPPlannerPtr;
 
+  struct ControlL1CostError : public VectorOfVector {
+    ControlL1CostError(const MatrixXd& R);
+    VectorXd operator()(const VectorXd& a) const;
+    MatrixXd R;
+  };
 
 }
