@@ -108,9 +108,8 @@ namespace FourLinksRobotBSP {
     //set_control_bounds( vector<double>(4, -1), vector<double>(4, 1) );
     set_control_bounds( vec(std::array<double, 4>{{-0.1, -0.3, -0.6, -1}}), vec(std::array<double, 4>{{0.1, 0.3, 0.6, 1}}));
 
-    set_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim));
-    //set_control_cost(Vector4d(1000000, 1000000, 1, 0.1).asDiagonal());//ControlCostT::Identity(control_dim, control_dim) * 10);
+    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
+    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 10);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
@@ -177,7 +176,9 @@ namespace FourLinksRobotBSP {
 
   ObserveT FourLinksRobotObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
     Vector2d pos = four_links_robot_helper->angle_to_endpoint_position(x);
-    double scale = 0.05 * (pos - four_links_robot_helper->goal_pos).norm() + 0.01;
+    //double scale = 0.05 * (pos - four_links_robot_helper->goal_pos).norm() + 0.01;
+    double scale = 0.05 * fabs(pos.x() + 5) + 0.001;
+    //double scale = 0.2 * exp((pos.x() - 5) * 0.35) + 0.001;// 0.5*(pos.y()-3)*(pos.y()-3)+0.01;
     //double scale = 0.5*(pos.y()-3)*(pos.y()-3)+0.01;
     return pos + scale * n;
   }
@@ -233,7 +234,7 @@ int main(int argc, char *argv[]) {
   double initial_skew_angle = PI/8;
   //Vector4d start(PI/2, 0, -PI/2, 0);//-initial_skew_angle, -PI + 2*initial_skew_angle, -initial_skew_angle);
   //Vector4d start(PI/2, initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
-  Vector4d start(-PI, PI/6, PI/3, 2*PI/5);//initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
+  Vector4d start(-5*PI/6, PI/6, PI/3, PI/6);//initial_skew_angle, PI - 2*initial_skew_angle, initial_skew_angle);
 
   //Vector4d start(-PI/4, 0, 0, 0);
   Matrix4d start_sigma = Vector4d(0.001, 0.02, 0.03, 0.05).asDiagonal();//Matrix4d::Identity() * 0.01;
@@ -242,7 +243,7 @@ int main(int argc, char *argv[]) {
     initial_controls.push_back(Vector4d::Zero());
   }
 
-  Vector2d goal_pos(1, -3);
+  Vector2d goal_pos(3.3, -3);
   //Vector2d goal_pos(-2.5, 4);
 
   initialize_robot(robot, start);
