@@ -16,7 +16,7 @@ end
 
 puts "collision statistics (w/ replanning):"
 puts "sigma\tpercentage_in_collision\taverage_distance_to_goal"
-puts (0.5..4).step(0.5)
+puts (0.25..4).step(0.25)
               .map{|sigma| [sigma, Record.where(sigma: sigma, open_loop: false, use_lqr: false)]}
               .map{|sigma, selector| [sigma, selector.count, selector.where(in_collision:true).count, selector.pluck(:distance_to_goal).inject(&:+)]}
               .map{|sigma, count, collision_count, sum_distance| "#{sigma}\t#{collision_count.to_f/count}\t#{sum_distance.to_f/count}"}

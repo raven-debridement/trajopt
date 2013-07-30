@@ -106,8 +106,8 @@ namespace FourLinksRobotBSP {
     //set_control_bounds( vector<double>(4, -1), vector<double>(4, 1) );
     set_control_bounds( vec(std::array<double, 4>{{-0.1, -0.3, -0.6, -1}}), vec(std::array<double, 4>{{0.1, 0.3, 0.6, 1}}));
 
-    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
-    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 100);
+    set_variance_cost(VarianceT::Identity(state_dim, state_dim) * 30);
+    set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * 30);
     set_control_cost(ControlCostT::Identity(control_dim, control_dim));
   }
 
@@ -125,13 +125,13 @@ namespace FourLinksRobotBSP {
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, state_vars.row(T), coeffs, EQ, "goal")));
   }
 
-  void FourLinksRobotBSPProblemHelper::add_control_cost(OptProb& prob) {
-    for (int i = 0; i < T; ++i) {
-      VectorOfVectorPtr f(new ControlL1CostError(R));
-      VectorXd coeffs = VectorXd::Ones(control_dim);
-      prob.addCost(CostPtr(new CostFromErrFunc(f, control_vars.row(i), coeffs, ABS, "control_cost")));
-    }
-  }
+  //void FourLinksRobotBSPProblemHelper::add_control_cost(OptProb& prob) {
+  //  for (int i = 0; i < T; ++i) {
+  //    VectorOfVectorPtr f(new ControlL1CostError(R));
+  //    VectorXd coeffs = VectorXd::Ones(control_dim);
+  //    prob.addCost(CostPtr(new CostFromErrFunc(f, control_vars.row(i), coeffs, ABS, "control_cost")));
+  //  }
+  //}
 
   void FourLinksRobotBSPProblemHelper::add_collision_term(OptProb& prob) {
     for (int i = 0; i < T; ++i) {
@@ -142,9 +142,8 @@ namespace FourLinksRobotBSP {
       //prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.05, 30, rad, state_vars.row(i), state_vars.row(i+1))));
       //prob.addCost(CostPtr(new BeliefCollisionCost<FourLinksRobotBeliefFunc>(0.05, 30, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
-    BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
+    BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()))->SetContactDistance(0.09);
     //CollisionChecker::GetOrCreate(*(rad->GetEnv()))->SetContactDistance(0.09);
-    cc->SetContactDistance(0.09);
   }
 
   void FourLinksRobotBSPProblemHelper::configure_problem(OptProb& prob) {
@@ -163,7 +162,7 @@ namespace FourLinksRobotBSP {
                             StateFunc<StateT, ControlT, StateNoiseT>(helper), four_links_robot_helper(boost::static_pointer_cast<FourLinksRobotBSPProblemHelper>(helper)) {}
 
   StateT FourLinksRobotStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    Vector4d noise_scale(0.01, 0.03, 0.03, 0.04);
+    Vector4d noise_scale(0.01, 0.03, 0.03, 0.3);
     return x + u + noise_scale.asDiagonal() * m;
   }
 
@@ -175,7 +174,7 @@ namespace FourLinksRobotBSP {
   ObserveT FourLinksRobotObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
     Vector2d pos = four_links_robot_helper->angle_to_endpoint_position(x);
     //double scale = 0.05 * (pos - four_links_robot_helper->goal_pos).norm() + 0.01;
-    double scale = 0.01 * fabs(pos.x() + 3) + 0.001;
+    double scale = 0.01 * fabs(pos.x() + 5) + 0.005;
     //double scale = 0.2 * exp((pos.x() - 5) * 0.35) + 0.001;// 0.5*(pos.y()-3)*(pos.y()-3)+0.01;
     //double scale = 0.5*(pos.y()-3)*(pos.y()-3)+0.01;
     return pos + scale * n;
@@ -251,7 +250,7 @@ int main(int argc, char *argv[]) {
     initial_controls.push_back(Vector4d::Zero());
   }
 
-  Vector2d goal_pos(3.3, -3);
+  Vector2d goal_pos(3.5, -3);
   //Vector2d goal_pos(-2.5, 4);
 
   initialize_robot(robot, start);
