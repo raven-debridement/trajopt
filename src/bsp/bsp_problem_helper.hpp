@@ -18,6 +18,8 @@ namespace BSP {
     typedef _BeliefFuncT BeliefFuncT;
     typedef typename BeliefConstraint<BeliefFuncT>::Ptr BeliefConstraintPtr;
     typedef Matrix<typename BeliefFuncT::scalar_type, BeliefFuncT::_control_dim, BeliefFuncT::_control_dim> ControlCostT;
+    typedef Matrix<typename BeliefFuncT::scalar_type, BeliefFuncT::_state_dim, BeliefFuncT::_state_dim> StateCostT;
+    typedef Matrix<typename BeliefFuncT::scalar_type, BeliefFuncT::_control_dim, BeliefFuncT::_state_dim> FeedbackT;
     typedef typename BeliefFuncT::StateT StateT;
     typedef typename BeliefFuncT::ControlT ControlT;
     typedef typename BeliefFuncT::StateNoiseT StateNoiseT;
@@ -58,6 +60,9 @@ namespace BSP {
     VarianceT Q; // variance cost
     VarianceT QF; // final variance cost
     ControlCostT R; // control cost
+
+    StateCostT C; // LQR state deviation cost
+    ControlCostT D; // LQR control deviation cost
 
     DblVec state_lbs;
     DblVec state_ubs;
@@ -313,12 +318,37 @@ namespace BSP {
       DblVec x(prob->getNumVars(), 0);
       opt.initialize(x);
       opt.optimize();
-      cout << "optimized" << endl;
       DblVec result = opt.x();
       initial_controls.clear();
       for (int i = 0; i < get_T(); ++i) {
         ControlT uvec = (ControlT) getVec(result, control_vars.row(i));
         initial_controls.push_back(uvec);
+      }
+    }
+
+    virtual void compute_feedback_matrices(vector<FeedbackT>* feedback_matrices, vector<StateT> *ideal_states) {
+      assert (feedback_matrices != nullptr);
+      assert (ideal_states != nullptr);
+      feedback_matrices->clear();
+      ideal_states->clear();
+      feedback_matrices->resize(T);
+      StateCostT C = StateCostT::Identity(state_dim, state_dim);
+      ControlCostT D = ControlCostT::Identity(control_dim, control_dim);
+      StateNoiseT zero_state_noise = StateNoiseT::Zero(this->state_noise_dim);
+      //ObserveNoiseT zero_observe_noise = ObserveNoiseT::Zero(this->observe_noise_dim);
+      ideal_states->push_back(start);
+      for (int i = 0; i < T; ++i) {
+        ideal_states->push_back(state_func->call(ideal_states->back(), initial_controls[i], zero_state_noise));
+      }
+      vector<StateGradT> A(T+1);
+      vector<ControlGradT> B(T+1);
+      for (int i = 1; i <= T; ++i) {
+        state_func->linearize((*ideal_states)[i-1], initial_controls[i-1], zero_state_noise, &A[i], &B[i], nullptr);
+      }
+      StateCostT S = C;
+      for (int i = T - 1; i >= 0; --i) {
+        (*feedback_matrices)[i] = -(B[i+1].transpose()*S*B[i+1] + D).inverse() * B[i+1].transpose()*S*A[i+1];
+        S = C + A[i+1].transpose()*S*A[i+1] + A[i+1].transpose()*S*B[i+1]*(*feedback_matrices)[i];
       }
     }
   };

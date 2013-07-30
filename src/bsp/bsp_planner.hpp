@@ -32,8 +32,11 @@ namespace BSP {
     typedef typename BSPProblemHelperT::StateFuncPtr StateFuncPtr;
     typedef typename BSPProblemHelperT::ObserveFuncPtr ObserveFuncPtr;
     typedef typename BSPProblemHelperT::BeliefFuncPtr BeliefFuncPtr;
+    typedef typename BSPProblemHelperT::FeedbackT FeedbackT;
 
     const static int _state_noise_dim = StateFuncT::_state_noise_dim;
+    const static int _state_dim = StateFuncT::_state_dim;
+    const static int _control_dim = StateFuncT::_controm_dim;
     const static int _observe_noise_dim = ObserveFuncT::_observe_noise_dim;
 
     typedef typename BSPProblemHelperT::BeliefFuncT::scalar_type scalar_type;
@@ -165,13 +168,18 @@ namespace BSP {
     }
 
     virtual void custom_simulation_update(StateT* state, VarianceT* sigma, const StateT& actual_state) {}
-    
+
     // returns the last state error by the kalman filter update
     
-    StateT simulate_executions(int nsteps) {
+    StateT simulate_executions(int nsteps, bool use_lqr=false) {
       assert (initialized);
       if (nsteps <= 0 || nsteps > helper->T) {
         return StateT::Zero(helper->state_dim);
+      }
+      vector<FeedbackT> feedback_matrices;
+      vector<StateT> ideal_states;
+      if (use_lqr) {
+        helper->compute_feedback_matrices(&feedback_matrices, &ideal_states);
       }
       StateFuncPtr state_func = helper->state_func;
       ObserveFuncPtr observe_func = helper->observe_func;
@@ -181,8 +189,13 @@ namespace BSP {
         StateT current_state_error;
         StateNoiseT state_noise = sample_gaussian(state_noise_mean, state_noise_cov, noise_level);
         ObserveNoiseT observe_noise = sample_gaussian(observe_noise_mean, observe_noise_cov, noise_level);
+        // compute LQR control
+        ControlT current_control = controls.front();
+        if (use_lqr) {
+          current_control = feedback_matrices[i] * (start - ideal_states[i]) + current_control;
+        }
         // update actual position
-        current_position = state_func->call(current_position, controls.front(), state_noise);
+        current_position = state_func->call(current_position, current_control, state_noise);
         simulated_positions.push_back(current_position);
         // update observation
         ObserveT observe = observe_func->real_observation(current_position, observe_noise); //, &actual_observe_masks);
@@ -203,8 +216,8 @@ namespace BSP {
       return total_state_error;
     }
 
-    void simulate_execution() {
-      simulate_executions(1);
+    void simulate_execution(bool use_lqr=false) {
+      simulate_executions(1, use_lqr);
     }
     
   };

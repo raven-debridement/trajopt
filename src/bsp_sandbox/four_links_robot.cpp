@@ -199,6 +199,7 @@ int main(int argc, char *argv[]) {
   bool stage_result_plotting = false;
   bool first_step_only = false;
   bool open_loop = false;
+  bool use_lqr = false;
   double noise_level = 1.;
   double sigma_pts_scale = 1.5;
 
@@ -215,6 +216,7 @@ int main(int argc, char *argv[]) {
     config.add(new Parameter<bool>("stage_result_plotting", &stage_result_plotting, "stage_result_plotting"));
     config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
     config.add(new Parameter<bool>("open_loop", &open_loop, "open_loop"));
+    config.add(new Parameter<bool>("use_lqr", &use_lqr, "use_lqr"));
     config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
     config.add(new Parameter<double>("sigma_pts_scale", &sigma_pts_scale, "sigma_pts_scale"));
     config.add(new Parameter<int>("seed", &seed, "seed"));
@@ -290,9 +292,9 @@ int main(int argc, char *argv[]) {
       OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::stage_plot_callback(planner, planner->helper->rad, viewer, &(*(planner->prob)), planner->result);
     }
     if (open_loop) {
-      planner->simulate_executions(T);
+      planner->simulate_executions(T, use_lqr);
     } else {
-      planner->simulate_execution();
+      planner->simulate_execution(use_lqr);
     }
     if (first_step_only) break;
     if (sim_plotting) {
