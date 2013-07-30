@@ -55,8 +55,6 @@ namespace FourLinksRobotBSP {
     helper->sigma_pts_scale = sigma_pts_scale;
     vector<double> lbs, ubs;
     rad->GetDOFLimits(lbs, ubs);
-    cout << "state bounds: " << toVectorXd(lbs).transpose() << endl;
-    cout << "state bounds: " << toVectorXd(ubs).transpose() << endl;
     helper->set_state_bounds(lbs, ubs);
   }
 
@@ -200,10 +198,14 @@ int main(int argc, char *argv[]) {
   bool stage_plotting = false;
   bool stage_result_plotting = false;
   bool first_step_only = false;
+  bool open_loop = false;
   double noise_level = 1.;
   double sigma_pts_scale = 1.5;
 
-  string data_dir = get_current_directory() + "/../data";
+  int seed = static_cast<unsigned int>(std::time(0));
+  cout << "seed: " << seed << endl;
+
+  string data_dir = get_current_directory(argv) + "/../../data";
 
   {
     Config config;
@@ -212,13 +214,17 @@ int main(int argc, char *argv[]) {
     config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
     config.add(new Parameter<bool>("stage_result_plotting", &stage_result_plotting, "stage_result_plotting"));
     config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
+    config.add(new Parameter<bool>("open_loop", &open_loop, "open_loop"));
     config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
     config.add(new Parameter<double>("sigma_pts_scale", &sigma_pts_scale, "sigma_pts_scale"));
+    config.add(new Parameter<int>("seed", &seed, "seed"));
     config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
     CommandParser parser(config);
     parser.read(argc, argv, true);
   }
   
+  srand(seed);
+
   string manip_name("arm");
   string link_name("Finger");
 
@@ -257,7 +263,6 @@ int main(int argc, char *argv[]) {
   planner->sigma_pts_scale = sigma_pts_scale;
   //planner->link_lengths = Vector4d(2, 2, 2, 2);
   planner->T = T;
-  planner->env = env;
   planner->controls = initial_controls;
   planner->robot = robot;
   planner->base_config = Vector3d(0, 0, 0);
@@ -284,7 +289,11 @@ int main(int argc, char *argv[]) {
     if (stage_result_plotting) {
       OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::stage_plot_callback(planner, planner->helper->rad, viewer, &(*(planner->prob)), planner->result);
     }
-    planner->simulate_execution();
+    if (open_loop) {
+      planner->simulate_executions(T);
+    } else {
+      planner->simulate_execution();
+    }
     if (first_step_only) break;
     if (sim_plotting) {
       OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
@@ -292,7 +301,13 @@ int main(int argc, char *argv[]) {
   }
 
   if (planner->finished()) {
-    if (is_sim_trajectory_in_collision(planner, planner->rad, env) {
+    Vector2d pos = planner->helper->angle_to_endpoint_position(planner->simulated_positions.back());
+    cout << "distance to goal: " << (pos - planner->goal_pos).norm() << endl;
+    cout << "trajectory: " << endl;
+    for (int i = 0; i < planner->simulated_positions.size(); ++i) {
+      cout << planner->simulated_positions[i].transpose() << endl;
+    }
+    if (is_sim_trajectory_in_collision(planner, planner->rad, env)) {
       cout << "IN COLLISION" << endl;
     } else {
       cout << "NOT IN COLLISION" << endl;

@@ -101,6 +101,6 @@ namespace BSP {
 
   double sigmoid(double x);
 
-  string get_current_directory();
+  string get_current_directory(char** argv);
   
 }

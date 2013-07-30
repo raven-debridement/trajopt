@@ -94,12 +94,14 @@ namespace BSP {
       traj.row(i) = planner->simulated_positions[i];
     }
     vector<Collision> collisions;
-    cc->ContinuousCheckTrajectory(traj, rad, collisions);
-    for (int i = 0; i < collisions.size(); ++i) {
-      if (collisions[i].distance < 0) {
-        return true;
-      }
-    }
-    return false;
+    cc->ContinuousCheckTrajectory(traj, *rad, collisions);
+    return collisions.size() > 0;
+    //for (int i = 0; i < collisions.size(); ++i) {
+    //  cout << collisions[i].distance << endl;
+    //  if (collisions[i].distance < 0) {
+    //    return true;
+    //  }
+    //}
+    //return false;
   }
 }
