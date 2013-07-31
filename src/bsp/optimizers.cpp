@@ -194,9 +194,9 @@ namespace BSP {
         else {
 
           LOG_INFO("not all constraints are satisfied. increasing penalties");
-          callMeritDoneCallbacks(x_);
+          //callMeritDoneCallbacks(x_);
           merit_error_coeff_ *= merit_coeff_increase_ratio_;
-          trust_box_size_ = 1;
+          trust_box_size_ = .1;
         }
       }
 

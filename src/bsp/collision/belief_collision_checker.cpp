@@ -95,8 +95,21 @@ namespace BSPCollision {
       assert(m_link2cow[links[i_link].get()] != NULL);
       CollisionObjectWrapper* cow = m_link2cow[links[i_link].get()];
       vector<btTransform>& tfi = multi_tf[i_link];
-      float color_param = ((float)i_link)/((float)(nlinks-1));
-      PlotSigmaHull(cow->getCollisionShape(), tfi, cow, handles, OR::RaveVector<float>(color_param, 1.0-color_param, 0));
+      float color_param;
+      
+      OR::RaveVector<float> color;
+      if (i_link == 0) {
+        color = OR::RaveVector<float>(1, 0, 0);
+      } else if (i_link == 1) {
+        color = OR::RaveVector<float>(0, 1, 0);
+      } else if (i_link == 2 || i_link == 3) {
+        color = OR::RaveVector<float>(0, 0, 1);
+      } else {
+        float color_param = ((float)i_link)/((float)(nlinks-1));
+        color = OR::RaveVector<float>(color_param, 1.0-color_param, 0);
+      }
+        
+      PlotSigmaHull(cow->getCollisionShape(), tfi, cow, handles, color);
     }
   }
 

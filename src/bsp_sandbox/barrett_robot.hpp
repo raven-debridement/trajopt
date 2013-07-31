@@ -71,12 +71,14 @@ namespace BarrettRobotBSP {
     void add_goal_constraint(OptProb& prob);
     void add_collision_term(OptProb& prob);
     void configure_problem(OptProb& prob);
+    void initialize();
     BarrettRobotBSPProblemHelper();
 
     RobotBasePtr robot;
     RobotAndDOFPtr rad;
     KinBody::LinkPtr link;
     Matrix4d goal_trans;
+    double sigma_pts_scale;
   };
 
   class BarrettRobotBSPPlanner : public BSPPlanner<BarrettRobotBSPProblemHelper> {
@@ -87,6 +89,7 @@ namespace BarrettRobotBSP {
     RobotBasePtr robot;
     RobotAndDOFPtr rad;
     Matrix4d goal_trans;
+    double sigma_pts_scale;
     KinBody::LinkPtr link;
   };
 
