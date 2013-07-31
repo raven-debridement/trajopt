@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
   bool stage_plotting = false;
   bool first_step_only = false;
 
-  string data_dir = get_current_directory() + "/../data";
+  string data_dir = get_current_directory(argv) + "/../../data";
 
   {
     Config config;
