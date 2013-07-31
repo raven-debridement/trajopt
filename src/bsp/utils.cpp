@@ -1,5 +1,6 @@
 #include "common.hpp"
 #include "utils.hpp"
+#include <boost/filesystem.hpp>
 #include <stdio.h>  /* defines FILENAME_MAX */
 #ifdef WINDOWS
   #include <direct.h>
@@ -79,12 +80,7 @@ namespace BSP {
     return 1. / (1. + exp(-x));
   }
 
-  string get_current_directory() {
-    char cCurrentPath[FILENAME_MAX];
-    if (!GetCurrentDir(cCurrentPath, sizeof(cCurrentPath))) {
-      throw std::runtime_error("cannot get current path");
-    }
-    return string(cCurrentPath);
+  string get_current_directory(char** argv) {
+    return boost::filesystem::system_complete(argv[0]).parent_path().string();
   }
-
 }
