@@ -79,14 +79,6 @@ namespace BarrettRobotBSP {
     Matrix4d goal_trans;
   };
 
-  class BarrettRobotOptimizerTask : public BSPOptimizerTask,
-                                    public OpenRAVEPlotterMixin<BarrettRobotBSPProblemHelper> {
-  public:
-    BarrettRobotOptimizerTask(QObject* parent=nullptr);
-    BarrettRobotOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
-    int run();
-  };
-
   class BarrettRobotBSPPlanner : public BSPPlanner<BarrettRobotBSPProblemHelper> {
   public:
     void initialize();

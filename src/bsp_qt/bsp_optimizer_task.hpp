@@ -1,8 +1,7 @@
 #pragma once
 
 #include <QtCore>
-#include "common.hpp"
-#include "bsp_problem_helper_base.hpp"
+#include "bsp/bsp_problem_helper_base.hpp"
 
 namespace BSP {
   class BSPOptimizerTask : public QObject {

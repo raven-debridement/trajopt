@@ -365,7 +365,7 @@ namespace ToyBSP {
   }
 
 
-  void ToyOptimizerTask::run() {
+  int ToyOptimizerTask::run() {
     bool plotting = true;
     bool first_step_only = false;
 

@@ -82,14 +82,8 @@ namespace FourLinksRobotBSP {
     RobotAndDOFPtr rad;
     KinBody::LinkPtr link;
     Matrix4d goal_trans;
-  };
 
-  class FourLinksRobotOptimizerTask : public BSPOptimizerTask,
-                                    public OpenRAVEPlotterMixin<FourLinksRobotBSPProblemHelper> {
-  public:
-    FourLinksRobotOptimizerTask(QObject* parent=nullptr);
-    FourLinksRobotOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
-    int run();
+    double sigma_pts_scale;
   };
 
   class FourLinksRobotGoalError : public VectorOfVector {
@@ -110,6 +104,7 @@ namespace FourLinksRobotBSP {
     Vector4d link_lengths;
     Vector3d base_config;
     KinBody::LinkPtr link;
+    double sigma_pts_scale;
   };
 
   typedef boost::shared_ptr<FourLinksRobotBSPPlanner> FourLinksRobotBSPPlannerPtr;

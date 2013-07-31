@@ -1,6 +1,8 @@
 #pragma once
 
 #include "bsp/bsp.hpp"
+#include "bsp_qt/bsp_qt_plotter.hpp"
+#include "bsp_qt/bsp_optimizer_task.hpp"
 #include "geometry_2d.hpp"
 #include <QtCore>
 #include <QImage>
@@ -116,7 +118,7 @@ namespace ToyBSP {
   public:
     ToyOptimizerTask(QObject* parent=nullptr);
     ToyOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
-    virtual void run();
+    int run();
     void stage_plot_callback(boost::shared_ptr<ToyOptPlotter> plotter, OptProb*, DblVec& x);
   };
 

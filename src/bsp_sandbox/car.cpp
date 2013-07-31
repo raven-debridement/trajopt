@@ -554,7 +554,7 @@ namespace CarBSP {
   }
 
 
-  void CarOptimizerTask::run() {
+  int CarOptimizerTask::run() {
     bool plotting = true;
     bool first_step_only = false;
 

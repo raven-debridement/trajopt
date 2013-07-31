@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.hpp"
-#include "belief_collision.hpp"
+#include "collision/collision.hpp"
 #include "belief_collision_plotter_mixin.hpp"
 
 namespace BSP {

@@ -511,7 +511,7 @@ namespace NeedleBSP {
   }
 
 
-  void NeedleOptimizerTask::run() {
+  int NeedleOptimizerTask::run() {
     bool plotting = true;
 
     double start_vec_array[] = {0, 1, 0, 0};

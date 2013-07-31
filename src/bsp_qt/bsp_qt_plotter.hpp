@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.hpp"
-#include "bsp_problem_helper_base.hpp"
+#include "bsp/bsp_problem_helper_base.hpp"
 #include <QtCore>
 #include <QWidget>
 #include <qevent.h>

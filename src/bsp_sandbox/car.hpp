@@ -1,6 +1,8 @@
 #pragma once
 
 #include "bsp/bsp.hpp"
+#include "bsp_qt/bsp_qt_plotter.hpp"
+#include "bsp_qt/bsp_optimizer_task.hpp"
 #include "geometry_2d.hpp"
 #include <QtCore>
 #include <QImage>
@@ -127,7 +129,7 @@ namespace CarBSP {
   public:
     CarOptimizerTask(QObject* parent=nullptr);
     CarOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
-    virtual void run();
+    int run();
     void stage_plot_callback(boost::shared_ptr<CarOptPlotter> plotter, OptProb*, DblVec& x);
   };
 

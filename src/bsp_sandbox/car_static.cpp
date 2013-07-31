@@ -543,7 +543,7 @@ namespace CarBSP {
   }
 
 
-  void CarOptimizerTask::run() {
+  int CarOptimizerTask::run() {
     srand(static_cast<unsigned int>(std::time(0)));
     bool plotting = true;
     bool first_step_only = false;
