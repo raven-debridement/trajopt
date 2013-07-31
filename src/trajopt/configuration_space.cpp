@@ -2,6 +2,8 @@
 #include <boost/foreach.hpp>
 #include "trajopt/rave_utils.hpp"
 #include "utils/math.hpp"
+#include <iostream>
+using namespace std;
 using namespace OpenRAVE;
 using namespace util;
 

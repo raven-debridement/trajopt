@@ -45,18 +45,19 @@ namespace BSP {
   struct OpenRAVEPlotterMixin {
     static void plot_opt_trajectory(boost::shared_ptr<BSPPlannerT> planner, RobotAndDOFPtr rad, OSGViewerPtr viewer, OptProb* prob, DblVec& x, vector<GraphHandlePtr>* handles) {
       assert (handles != nullptr);
-      BOOST_FOREACH(CostPtr& cost, prob->getCosts()) {
-        if (Plotter* plotter = dynamic_cast<Plotter*>(cost.get())) {
-          plotter->Plot(x, *(rad->GetEnv()), *handles);
-        }
-      }
-      vector<ConstraintPtr> constraints = prob->getConstraints();
-      BOOST_FOREACH(ConstraintPtr& cnt, constraints) {
-        if (Plotter* plotter = dynamic_cast<Plotter*>(cnt.get())) {
-          plotter->Plot(x, *(rad->GetEnv()), *handles);
-        }
-      }
+      //BOOST_FOREACH(CostPtr& cost, prob->getCosts()) {
+      //  if (Plotter* plotter = dynamic_cast<Plotter*>(cost.get())) {
+      //    plotter->Plot(x, *(rad->GetEnv()), *handles);
+      //  }
+      //}
+      //vector<ConstraintPtr> constraints = prob->getConstraints();
+      //BOOST_FOREACH(ConstraintPtr& cnt, constraints) {
+      //  if (Plotter* plotter = dynamic_cast<Plotter*>(cnt.get())) {
+      //    plotter->Plot(x, *(rad->GetEnv()), *handles);
+      //  }
+      //}
       for (int i = 0; i <= planner->helper->T; ++i) {
+        cout << "dof: " << getVec(x, planner->helper->state_vars.row(i)).transpose() << endl;
         rad->SetDOFValues(toDblVec(getVec(x, planner->helper->state_vars.row(i))));
         handles->push_back(viewer->PlotKinBody(rad->GetRobot()));
         SetTransparency(handles->back(), .35);
@@ -84,4 +85,23 @@ namespace BSP {
       viewer->Idle();
     }
   };
+
+  template <class BSPPlannerT>
+  bool is_sim_trajectory_in_collision(boost::shared_ptr<BSPPlannerT> planner, RobotAndDOFPtr rad, EnvironmentBasePtr env) {
+    auto cc = BulletCollisionChecker::GetOrCreate(*env);
+    TrajArray traj(planner->simulated_positions.size(), planner->simulated_positions[0].size());
+    for (int i = 0; i < planner->simulated_positions.size(); ++i) {
+      traj.row(i) = planner->simulated_positions[i];
+    }
+    vector<Collision> collisions;
+    cc->ContinuousCheckTrajectory(traj, *rad, collisions);
+    return collisions.size() > 0;
+    //for (int i = 0; i < collisions.size(); ++i) {
+    //  cout << collisions[i].distance << endl;
+    //  if (collisions[i].distance < 0) {
+    //    return true;
+    //  }
+    //}
+    //return false;
+  }
 }

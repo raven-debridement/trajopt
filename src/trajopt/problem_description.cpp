@@ -578,8 +578,6 @@ RobotAndDOFPtr RADFromName(const string& name, RobotBasePtr robot) {
     }
     
     else PRINT_AND_THROW( boost::format("error in reading manip description: %s must be a manipulator, link, or 'base'")%component );
-    cout << "component: " << component << endl;
-    cout << "affine dofs: " << affinedofs << endl;
   }
   return RobotAndDOFPtr(new RobotAndDOF(robot, dof_inds, affinedofs, rotationaxis));
 }
