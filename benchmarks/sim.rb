@@ -18,8 +18,8 @@ options = [
   Parallel.each(sigmas.product(noise_levels, options), :in_threads => 8) do |sigma, noise_level, options|
     open_loop = options[:open_loop]
     use_lqr = options[:use_lqr]
-    command = "time ../build/bin/four_links_robot_sim --sigma_pts_scale=#{sigma} --noise_level=#{noise_level} --seed=#{seed} --open_loop=#{open_loop} --use_lqr=#{use_lqr} 2>&1"
-    result = `#{command}`#time ../build/bin/four_links_robot --sigma_pts_scale=#{sigma} --noise_level=#{noise_level} --seed=#{seed} --open_loop=#{open_loop} --use_lqr=#{use_lqr} 2>&1`
+    command = "time ../build/bin/four_links_robot_sim --initial_controls_path=../build/controls/control_#{sigma} --sigma_pts_scale=#{sigma} --noise_level=#{noise_level} --seed=#{seed} --open_loop=#{open_loop} --use_lqr=#{use_lqr} 2>&1"
+    result = `#{command}`
     Record.create! sigma: sigma, noise_level: noise_level, seed: seed, result: result, open_loop: !open_loop.zero?, use_lqr: !use_lqr.zero?, command: command
   end
 end

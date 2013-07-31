@@ -33,8 +33,8 @@ namespace FourLinksRobotBSP {
     opt.max_merit_coeff_increases_  = 5;
     //opt.trust_shrink_ratio_         = .1;
     opt.trust_shrink_ratio_         = .8;
-    opt.trust_expand_ratio_         = 1.5;
-    //opt.trust_expand_ratio_         = 1.2;
+    //opt.trust_expand_ratio_         = 1.5;
+    opt.trust_expand_ratio_         = 1.2;
     opt.min_trust_box_size_         = 1e-4;
     opt.min_approx_improve_         = 1e-4;
     opt.min_approx_improve_frac_    = -INFINITY;
@@ -206,6 +206,8 @@ int main(int argc, char *argv[]) {
   cout << "seed: " << seed << endl;
 
   string data_dir = get_current_directory(argv) + "/../../data";
+  string initial_controls_path;
+  string output_controls_path;
 
   {
     Config config;
@@ -220,6 +222,8 @@ int main(int argc, char *argv[]) {
     config.add(new Parameter<double>("sigma_pts_scale", &sigma_pts_scale, "sigma_pts_scale"));
     config.add(new Parameter<int>("seed", &seed, "seed"));
     config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
+    config.add(new Parameter<string>("initial_controls_path", &initial_controls_path, "initial_controls_path"));
+    config.add(new Parameter<string>("output_controls_path", &output_controls_path, "output_controls_path"));
     CommandParser parser(config);
     parser.read(argc, argv, true);
   }
@@ -245,9 +249,26 @@ int main(int argc, char *argv[]) {
 
   //Vector4d start(-PI/4, 0, 0, 0);
   Matrix4d start_sigma = Vector4d(0.001, 0.02, 0.03, 0.05).asDiagonal();//Matrix4d::Identity() * 0.01;
+
   deque<Vector4d> initial_controls;
-  for (int i = 0; i < T; ++i) {
-    initial_controls.push_back(Vector4d::Zero());
+  if (initial_controls_path.length() > 0) {
+    ifstream control_file(initial_controls_path, ifstream::in);
+    if (!control_file.is_open()) {
+      cout << "error while loading initial controls!" << endl;
+      RaveDestroy();
+      exit(1);
+    }
+    for (int i = 0; i < T; ++i) {
+      Vector4d current_control;
+      for (int j = 0; j < 4; ++j) {
+        control_file >> current_control(j);
+      }
+      initial_controls.push_back(current_control);
+    }
+  } else {
+    for (int i = 0; i < T; ++i) {
+      initial_controls.push_back(Vector4d::Zero());
+    }
   }
 
   Vector2d goal_pos(3.5, -3);
@@ -285,8 +306,23 @@ int main(int argc, char *argv[]) {
                                planner, planner->helper->rad, viewer, _1, _2);
   }
 
+  bool is_first_time = true;
   while (!planner->finished()) {
     planner->solve(opt_callback, 1, 1);
+    if (is_first_time && output_controls_path.length() > 0) {
+      ofstream control_file(output_controls_path, ofstream::out);
+      if (!control_file.is_open()) {
+        cout << "error while writing controls!" << endl;
+        RaveDestroy();
+        exit(1);
+      }
+      for (int i = 0; i < T; ++i) {
+        for (int j = 0; j < 4; ++j) {
+          control_file << planner->controls[i](j);
+          control_file << (j < 3 ? " " : "\n");
+        }
+      }
+    }
     if (stage_result_plotting) {
       OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::stage_plot_callback(planner, planner->helper->rad, viewer, &(*(planner->prob)), planner->result);
     }
@@ -299,6 +335,7 @@ int main(int argc, char *argv[]) {
     if (sim_plotting) {
       OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
     }
+    is_first_time = false;
   }
 
   if (planner->finished()) {
