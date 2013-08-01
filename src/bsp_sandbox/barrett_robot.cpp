@@ -57,9 +57,9 @@ namespace BarrettRobotBSP {
 
   void BarrettRobotBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time) {
     opt.max_iter_                   = 50;
-    opt.merit_error_coeff_          = 10;
+    opt.merit_error_coeff_          = 100;
     opt.merit_coeff_increase_ratio_ = 10;
-    opt.max_merit_coeff_increases_  = 5;
+    opt.max_merit_coeff_increases_  = 4;
     opt.trust_shrink_ratio_         = .1;
     opt.trust_expand_ratio_         = 1.5;
     opt.min_trust_box_size_         = 1e-3;
@@ -176,6 +176,8 @@ int main(int argc, char *argv[]) {
   cout << "seed: " << seed << endl;
 
   string data_dir = get_current_directory(argv) + "/../../data";
+  string initial_controls_path;
+  string output_controls_path;
 
   {
     Config config;
@@ -190,6 +192,8 @@ int main(int argc, char *argv[]) {
     config.add(new Parameter<double>("noise_level", &noise_level, "noise_level"));
     config.add(new Parameter<double>("sigma_pts_scale", &sigma_pts_scale, "sigma_pts_scale"));
     config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
+    config.add(new Parameter<string>("initial_controls_path", &initial_controls_path, "initial_controls_path"));
+    config.add(new Parameter<string>("output_controls_path", &output_controls_path, "output_controls_path"));
     CommandParser parser(config);
     parser.read(argc, argv, true);
   }
@@ -211,6 +215,23 @@ int main(int argc, char *argv[]) {
 
   Vector7d start = initial_trajectory[0];
   Matrix7d start_sigma = Matrix7d::Identity() * 0.22 * 0.22;
+
+  if (initial_controls_path.length() > 0) {
+    ifstream control_file(initial_controls_path, ifstream::in);
+    initial_controls.clear();
+    if (!control_file.is_open()) {
+      cout << "error while loading initial controls!" << endl;
+      RaveDestroy();
+      exit(1);
+    }
+    for (int i = 0; i < T; ++i) {
+      Vector7d current_control;
+      for (int j = 0; j < 7; ++j) {
+        control_file >> current_control(j);
+      }
+      initial_controls.push_back(current_control);
+    }
+  }
 
   Matrix4d goal_trans;
   goal_trans <<  0,  0, 1, 0.6,
@@ -251,20 +272,20 @@ int main(int argc, char *argv[]) {
     if (!is_first_time || (is_first_time && initial_solve)) {
       planner->solve(opt_callback, 1, 1);
     }
-    //if (is_first_time && output_controls_path.length() > 0) {
-    //  ofstream control_file(output_controls_path, ofstream::out);
-    //  if (!control_file.is_open()) {
-    //    cout << "error while writing controls!" << endl;
-    //    RaveDestroy();
-    //    exit(1);
-    //  }
-    //  for (int i = 0; i < T; ++i) {
-    //    for (int j = 0; j < 7; ++j) {
-    //      control_file << planner->controls[i](j);
-    //      control_file << (j < 6 ? " " : "\n");
-    //    }
-    //  }
-    //}
+    if (is_first_time && output_controls_path.length() > 0) {
+      ofstream control_file(output_controls_path, ofstream::out);
+      if (!control_file.is_open()) {
+        cout << "error while writing controls!" << endl;
+        RaveDestroy();
+        exit(1);
+      }
+      for (int i = 0; i < T; ++i) {
+        for (int j = 0; j < 7; ++j) {
+          control_file << planner->controls[i](j);
+          control_file << (j < 6 ? " " : "\n");
+        }
+      }
+    }
     if (stage_result_plotting) {
       OpenRAVEPlotterMixin<BarrettRobotBSPPlanner>::stage_plot_callback(planner, planner->helper->rad, viewer, &(*(planner->prob)), planner->result);
     }
