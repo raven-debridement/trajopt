@@ -18,9 +18,9 @@ namespace FourLinksRobotBSP {
   }
 
   void initialize_viewer(OSGViewerPtr viewer) {
-    osg::Vec3d osg_eye(0, 0, -20);
+    osg::Vec3d osg_eye(3.01305, -3.06721, -24.4959);
     osg::Vec3d osg_center(0, 0, 3);
-    osg::Vec3d osg_up(0, -1, 0);
+    osg::Vec3d osg_up(-0.00524577, -0.993885, 0.110295);
     viewer->m_handler->setTransformation(osg_eye, osg_center, osg_up);
   }
 
@@ -28,9 +28,9 @@ namespace FourLinksRobotBSP {
 
   void FourLinksRobotBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time) {
     opt.max_iter_                   = 500;
-    opt.merit_error_coeff_          = 100;
+    opt.merit_error_coeff_          = 10;
     opt.merit_coeff_increase_ratio_ = 10;
-    opt.max_merit_coeff_increases_  = 4;
+    opt.max_merit_coeff_increases_  = 5;
     opt.trust_shrink_ratio_         = .1;
     //opt.trust_shrink_ratio_         = .8;
     opt.trust_expand_ratio_         = 1.5;
@@ -193,6 +193,12 @@ namespace FourLinksRobotBSP {
 
 using namespace FourLinksRobotBSP;
 
+void sim_plot_callback(boost::shared_ptr<FourLinksRobotBSPPlanner> planner, RobotAndDOFPtr rad, OSGViewerPtr viewer) {
+  vector<GraphHandlePtr> handles;
+  OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::plot_sim_trajectory(planner, planner->rad, viewer, &handles);
+  handles.push_back(rad->GetEnv()->drawarrow(OR::Vector(-3, 100, 0), OR::Vector(-3, -100, 0), .025, RaveVectorf(0,1,0,1)));
+  viewer->Idle();
+}
 int main(int argc, char *argv[]) {
   int T = 10;
   bool sim_plotting = false;
@@ -340,14 +346,14 @@ int main(int argc, char *argv[]) {
     }
     if (first_step_only) break;
     if (sim_plotting) {
-      OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
+      sim_plot_callback(planner, planner->rad, viewer);
     }
     is_first_time = false;
   }
 
   if (planner->finished()) {
     if (sim_result_plotting) {
-      OpenRAVEPlotterMixin<FourLinksRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
+      sim_plot_callback(planner, planner->rad, viewer);
     }
     Vector2d pos = planner->helper->angle_to_endpoint_position(planner->simulated_positions.back());
     cout << "distance to goal: " << (pos - planner->goal_pos).norm() << endl;

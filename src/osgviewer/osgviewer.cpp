@@ -489,6 +489,11 @@ void OSGViewer::Idle() {
       usleep(.03*1e6);
     }
     m_idling=false;
+    osg::Vec3d eye, center, up;
+    m_handler->getTransformation(eye, center, up);
+    cout << "eye: " << eye << endl;
+    cout << "center: " << center << endl;
+    cout << "up: " << up << endl;
   }
 }
 

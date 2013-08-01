@@ -72,7 +72,7 @@ namespace BSP {
         if (i == 0 || i == planner->simulated_positions.size() - 1) {
           SetTransparency(handles->back(), 1);
         } else {
-          SetTransparency(handles->back(), 0.35);
+          SetTransparency(handles->back(), 0.25);
         }
       }
     }
