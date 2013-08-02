@@ -23,6 +23,9 @@ Note: When this object is deleted, the constraints and variables it added to the
  */
 class ConvexObjective {
 public:
+  typedef map<Model*, vector<Var> > Model2Vars;
+  typedef map<Model*, vector<Cnt> > Model2Cnts;
+
   ConvexObjective(Model* model) : model_(model) {}
   void addAffExpr(const AffExpr&);
   void addQuadExpr(const QuadExpr&);
@@ -33,10 +36,7 @@ public:
   void addL2Norm(const AffExprVector&);
   void addMax(const AffExprVector&);
   
-  bool inModel() {
-    return model_ != NULL;
-  }
-  void addConstraintsToModel();
+  void addConstraintsToModel(Model* model);
   void removeFromModel();
   double value(const vector<double>& x);
   
@@ -175,12 +175,6 @@ public:
   /** Find closest point to solution vector x that satisfies linear inequality constraints */
   vector<double> getCentralFeasiblePoint(const vector<double>& x);
   vector<double> getClosestFeasiblePoint(const vector<double>& x);
-  /** Some variables are actually increments, meaning that the trust region should be around zero */
-  const vector<bool>& getIncrementMask() {return incmask_;}
-  void setIncrementMask(const vector<bool>& incmask) {incmask_ = incmask;}
-  void setIncremental(const VarVector& vars) {
-    for (int i=0; i < vars.size(); ++i) incmask_[vars[i].var_rep->index] = true;
-  }
 
   vector<ConstraintPtr> getConstraints() const;
   vector<CostPtr>& getCosts() {return costs_;}
@@ -202,7 +196,6 @@ protected:
   vector<CostPtr> costs_;
   vector<ConstraintPtr> eqcnts_;
   vector<ConstraintPtr> ineqcnts_;
-  vector<bool> incmask_;
 
   OptProb(OptProb&);
 };

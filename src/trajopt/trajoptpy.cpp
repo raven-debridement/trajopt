@@ -251,6 +251,10 @@ public:
     EnvironmentBasePtr env = boost::const_pointer_cast<EnvironmentBase>(m_cc->GetEnv());
     m_cc->ExcludeCollisionPair(*GetCppLink(link0, env), *GetCppLink(link1, env));
   }
+  void IncludeCollisionPair(py::object link0, py::object link1) {
+    EnvironmentBasePtr env = boost::const_pointer_cast<EnvironmentBase>(m_cc->GetEnv());
+    m_cc->IncludeCollisionPair(*GetCppLink(link0, env), *GetCppLink(link1, env));
+  }
   PyCollisionChecker(CollisionCheckerPtr cc) : m_cc(cc) {}
 private:
   PyCollisionChecker();
@@ -278,6 +282,9 @@ public:
   PyGraphHandle PlotKinBody(py::object py_kb) {
     return PyGraphHandle(m_viewer->PlotKinBody(GetCppKinBody(py_kb, m_viewer->GetEnv())));
   }
+  PyGraphHandle PlotLink(py::object py_link) {
+    return PyGraphHandle(m_viewer->PlotLink(GetCppLink(py_link, m_viewer->GetEnv())));
+  }
   void SetTransparency(py::object py_kb, float alpha) {
     m_viewer->SetTransparency(GetCppKinBody(py_kb, m_viewer->GetEnv()), alpha);
   }
@@ -288,6 +295,11 @@ public:
     assert(!!m_viewer);
     m_viewer->Idle();
   }
+PyGraphHandle DrawText(std::string text, float x, float y, float fontsize, py::object pycolor) {
+    OpenRAVE::Vector color = OpenRAVE::Vector(py::extract<float>(pycolor[0]), py::extract<float>(pycolor[1]), py::extract<float>(pycolor[2]), py::extract<float>(pycolor[3]));
+    return PyGraphHandle(m_viewer->drawtext(text, x, y, fontsize, color));
+  }
+  
 private:
   OSGViewerPtr m_viewer;
   PyOSGViewer() {}
@@ -336,6 +348,7 @@ BOOST_PYTHON_MODULE(ctrajoptpy) {
       .def("BodyVsAll", &PyCollisionChecker::BodyVsAll)
       .def("PlotCollisionGeometry", &PyCollisionChecker::PlotCollisionGeometry)
       .def("ExcludeCollisionPair", &PyCollisionChecker::ExcludeCollisionPair)
+      .def("IncludeCollisionPair", &PyCollisionChecker::IncludeCollisionPair)
       ;
   py::def("GetCollisionChecker", &PyGetCollisionChecker);
   py::class_<PyCollision>("Collision", py::no_init)
@@ -349,9 +362,11 @@ BOOST_PYTHON_MODULE(ctrajoptpy) {
      .def("UpdateSceneData", &PyOSGViewer::UpdateSceneData)
      .def("Step", &PyOSGViewer::Step)
      .def("PlotKinBody", &PyOSGViewer::PlotKinBody)
+     .def("PlotLink", &PyOSGViewer::PlotLink)
      .def("SetTransparency", &PyOSGViewer::SetTransparency)
      .def("SetAllTransparency", &PyOSGViewer::SetAllTransparency)
      .def("Idle", &PyOSGViewer::Idle)
+     .def("DrawText", &PyOSGViewer::DrawText)
     ;
   py::def("GetViewer", &PyGetViewer, "Get OSG viewer for environment or create a new one");
 

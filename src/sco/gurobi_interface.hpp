@@ -45,6 +45,8 @@ public:
 
   VarVector getVars() const;
 
+  ModelPtr cloneModel() const;
+
   ~GurobiModel();
 
 };

@@ -28,7 +28,7 @@ public:
 #endif
 
 
-struct CartPoseErrCalculator : public VectorOfVector {
+struct TRAJOPT_API CartPoseErrCalculator : public VectorOfVector {
   OR::Transform pose_inv_;
   ConfigurationPtr manip_;
   OR::KinBody::LinkPtr link_;
@@ -39,7 +39,7 @@ struct CartPoseErrCalculator : public VectorOfVector {
   VectorXd operator()(const VectorXd& dof_vals) const;
 };
 
-class CartPoseErrorPlotter : public Plotter {
+struct TRAJOPT_API CartPoseErrorPlotter : public Plotter {
   boost::shared_ptr<void> m_calc; //actually points to a CartPoseErrCalculator = CartPoseCost::f_
   VarVector m_vars;
   CartPoseErrorPlotter(boost::shared_ptr<void> calc, const VarVector& vars) : m_calc(calc), m_vars(vars) {}
@@ -47,7 +47,7 @@ class CartPoseErrorPlotter : public Plotter {
 };
 
 
-struct CartVelJacCalculator : MatrixOfVector {
+struct TRAJOPT_API CartVelJacCalculator : MatrixOfVector {
   ConfigurationPtr manip_;
   KinBody::LinkPtr link_;
   double limit_;

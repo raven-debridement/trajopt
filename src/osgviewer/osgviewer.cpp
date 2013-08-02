@@ -1,3 +1,4 @@
+#include "osgviewer.hpp"
 #include <boost/foreach.hpp>
 #include <osg/MatrixTransform>
 #include <osg/ShapeDrawable>
@@ -13,9 +14,11 @@
 #include <osg/BlendFunc>
 #include <osg/io_utils>
 #include <iostream>
+#include <osgDB/ReadFile>
 #include "utils/logging.hpp"
-//#include "openrave_userdata_utils.hpp"
-#include "osgviewer.hpp"
+#include "openrave_userdata_utils.hpp"
+#include <osgText/Font>
+#include <osgText/Text>
 
 using namespace osg;
 using namespace OpenRAVE;
@@ -64,7 +67,9 @@ osg::Drawable* toOsgDrawable(const KinBody::Link::TRIMESH& mesh) {
   return geom;
 }
 
-Node* osgNodeFromGeom(const KinBody::Link::Geometry& geom) {
+osg::Node* osgNodeFromGeom(const KinBody::Link::Geometry& geom) {
+
+
   osg::Geode* geode = new osg::Geode;
 
   switch(geom.GetType()) {
@@ -124,7 +129,29 @@ Node* osgNodeFromGeom(const KinBody::Link::Geometry& geom) {
   osgUtil::SmoothingVisitor sv;
   geode->accept(sv);
 
+//  if (!geom.GetRenderFilename().empty()) {
+//    osg::Node* node = osgDB::readNodeFile(geom.GetRenderFilename());
+//    if (node) {
+//#if 0  // show collision mesh and collision mesh
+//      osg::Group* group = new osg::Group;
+//      group->addChild(node);
+//      group->addChild(geode);
+//      return group;
+//#else 
+//      return node;
+//#endif
+//    }
+//    else {
+//      LOG_ERROR("failed to load graphics mesh %s. Falling back to collision geom", geom.GetRenderFilename().c_str());
+//      return geode;
+//    }
+//  }
+//  else {
   return geode;
+//  }
+
+
+
 }
 MatrixTransform* osgNodeFromLink(const KinBody::Link& link) {
   /* each geom is a child */
@@ -346,10 +373,8 @@ public:
   }
 };
 
-}
-
 KinBodyGroup* GetOsgGroup(KinBody& body) {
-  UserDataPtr rph = body.GetUserData("osg");
+  UserDataPtr rph = trajopt::GetUserData(body, "osg");
   return rph ? static_cast<KinBodyGroup*>(static_cast<RefPtrHolder*>(rph.get())->rp.get())
       : NULL;
 }
@@ -358,11 +383,33 @@ KinBodyGroup* CreateOsgGroup(KinBody& body) {
   LOG_DEBUG("creating graphics for kinbody %s", body.GetName().c_str());
   osg::Node* node = osgNodeFromKinBody(body);
   UserDataPtr rph = UserDataPtr(new RefPtrHolder(node));
-  body.SetUserData("osg", rph);
+  trajopt::SetUserData(body, "osg", rph);
   return static_cast<KinBodyGroup*>(static_cast<RefPtrHolder*>(rph.get())->rp.get());
 }
 
+osg::ref_ptr<osg::Camera> createHUDCamera( double left, double right, double bottom, double top ) {
+  osg::ref_ptr<osg::Camera> camera = new osg::Camera;
+  camera->setReferenceFrame( osg::Transform::ABSOLUTE_RF );
+  camera->setClearMask( GL_DEPTH_BUFFER_BIT );
+  camera->setRenderOrder( osg::Camera::POST_RENDER );
+  camera->setAllowEventFocus( false );
+  camera->setProjectionMatrix(osg::Matrix::ortho2D(left, right, bottom, top) );
+  camera->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF );
+  return camera;
+}
+osg::ref_ptr<osgText::Text> createText( const osg::Vec3& pos, const std::string& content, float size, const osg::Vec4& color ) {
+  // static osg::ref_ptr<osgText::Font> g_font = osgText::readFontFile("fonts/arial.ttf");
+  osg::ref_ptr<osgText::Text> text = new osgText::Text;
+  // text->setFont( g_font.get() );
+  text->setColor(color);
+  text->setCharacterSize( size );
+  text->setAxisAlignment( osgText::TextBase::XY_PLANE );
+  text->setPosition( pos );
+  text->setText( content );
+  return text;
+}
 
+}
 
 bool OSGViewer::EventHandler::handle(const osgGA::GUIEventAdapter &ea, osgGA::GUIActionAdapter &aa) {
     bool suppressDefault = false;
@@ -391,7 +438,7 @@ boost::shared_ptr<OSGViewer> OSGViewer::GetOrCreate(OpenRAVE::EnvironmentBasePtr
     env->AddViewer(viewer);
   }
   else {
-    LOG_INFO("already have a viewer for this environment");
+    LOG_DEBUG("already have a viewer for this environment");
   }
   return boost::dynamic_pointer_cast<OSGViewer>(viewer);
 }
@@ -454,7 +501,7 @@ void OSGViewer::RemoveKinBody(OpenRAVE::KinBodyPtr body) {
   KinBodyGroup* node = GetOsgGroup(*body);
   if (node) {
     m_root->removeChild(node);
-    body->RemoveUserData("osg");
+    trajopt::RemoveUserData(*body, "osg");
   }
   else {
     LOG_ERROR("tried to remove kinbody that does not exist in osg");
@@ -549,8 +596,14 @@ OpenRAVE::GraphHandlePtr OSGViewer::drawarrow(const RaveVectorf& p1, const RaveV
 }
 
 OpenRAVE::GraphHandlePtr OSGViewer::plot3 (const float *ppoints, int numPoints, int stride, float fPointSize, const RaveVector< float > &color, int drawstyle){
+  vector<float> colordata(numPoints*3);
+  for (int i=0; i < numPoints; ++i) {
+    colordata[3*i] = color[0];
+    colordata[3*i+1] = color[1];
+    colordata[3*i+2] = color[2];
+  }
   vector< RaveVectorf > colors(numPoints, color);
-  return plot3(ppoints, numPoints, stride, fPointSize, (float*)colors.data(), drawstyle);
+  return plot3(ppoints, numPoints, stride, fPointSize, colordata.data(), drawstyle);
 }
 
 OpenRAVE::GraphHandlePtr OSGViewer::plot3(const float* ppoints, int numPoints, int stride, float pointsize, const float* colors, int drawstyle, bool bhasalpha) {
@@ -641,6 +694,76 @@ GraphHandlePtr OSGViewer::PlotAxes(const OpenRAVE::Transform& T, float size) {
   AddCylinderBetweenPoints(o, z, size/10, osg::Vec4(0,0,1,1), group, false);
   return GraphHandlePtr(new OsgGraphHandle(group, m_root.get()));
 }
+
+OpenRAVE::GraphHandlePtr OSGViewer::PlotEllipsoid(const osg::Matrix& T, const RaveVectorf& color) {
+  osg::Geode *geode = new osg::Geode;
+
+	TessellationHints* hints = new TessellationHints;
+	hints->setDetailRatio(.5f);
+
+	osg::Sphere* sphere = new osg::Sphere();
+	osg::ShapeDrawable* sphereDrawable = new osg::ShapeDrawable(sphere, hints);
+	geode->addDrawable(sphereDrawable);
+
+	osg::Material* pMaterial = new osg::Material;
+	pMaterial->setDiffuse( osg::Material::FRONT_AND_BACK, toOsgVec4(color));
+	geode->getOrCreateStateSet()->setAttribute( pMaterial, osg::StateAttribute::OVERRIDE );
+
+	osg::MatrixTransform* mt = new osg::MatrixTransform(T);
+
+	mt->addChild(geode);
+
+	return GraphHandlePtr(new OsgGraphHandle(mt, m_root.get()));
+}
+
+
+OpenRAVE::GraphHandlePtr OSGViewer::PlotEllipseXYContour(const osg::Matrix& T, const RaveVectorf& color, bool dotted) {
+	osg::Geometry* geometry = new osg::Geometry;
+
+	const int num_lines = 360;
+	const float line_ind_to_rad = 2*3.14159/num_lines;
+
+	// set up vertices
+	osg::Vec3Array* vertices = new osg::Vec3Array(num_lines*2);
+	geometry->setVertexArray(vertices);
+	if (!dotted) {
+		vertices->resize(num_lines*2);
+		int i;
+		for (i=0; i<num_lines-1; i++) {
+			(*vertices)[2*i].set(cos(line_ind_to_rad * i), sin(line_ind_to_rad * i), 0);
+			(*vertices)[2*i+1].set(cos(line_ind_to_rad * (i+1)), sin(line_ind_to_rad * (i+1)), 0);
+		}
+		(*vertices)[2*i].set((*vertices)[2*i-1]);
+		(*vertices)[2*i+1].set((*vertices)[0]);
+	} else {
+		vertices->resize(num_lines);
+		for (int i=0; i<num_lines; i++) {
+			(*vertices)[i].set(cos(line_ind_to_rad * i), sin(line_ind_to_rad * i), 0);
+		}
+	}
+
+	// set up colours
+	osg::Vec4Array* colors = new osg::Vec4Array();
+	colors->push_back(toOsgVec4(color));
+	geometry->setColorArray(colors);
+	geometry->setColorBinding(osg::Geometry::BIND_OVERALL);
+
+	// set up the primitive set to draw lines
+	geometry->addPrimitiveSet(new osg::DrawArrays(osg::PrimitiveSet::LINES,0,vertices->size()));
+
+	geometry->setUseDisplayList(false);
+
+	osg::Geode* geode = new osg::Geode;
+	geode->addDrawable(geometry);
+	geode->getOrCreateStateSet()->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+
+	osg::MatrixTransform* mt = new osg::MatrixTransform(T);
+	mt->addChild(geode);
+
+	return GraphHandlePtr(new OsgGraphHandle(mt, m_root.get()));
+}
+
+
 GraphHandlePtr OSGViewer::PlotSphere(const OpenRAVE::Vector& pt, float radius) {
   osg::Geode* geode = new osg::Geode;
   osg::Sphere* sphere = new osg::Sphere(toOsgVec3(pt), radius);
@@ -667,7 +790,6 @@ OpenRAVE::GraphHandlePtr OSGViewer::drawtrimesh (const float *ppoints, int strid
   else {
     int nverts = *std::max_element(pIndices, pIndices + numTriangles * 3) + 1;
     vec->resize(nverts);
-    cout << "number of vertices: " << nverts << endl;
     for (int i = 0; i < nverts; ++i) {
       const float* p = ppoints + i*stride/sizeof(float);
       points[i].set(p[0], p[1], p[2]);
@@ -758,4 +880,17 @@ OpenRAVE::GraphHandlePtr  OSGViewer::drawlinestrip(const float *ppoints,  int nu
 }
 OpenRAVE::GraphHandlePtr  OSGViewer::drawlinelist(const float *ppoints,  int numPoints, int stride, float fwidth, const RaveVectorf &color) {
   return _drawlines(osg::PrimitiveSet::LINES, ppoints, numPoints, stride, fwidth, color);
+}
+
+
+OpenRAVE::GraphHandlePtr OSGViewer::drawtext(const std::string& text, float x, float y, float fontsize, const OpenRAVE::Vector& color) {
+  osg::ref_ptr<osg::Geode> textGeode = new osg::Geode;
+  textGeode->addDrawable( createText(osg::Vec3(x, y, 0.0f),text,fontsize, toOsgVec4(color)));
+  if (!m_hudcam) {
+    m_hudcam = createHUDCamera(0, 1024, 0, 768);
+    m_root->addChild(m_hudcam);
+  }
+  return GraphHandlePtr(new OsgGraphHandle(textGeode, m_hudcam.get()));
+
+    
 }

@@ -1,7 +1,11 @@
+#pragma once
+
 #include "trajopt/common.hpp"
 #include "json_marshal.hpp"
 #include "utils/default_map.hpp"
 #include <boost/function.hpp>
+#include <boost/shared_ptr.hpp>
+#include "traj_plotter.hpp"
 
 namespace sco{struct OptResults;}
 
@@ -64,13 +68,18 @@ public:
   void SetInitTraj(const TrajArray& x) {m_init_traj = x;}
   TrajArray GetInitTraj() {return m_init_traj;}
 
+  TrajPlotterPtr GetPlotter() {return m_trajplotter;}
+
   friend TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo&);
+
 private:
   VarArray m_traj_vars;
   ConfigurationPtr m_rad;
   TrajArray m_init_traj;
-  typedef std::pair<string,string> StringPair;
+  TrajPlotterPtr m_trajplotter;
 };
+
+void TRAJOPT_API SetupPlotting(TrajOptProb& prob, Optimizer& opt);
 
 struct TRAJOPT_API TrajOptResult {
   vector<string> cost_names, cnt_names;
@@ -190,12 +199,12 @@ struct JointPosCostInfo : public TermInfo, public MakesCost {
 /**
  \brief Motion constraint on link
 
- Constrains the change in position of the link in each timestep to be less than distance_limit
+ Constrains the change in position of the link in each timestep to be less than max_displacement
  */
 struct CartVelCntInfo : public TermInfo, public MakesConstraint {
   int first_step, last_step;
   KinBody::LinkPtr link;
-  double distance_limit;
+  double max_displacement;
   void fromJson(const Value& v);
   void hatch(TrajOptProb& prob);
   DEFINE_CREATE(CartVelCntInfo)
@@ -245,6 +254,8 @@ struct CollisionCostInfo : public TermInfo, public MakesCost {
   bool continuous;
   std::vector<Str2Dbl> tag2coeffs;
   std::vector<Str2Dbl> tag2dist_pen;
+  /// for continuous-time penalty, use swept-shape between timesteps t and t+gap (gap=1 by default)
+  int gap;
   void fromJson(const Value& v);
   void hatch(TrajOptProb& prob);
   DEFINE_CREATE(CollisionCostInfo)
@@ -265,4 +276,6 @@ struct JointConstraintInfo : public TermInfo, public MakesConstraint {
   DEFINE_CREATE(JointConstraintInfo)
 };
 
+
+TRAJOPT_API RobotAndDOFPtr RADFromName(const string& name, OpenRAVE::RobotBasePtr robot);
 }

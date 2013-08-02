@@ -16,19 +16,26 @@ typedef std::vector< std::pair<string, string> > NamePairs;
 
 typedef DefaultMap<string, double> Str2Dbl;
 
-struct CollisionEvaluator {
-  virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights, NamePairs& bodyNames) = 0;
-  virtual void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights, NamePairs& bodyNames) = 0;
+struct TRAJOPT_API CollisionEvaluator {
+  virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, NamePairs& bodyNames) = 0;
+  virtual void CalcDists(const DblVec& x, DblVec& exprs, NamePairs& bodyNames) = 0;
   virtual void CalcCollisions(const DblVec& x, vector<Collision>& collisions) = 0;
-  void GetCollisionsCached(const DblVec& x, vector<Collision>&);
+  virtual void GetCollisionsCached(const DblVec& x, vector<Collision>&);
+  virtual void CollisionsToDistances(const vector<Collision>& collisions, const Link2Int& m_link2ind,
+    DblVec& dists, NamePairs& bodyNames);
+  virtual void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad,
+    const Link2Int& link2ind, const VarVector& vars, const DblVec& dofvals, vector<AffExpr>& exprs, bool isTimestep1, NamePairs& bodyNames);
+  virtual void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad, const Link2Int& link2ind,
+    const VarVector& vars0, const VarVector& vars1, const DblVec& vals0, const DblVec& vals1,
+    vector<AffExpr>& exprs, NamePairs& bodyNames);
   virtual ~CollisionEvaluator() {}
   virtual VarVector GetVars()=0;
 
-  Cache<double, vector<Collision>, 3> m_cache;
+  Cache<size_t, vector<Collision>, 3> m_cache;
 };
 typedef boost::shared_ptr<CollisionEvaluator> CollisionEvaluatorPtr;
 
-struct SingleTimestepCollisionEvaluator : public CollisionEvaluator {
+struct TRAJOPT_API SingleTimestepCollisionEvaluator : public CollisionEvaluator {
 public:
   SingleTimestepCollisionEvaluator(ConfigurationPtr rad, const VarVector& vars);
   /**
@@ -36,15 +43,12 @@ public:
   
   Do a collision check between robot and environment.
   For each contact generated, return a linearization of the signed distance function
-  Since the collision checker may return multiple contact points for a given pair of links,
-  the contacts are associated with weights so that each pair of links are associated with a single cost term.
-  In particular, if a pair of bodies have k contacts, then the contacts each have weight 1/k.
   */
-  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights, NamePairs& bodyNames); 
+  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, NamePairs& bodyNames); 
   /**
    * Same as CalcDistExpressions, but just the distances--not the expressions
    */
-  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights, NamePairs& bodyNames); 
+  void CalcDists(const DblVec& x, DblVec& exprs, NamePairs& bodyNames); 
   void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
   VarVector GetVars() {return m_vars;}
 
@@ -60,8 +64,8 @@ public:
 struct CastCollisionEvaluator : public CollisionEvaluator {
 public:
   CastCollisionEvaluator(ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
-  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, DblVec& weights, NamePairs& bodyNames);
-  void CalcDists(const DblVec& x, DblVec& exprs, DblVec& weights, NamePairs& bodyNames);
+  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, NamePairs& bodyNames);
+  void CalcDists(const DblVec& x, DblVec& exprs, NamePairs& bodyNames);
   void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
   VarVector GetVars() {return concat(m_vars0, m_vars1);}
   
@@ -80,7 +84,7 @@ public:
 };
 
 
-class TRAJOPT_API CollisionCost : public Cost {
+class TRAJOPT_API CollisionCost : public Cost, public Plotter {
 public:
   /* constructor for single timestep */
   CollisionCost(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars);
@@ -88,7 +92,8 @@ public:
   CollisionCost(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
   virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
   virtual double value(const vector<double>&);
-private:
+  void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
+protected:
   CollisionEvaluatorPtr m_calc;
   double m_dist_pen;
   double m_coeff;
@@ -101,7 +106,8 @@ public:
   CollisionConstraint(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
   virtual ConvexConstraintsPtr convex(const vector<double>& x, Model* model);
   virtual DblVec value(const vector<double>&);
-private:
+  void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
+protected:
   CollisionEvaluatorPtr m_calc;
   double m_dist_pen;
   double m_coeff;

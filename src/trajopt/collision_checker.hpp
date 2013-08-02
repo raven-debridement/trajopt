@@ -9,14 +9,23 @@
 
 namespace trajopt {
 
-struct Collision {
+enum CastCollisionType {
+  CCType_None,
+  CCType_Time0,
+  CCType_Time1,
+  CCType_Between
+};
+
+struct TRAJOPT_API Collision {
   const OR::KinBody::Link* linkA;
   const OR::KinBody::Link* linkB;
   OR::Vector ptA, ptB, normalB2A; /* normal points from 2 to 1 */
+  OR::Vector ptB1;
   double distance; /* pt1 = pt2 + normal*dist */
   float weight, time;
+  CastCollisionType cctype;
   Collision(const KinBody::Link* linkA, const KinBody::Link* linkB, const OR::Vector& ptA, const OR::Vector& ptB, const OR::Vector& normalB2A, double distance, float weight=1, float time=0) :
-    linkA(linkA), linkB(linkB), ptA(ptA), ptB(ptB), normalB2A(normalB2A), distance(distance), weight(weight), time(0) {}
+    linkA(linkA), linkB(linkB), ptA(ptA), ptB(ptB), normalB2A(normalB2A), distance(distance), weight(weight), time(0), cctype(CCType_None) {}
 };
 TRAJOPT_API std::ostream& operator<<(std::ostream&, const Collision&);
 
@@ -58,6 +67,7 @@ public:
 
   /** Prevent this pair of links from colliding */
   virtual void ExcludeCollisionPair(const KinBody::Link& link0, const KinBody::Link& link1) = 0;
+  virtual void IncludeCollisionPair(const KinBody::Link& link0, const KinBody::Link& link1) = 0;
 
 
   OpenRAVE::EnvironmentBaseConstPtr GetEnv() {return m_env;}

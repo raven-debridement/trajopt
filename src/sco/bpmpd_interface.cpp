@@ -208,7 +208,8 @@ int gPipeIn=0, gPipeOut=0;
 void fexit() {
   char text[1] = {EXIT_CHAR};
   int n = write(gPipeIn, text, 1);
-  assert(n==1);
+  ALWAYS_ASSERT(n==1);
+  
 }
 
 BPMPDModel::BPMPDModel() : m_pipeIn(0), m_pipeOut(0) {  
@@ -327,11 +328,7 @@ CvxOptStatus BPMPDModel::optimize() {
          
   int n = m_vars.size();
   int m = m_cnts.size();
-  int code; // retcode
-  int memsiz = 0;
-  
-  double opt;
-  
+    
   vector<int> acolcnt(n), acolidx, qcolcnt(n), qcolidx, status(m+n);
   vector<double> acolnzs, qcolnzs, rhs(m), obj(n,0), lbound(m+n), ubound(m+n), primal(m+n), dual(m+n);
   
@@ -489,6 +486,29 @@ void BPMPDModel::writeToFile(const string& fname) {
 }
 VarVector BPMPDModel::getVars() const {
   return m_vars;
+}
+
+vector<double> BPMPDModel::getLowerBounds() const {
+  return m_lbs;
+}
+
+vector<double> BPMPDModel::getUpperBounds() const {
+  return m_ubs;
+}
+
+ModelPtr BPMPDModel::cloneModel() const {
+  boost::shared_ptr<BPMPDModel> model(new BPMPDModel());
+  model->m_vars = m_vars;
+  model->m_cnts = m_cnts;
+  model->m_cntExprs = m_cntExprs;
+  model->m_soln = m_soln;
+  model->m_lbs = m_lbs;
+  model->m_ubs = m_ubs;
+  model->m_objective = m_objective;
+  model->m_pipeIn = m_pipeIn;
+  model->m_pipeOut = m_pipeOut;
+  model->m_pid = m_pid;
+  return model;
 }
 
 }

@@ -70,6 +70,8 @@ public:
 
   virtual VarVector getVars() const=0;
 
+  virtual ModelPtr cloneModel() const { throw std::runtime_error("not implemented"); }
+
   virtual ~Model() {}
 
 };

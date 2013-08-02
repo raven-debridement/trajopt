@@ -71,13 +71,14 @@ void ConvexObjective::addConstraintsToModel() {
   }
 }
 
-void ConvexObjective::removeFromModel() {
+void ConvexObjective::removeFromModels() {
+  cout << "removing from model" << endl;
   model_->removeCnts(cnts_);
   model_->removeVars(vars_);
   model_ = NULL;
 }
 ConvexObjective::~ConvexObjective() {
-  if (inModel()) removeFromModel();
+  removeFromModels();
 }
 
 void ConvexConstraints::addEqCnt(const AffExpr& aff) {
@@ -159,7 +160,6 @@ VarVector OptProb::createVariables(const vector<string>& var_names, const DblVec
     upper_bounds_.push_back(ub[i]);
   }
   model_->update();
-  incmask_.insert(incmask_.end(),n_add, false);
   return VarVector(vars_.end()-n_add, vars_.end());
 }
 void OptProb::setLowerBounds(const vector<double>& lb) {
@@ -221,8 +221,8 @@ vector<double> OptProb::getClosestFeasiblePoint(const vector<double>& x) {
   model_->setObjective(obj);
   CvxOptStatus status = model_->optimize();
   if(status != CVX_SOLVED) {
-    model_->writeToFile("/tmp/fail.lp");
-    PRINT_AND_THROW("couldn't find a feasible point. there's probably a problem with variable bounds (e.g. joint limits). wrote to /tmp/fail.lp");
+    model_->writeToFile("/tmp/fail2.lp");
+    PRINT_AND_THROW("couldn't find a feasible point. there's probably a problem with variable bounds (e.g. joint limits). wrote to /tmp/fail2.lp");
   }
   return model_->getVarValues(vars_);
 }

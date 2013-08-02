@@ -7,10 +7,11 @@
 #include <boost/shared_ptr.hpp>
 #include "utils/stl_to_string.hpp"
 
+namespace po = boost::program_options;
+
 namespace util {
 
 
-namespace po = boost::program_options;
 
 struct ParameterBase {
   std::string m_name;
@@ -56,7 +57,7 @@ struct CommandParser {
   CommandParser(const Config& config) {
     addGroup(config);
   }
-  void read(int argc, char* argv[]);
+  void read(int argc, char* argv[], bool allow_unregistered=false);
 };
 
 }

@@ -1,6 +1,11 @@
 Critical
 =========
 
+create examples of costs in python
+
+documentation on colllision costs, stationary initialization
+documentation on terminal output
+
 unit test collision constraint
 setcontactdistance screws you up if you have multiple collision cost groups
 try self-collisions in continuous collision cost
@@ -9,14 +14,14 @@ RobotAndDOF is a mess now
 
 filtermask arguments in collision_terms
 
+fixed length steps: need a custom constraint + projection
+
 Eventually
 ===========
 
-fix up bpmd interface
+
 
 boost python arguments
-
-voxel grid collision checking. or at least preprocess voxel grid data.
 
 TrajArray/DblMatrix/MatrixXd mean the same thing
 

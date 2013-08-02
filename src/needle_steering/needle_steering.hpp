@@ -1,6 +1,5 @@
 #pragma once
 
-#include "needle_steering.hpp"
 #include "sco/expr_ops.hpp"
 #include "sco/modeling_utils.hpp"
 #include "sco/modeling.hpp"

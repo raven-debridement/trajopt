@@ -16,7 +16,8 @@
 #include <pcl/surface/concave_hull.h>
 #include "pcl/impl/instantiate.hpp"
 #include <boost/filesystem.hpp>
-#if 0
+#include <pcl/features/integral_image_normal.h>
+#if PCL_MINOR_VERSION > 6
 #include <pcl/filters/median_filter.h>
 #include <pcl/filters/fast_bilateral.h>
 #endif
@@ -53,7 +54,7 @@ template<class T>
 void saveCloud(const typename pcl::PointCloud<T>& cloud, const std::string& fname) {
   std::string ext = fs::extension(fname);
   if (ext == ".pcd")   pcl::io::savePCDFileBinary(fname, cloud);
-  else if (ext == ".ply") pcl::io::savePLYFile(fname, cloud, true);
+  else if (ext == ".ply") PRINT_AND_THROW("not implemented");//pcl::io::savePLYFile(fname, cloud, true);
   else throw std::runtime_error( (boost::format("%s has unrecognized extension")%fname).str() );
 }
 
@@ -125,6 +126,20 @@ PointCloud<pcl::PointNormal>::Ptr mlsAddNormals(PointCloud<pcl::PointXYZ>::Const
   mls.setSearchRadius (0.04);
   mls.process (*cloud_with_normals);
   return cloud_with_normals;
+}
+
+
+PointCloud<pcl::Normal>::Ptr integralNormalEstimation(PointCloud<pcl::PointXYZ>::ConstPtr in, float maxDepthChangeFactor, float normalSmoothingSize) {
+  pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
+
+  pcl::IntegralImageNormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+  ne.setNormalEstimationMethod (ne.AVERAGE_3D_GRADIENT);
+  ne.setMaxDepthChangeFactor(maxDepthChangeFactor);
+  ne.setNormalSmoothingSize(normalSmoothingSize);
+  
+  ne.setInputCloud(in);
+  ne.compute(*normals);
+  return normals;
 }
 #if 0
 pcl::PolygonMesh::Ptr createMesh_MarchingCubes(PointCloud<pcl::PointNormal>::ConstPtr cloud_with_normals) {
@@ -272,7 +287,7 @@ typename pcl::PointCloud<T>::Ptr maskFilter(typename pcl::PointCloud<T>::ConstPt
 
 template <class T>
 typename pcl::PointCloud<T>::Ptr medianFilter(typename pcl::PointCloud<T>::ConstPtr in, int windowSize, float maxAllowedMovement) {
-#if 0
+#if PCL_MINOR_VERSION > 6
   pcl::MedianFilter<T> mf;
   mf.setWindowSize(windowSize);
   mf.setMaxAllowedMovement(maxAllowedMovement);
@@ -287,7 +302,7 @@ typename pcl::PointCloud<T>::Ptr medianFilter(typename pcl::PointCloud<T>::Const
 
 template <class T>
 typename pcl::PointCloud<T>::Ptr fastBilateralFilter(typename pcl::PointCloud<T>::ConstPtr in, float sigmaS, float sigmaR) {
-#if 0
+#if PCL_MINOR_VERSION > 6
   pcl::FastBilateralFilter<T> mf;
   mf.setSigmaS(sigmaS);
   mf.setSigmaR(sigmaR);

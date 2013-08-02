@@ -42,7 +42,6 @@ request = {
   {
     "type" : "joint_vel", # joint-space velocity cost
     "params": {"coeffs" : [1]} # a list of length one is automatically expanded to a list of length n_dofs
-    # Also valid: "coeffs" : [7,6,5,4,3,2,1]
   },
   {
     "type" : "collision",
@@ -61,12 +60,7 @@ request = {
     "params" : {"xyz" : xyz_target, 
                 "wxyz" : quat_target, 
                 "link": "r_gripper_tool_frame",
-		"pos_coeffs" : [20,20,20],
-		"rot_coeffs" : [0,0,0] if args.position_only else [20,20,20]
-                # "timestep" : 9
-                # omitted because timestep = n_steps-1 is default
-                # "pos_coeffs" : [1,1,1], # omitted because that's default
-               # "rot_coeffs" : ([0,0,0] if args.position_only else [1,1,1])
+                "timestep" : 9
                 }
                  
   }
@@ -79,6 +73,9 @@ request = {
   }
   # END init
 }
+
+if args.position_only: request["constraints"][0]["params"]["rot_coeffs"] = [0,0,0]
+
 s = json.dumps(request) # convert dictionary into json-formatted string
 prob = trajoptpy.ConstructProblem(s, env) # create object that stores optimization problem
 result = trajoptpy.OptimizeProblem(prob) # do optimization

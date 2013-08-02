@@ -20,6 +20,9 @@ build
 .nfs*
 chromedriver.log
 *.swp
+*.swo
+*.swn
+*.swm
 tooltip/bin/data
 Testing/
 .svn

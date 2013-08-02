@@ -14,7 +14,7 @@ set(SCO_SOURCE_FILES
 )
 
 if (NOT APPLE)
-  set (HAVE_BPMPD TRUE)
+  set (HAVE_BPMPD FALSE)
 endif()
 
 
@@ -30,7 +30,12 @@ if (HAVE_BPMPD)
   target_link_libraries(bpmpd_caller ${BPMPD_LIBRARY})
   list(APPEND SCO_SOURCE_FILES bpmpd_interface.cpp)  
   set_property(SOURCE bpmpd_interface.cpp APPEND PROPERTY COMPILE_DEFINITIONS BPMPD_CALLER="\\\"${CMAKE_BINARY_DIR}/bin/bpmpd_caller\\\"")
- 
+
+
+  set(BPMPD_WORKING_DIR ${CMAKE_CURRENT_BINARY_DIR})
+  set_property(SOURCE bpmpd_caller.cpp APPEND PROPERTY COMPILE_DEFINITIONS BPMPD_WORKING_DIR="${BPMPD_WORKING_DIR}")
+  file(COPY bpmpd.par ${CMAKE_CURRENT_SOURCE_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
   set_property(SOURCE solver_interface.cpp APPEND PROPERTY COMPILE_DEFINITIONS HAVE_BPMPD )
 endif()
 
@@ -44,8 +49,15 @@ add_library(sco
 )
 
 
+set (SCO_LINK_LIBS utils)
+if (GUROBI_FOUND)  
+  list(APPEND SCO_LINK_LIBS ${GUROBI_LIBRARIES}) 
+endif()
+if (HAVE_BPMPD) 
+  list(APPEND SCO_LINK_LIBS ${BPMPD_LIBRARY})
+endif()
 
-target_link_libraries(sco ${GUROBI_LIBRARIES} utils )
+target_link_libraries(sco ${SCO_LINK_LIBS})
 
 
 add_subdirectory(test)

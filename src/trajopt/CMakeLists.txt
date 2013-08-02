@@ -6,9 +6,13 @@ include_directories(
   ${OpenRAVE_INCLUDE_DIRS}
   ${JSON_INCLUDE_DIRS}
 )
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
+
+if (NOT APPLE)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
+endif()
 
 add_library(trajopt
+	traj_plotter.cpp
   trajectory_costs.cpp
 	kinematic_terms.cpp 
 	collision_terms.cpp
@@ -28,6 +32,5 @@ add_subdirectory(test)
 
 include_directories(${PYTHON_NUMPY_INCLUDE_DIR})
 boost_python_module(ctrajoptpy trajoptpy.cpp)
-target_link_libraries(ctrajoptpy trajopt ${Boost_SYSTEM_LIBRARY} )
-
+target_link_libraries(ctrajoptpy trajopt ${Boost_SYSTEM_LIBRARY} ${OpenRAVE_BOTH_LIBRARIES})
 

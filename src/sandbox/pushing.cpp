@@ -1,21 +1,28 @@
 #include <openrave-core.h>
 #include <openrave/openrave.h>
+#include <boost/assign.hpp>
 
 #include "trajopt/problem_description.hpp"
 #include "trajopt/kinematic_terms.hpp"
 #include "trajopt/rave_utils.hpp"
 #include "trajopt/utils.hpp"
+#include "trajopt/trajectory_costs.hpp"
 #include "utils/eigen_conversions.hpp"
 #include "sco/expr_op_overloads.hpp"
 #include "sco/optimizers.hpp"
 #include "quat_ops.hpp"
-#include <boost/assign.hpp>
 #include "dynamics_utils.hpp"
 #include "sco/modeling_utils.hpp"
 #include "osgviewer/osgviewer.hpp"
 #include "trajopt/collision_terms.hpp"
 #include "utils/stl_to_string.hpp"
 #include "utils/config.hpp"
+#include "o3.hpp"
+#include "static_object.hpp"
+#include "incremental_rb.hpp"
+#include "utils/logging.hpp"
+#include "composite_config.hpp"
+#include "sco/expr_ops.hpp"
 using namespace boost::assign;
 using namespace OpenRAVE;
 using namespace trajopt;
@@ -30,37 +37,8 @@ extern void PolygonToEquations(const MatrixX2d& pts, MatrixX2d& ab,VectorXd& c);
 double mu = 1; // TODO make it a parameter
 bool idle = false;
 bool constrain_all_poses = true;
+int nSteps=10;
 
-
-
-class AngVelCost: public Cost {
-public:
-  AngVelCost(const MatrixXd& q, const VarArray& r, double coeff) :
-      q_(q), r_(r), coeff_(coeff) {
-  }
-  double value(const DblVec& x) {
-    MatrixXd rvals = getTraj(x, r_);
-    MatrixXd qnew(q_.rows(), q_.cols());
-    for (int i = 0; i < qnew.rows(); ++i) {
-      qnew.row(i) = quatMult(quatExp(rvals.row(i)), q_.row(i));
-    }
-    MatrixXd wvals = getW(qnew, 1);
-    return wvals.array().square().sum()*coeff_;
-  }
-  ConvexObjectivePtr convex(const DblVec& x, Model* model) {
-    ConvexObjectivePtr out(new ConvexObjective(model));
-    MatrixXd wvals = getW(q_, 1);
-    for (int i = 0; i < wvals.rows(); ++i) {
-      for (int j = 0; j < wvals.cols(); ++j) {
-        out->addQuadExpr(exprMult(exprSquare(r_(i + 1, j) - r_(i, j) + wvals(i, j)), coeff_));
-      }
-    }
-    return out;
-  }
-  const MatrixXd& q_;
-  VarArray r_;
-  double coeff_;
-};
 
 
 enum ContactType {
@@ -201,6 +179,12 @@ AffExprVector ForceBalanceConstraint::CalcWrenchExpr(const DblVec& x, Contact& c
   AffExprVector rExprLink = transformExpr(Tlf, rExprFace);  
 
   AffExprVector tExprLink = linearizedCrossProduct(x, rExprLink, fExprLink);
+  // cout << c.m_faceA.link->GetName() << c.m_faceB.link->GetName() << endl;
+  // cout << "rexprlink" << rExprLink[0].value(x) << " " << rExprLink[1].value(x)<< " "<<rExprLink[2].value(x)<< endl;
+  // cout << "rexprface" << rExprFace[0].value(x) << " " << rExprFace[1].value(x)<< " "<<rExprFace[2].value(x)<< endl;
+  // cout << "fexprlink" << fExprLink[0].value(x) << " " << fExprLink[1].value(x)<< " "<<fExprLink[2].value(x)<< endl;
+  // cout << "fexprface" << fExprFace[0].value(x) << " " << fExprFace[1].value(x)<< " "<<fExprFace[2].value(x)<< endl;
+  // cout << "Tlf" << c.m_faceA.Tlf << endl;
 
   return concat(fExprLink, tExprLink);
 }
@@ -300,21 +284,30 @@ VectorXd SlidingFrictionErrorCalc::operator()(const VectorXd& x) const {
   OR::Vector p1world = m_link->GetTransform().trans;
   m_config->SetDOFValues(toDblVec(x.topRows(m_nDof)));
   OR::Vector p0world = m_link->GetTransform().trans;
-  // cout << p1world << " | " <<  p0world << endl;
+  // pppp << p1world << " | " <<  p0world << endl;
   OR::Vector localvel0 = geometry::quatRotate(
     geometry::quatMultiply(geometry::quatInverse(m_face.Tlf.rot), 
                            geometry::quatInverse(m_link->GetTransform().rot)), 
               (p1world - p0world));
   double normvel = sqrtf(localvel0.lengthsqr2());
-  double normf = sqrtf(ffrx*ffrx + ffry*ffry);
+  // double normf = sqrtf(ffrx*ffrx + ffry*ffry);
   Vector2d err;
-  err(0) = normvel * ffrx + m_mu * fn * localvel0[0] ;
-  err(1) = normvel * ffry + m_mu * fn * localvel0[1] ;
-  // printf("%.2f %.2f %.2f %.2f %.2f %.2f\n", ffrx, ffry, fn, localvel0[0], localvel0[1], localvel0[2]);
+  err(0) = normvel * ffrx - m_mu * fn * localvel0[0] ;
+  err(1) = normvel * ffry - m_mu * fn * localvel0[1] ;
   return err;  
 }
 
-
+struct QuadraticCost : public Cost {
+  QuadExpr m_expr;
+  QuadraticCost(const QuadExpr& expr) : m_expr(expr) {}
+  double value(const DblVec& x) {return m_expr.value(x);}
+  ConvexObjectivePtr convex(const DblVec& x, Model* model)  {
+    ConvexObjectivePtr out(new ConvexObjective(model));
+    exprInc(out->quad_, m_expr);
+    return out;
+  }
+  
+};
 
 struct MechanicsProblem: public OptProb {
   int m_nSteps;
@@ -339,7 +332,8 @@ struct MechanicsProblem: public OptProb {
   void AddCollisionCosts(double coeff);
   ConfigurationPtr GetConfig(KinBody::LinkPtr, int timestep);
   VarVector GetDOFVars(KinBody::LinkPtr, int timestep);
-  void Callback(const DblVec&);
+  void Callback(DblVec&);
+  void AnimateSolution(const DblVec& x);
   vector<ContactPtr> GetContacts(KinBody::LinkPtr link, int timestep);
 
 private:
@@ -359,16 +353,15 @@ vector<ContactPtr> MechanicsProblem::GetContacts(KinBody::LinkPtr link, int time
 
 ConfigurationPtr MechanicsProblem::GetConfig(KinBody::LinkPtr link, int timestep) {
   KinBodyPtr body = link->GetParent();
-  if (m_robotConfig->GetRobot()->GetLink(link->GetName())) return m_robotConfig;
+  if (GetLinkMaybeAttached(m_robotConfig->GetRobot(), link->GetName())) return m_robotConfig;
   for (int i=0; i < m_dynBodies.size(); ++i) if (m_dynBodies[i] == body) return m_dynObjConfigs(timestep, i);
   for (int i=0; i < m_staticBodies.size(); ++i) if (m_staticBodies[i] == body) return m_staticObjConfigs[i];
-  assert(0);
   return ConfigurationPtr();
 }
 
 VarVector MechanicsProblem::GetDOFVars(KinBody::LinkPtr link, int timestep) {
   KinBodyPtr body = link->GetParent();
-  if (m_robotConfig->GetRobot()->GetLink(link->GetName())) return m_th.row(timestep);
+  if (GetLinkMaybeAttached(m_robotConfig->GetRobot(), link->GetName())) return m_th.row(timestep);
   for (int i=0; i < m_dynBodies.size(); ++i) if (m_dynBodies[i] == body) return m_obj2posvars[i].row(timestep);
   for (int i=0; i < m_staticBodies.size(); ++i) if (m_staticBodies[i] == body) return VarVector();
   assert(0);
@@ -378,9 +371,9 @@ VarVector MechanicsProblem::GetDOFVars(KinBody::LinkPtr link, int timestep) {
 
 MechanicsProblem::MechanicsProblem(int nSteps, const vector<KinBodyPtr>& dynBodies, const vector<KinBodyPtr>& staticBodies, RobotAndDOFPtr robotConfig) :
     m_nSteps(nSteps),
+    m_robotConfig(robotConfig),
     m_dynBodies(dynBodies),
-    m_staticBodies(staticBodies),
-    m_robotConfig(robotConfig)
+    m_staticBodies(staticBodies)
 {
   m_dynObjConfigs.resize(m_nSteps, dynBodies.size());
   for (int iStep = 0; iStep  < m_nSteps; ++iStep) {
@@ -421,7 +414,6 @@ MechanicsProblem::MechanicsProblem(int nSteps, const vector<KinBodyPtr>& dynBodi
     for (int iStep = 0; iStep < m_nSteps; ++iStep) {
       q.row(iStep) = Vector4d(1, 0, 0, 0).transpose();
     }
-    setIncremental(m_obj2r[iBody].flatten());    
   }
 
 }
@@ -432,6 +424,11 @@ void MechanicsProblem::AddContacts(ContactType ctype, int iFirst, int iLast, con
   for (int iStep=iFirst; iStep <= iLast; ++iStep) {
     int iCP = (ctype == SLIDING) ? iStep : 0;
     AddContact(iStep, faceA, faceB, ptAVars.row(iCP), ptBVars.row(iCP), fnVars(iStep,0), ffrVars.row(iStep));
+    if (ctype==SLIDING) {
+      // addLinearConstraint(ffrVars(iStep,0));
+      // addLinearConstraint(ffrVars(iStep,1));
+    }
+    
   }
   
   if (ctype == SLIDING) {
@@ -443,12 +440,13 @@ void MechanicsProblem::AddContacts(ContactType ctype, int iFirst, int iLast, con
       VarVector compositeDOFVars1 = concat(GetDOFVars(faceA.link, iStep+1), GetDOFVars(faceB.link, iStep+1));
       VarVector vars = concat(compositeDOFVars0, compositeDOFVars1, ptAVars.row(iStep), ffrVars.row(iStep), fnVars.row(iStep));
       VectorOfVectorPtr f(new SlidingFrictionErrorCalc(GetConfig(faceA.link, iStep), mu, faceA));
-      addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, INEQ, "slipfric")));
+      addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, VectorXd::Ones(2), INEQ, "slipfric")));
     }    
   }
 
-  
-  
+  QuadExpr forcesquared;
+  for (int i=0; i < fnVars.size(); ++i) exprInc(forcesquared, exprSquare(fnVars.m_data[i]));
+  addCost(CostPtr(new QuadraticCost(exprMult(forcesquared,.1))));
 }
 
 
@@ -521,7 +519,7 @@ void MechanicsProblem::AddMotionCosts(float jointvel_coeff, float obj_linvel_coe
   for (int i=0; i < m_dynBodies.size(); ++i) {
     // xxx if this is the only usage of m_obj2r, then don't make it
     if (obj_linvel_coeff > 0) addCost(CostPtr(new JointVelCost(m_obj2posvars[i].block(0,0,m_nSteps,3), obj_linvel_coeff*VectorXd::Ones(3) )));
-    if (obj_angvel_coeff > 0) addCost(CostPtr(new AngVelCost(m_obj2q[i], m_obj2r[i], obj_angvel_coeff )));
+    if (obj_angvel_coeff > 0) addCost(CostPtr(new AngVelCost(m_dynObjConfigs.col(i), m_obj2r[i], obj_angvel_coeff )));
   }
 
 }
@@ -566,9 +564,24 @@ void PlotFace(EnvironmentBase& env, const Face& face, vector<OR::GraphHandlePtr>
   handles.push_back(env.drawarrow(centerworld, centerworld + .05*normalworld, .001, OR::RaveVector<float>(1,1,0,1)));
 }
 
+void MechanicsProblem::AnimateSolution(const DblVec& x) {
+  EnvironmentBasePtr env = m_robotConfig->GetEnv();
+  OSGViewerPtr viewer = OSGViewer::GetOrCreate(env);
 
+  for (int iStep=0; iStep < m_nSteps; ++iStep) {
+    m_robotConfig->SetDOFValues(getDblVec(x, m_th.row(iStep)));
+    for (int iObj=0; iObj < m_dynBodies.size(); ++iObj) {
+      DblVec objdofs = getDblVec(x, m_obj2posvars[iObj].row(iStep));
+      m_dynObjConfigs(iStep, iObj)->SetDOFValues(objdofs);
+    }    
+    printf("step %i\n",iStep);
+    viewer->Idle();
+  }
 
-void MechanicsProblem::Callback(const DblVec& x) {
+  
+}
+
+void MechanicsProblem::Callback(DblVec& x) {
 
 
   // Update quats
@@ -580,8 +593,9 @@ void MechanicsProblem::Callback(const DblVec& x) {
       // cout << quatMult(quatExp(rvals.row(iStep)), q.row(iStep)).transpose() << " =?= " << geometry::quatMultiply(geometry::quatFromAxisAngle(toRave(rvals.row(iStep))), toRaveQuat(q.row(iStep))) << endl;
       // cout << quatExp(rvals.row(iStep)).transpose() << " =?= " << OR::geometry::quatFromAxisAngle(toRave(rvals.row(iStep))) << endl;
       m_dynObjConfigs(iStep, iObj)->m_q = toRaveQuat(q.row(iStep));
-      m_dynObjConfigs(iStep, iObj)->m_r = OR::Vector(0,0,0);      
+      m_dynObjConfigs(iStep, iObj)->m_r = OR::Vector(0,0,0);
     }
+    setVec(x, m_obj2r[iObj].flatten(), DblVec(m_obj2r[iObj].size(), 0));
   }
 
 
@@ -646,7 +660,7 @@ void MechanicsProblem::Callback(const DblVec& x) {
 
   BOOST_FOREACH(const ConstraintPtr& cnt, getConstraints()) {
     if (cnt->name()=="slipfric") {
-      // cout << CSTR(cnt->value(x)) << endl;
+      // cout << "slipfric val: " << CSTR(cnt->value(x)) << endl;
     }
   }
 
@@ -676,7 +690,6 @@ void Setup3DOFPush(EnvironmentBasePtr env, boost::shared_ptr<MechanicsProblem>& 
   assert(table);
 
 
-  int nSteps = 10;
   vector<int> robotDofInds; 
   robotDofInds += 0, 1, 2;
   RobotAndDOFPtr robotConfig(new RobotAndDOF(robot, robotDofInds));
@@ -715,7 +728,7 @@ void Setup3DOFPush(EnvironmentBasePtr env, boost::shared_ptr<MechanicsProblem>& 
   prob.reset(new MechanicsProblem(nSteps, dynamicBodies, staticBodies, robotConfig));
 
 //
-  prob->AddContacts(STICKING, 0, nSteps-1, armtip, boxface);
+  prob->AddContacts(STICKING, 0, nSteps-1, boxface, armtip);
   prob->AddContacts(SLIDING, 0, nSteps-1, boxbottom, tabletop);
   prob->AddDynamicsConstraints();
   prob->AddMotionCosts(10,10,10);
@@ -761,18 +774,22 @@ Face GetFace(KinBody::LinkPtr link, const OR::Vector& dir) {
   OR::Vector extents = bb.extents;
   double lens[2];
   int i=-1;
-  int sgn;
+  int sgn=0;
   for (int j=0; j < 3; ++j) if (fabs(dir[j]) > 1e-5) {
     i = j;
     sgn = dir[j];
   }
   assert(i != -1);
-  lens[0] = extents[(i+1)%3];
-  lens[1] = extents[(i+2)%3];
   f.Tlf.rot = geometry::quatRotateDirection(OR::Vector(0,0,1), dir);
+  cout << "dir: " << dir << "tlf.rot: " << f.Tlf.rot << endl;
+  OR::Vector fextents = f.Tlf.inverse()*extents;
+  
   f.Tlf.trans = bb.pos;
   f.Tlf.trans[i] += sgn*extents[i];
-  cout <<link->GetName() << " dir: " << dir << " trans: " << f.Tlf.trans << " rot: " << f.Tlf.rot << endl;
+
+  lens[0] = fextents[0];
+  lens[1] = fextents[1];
+
   f.poly.resize(4,2);
   f.poly << lens[0], lens[1], -lens[0], lens[1], -lens[0], -lens[1], lens[0], -lens[1];
   f.link = link;
@@ -784,18 +801,31 @@ void SetupPR2Push(EnvironmentBasePtr env, boost::shared_ptr<MechanicsProblem>& p
 
   env->Load(string(DATA_DIR) + "/pr2_pushing.env.xml");
 
-  RobotBasePtr robot = GetRobotByName(*env, "pr2");
+  RobotBasePtr robot = GetRobotByName(*env, "pr2");  
+  
   KinBodyPtr box = GetBodyByName(*env, "box");
   KinBodyPtr table = GetBodyByName(*env, "table");
   assert(robot && box && table);
 
-  int nSteps = 10;
-
   RobotAndDOFPtr robotConfig(new RobotAndDOF(robot, GetManipulatorByName(*robot,"rightarm")->GetArmIndices()));
 
-
-  Face finger0 = GetFace(robot->GetLink("r_gripper_l_finger_link"), OR::Vector(0,1,0));
-  Face finger1 = GetFace(robot->GetLink("r_gripper_r_finger_link"), OR::Vector(0,1,0));
+  KinBody::LinkPtr fingerlink0 = robot->GetLink("r_gripper_l_finger_tip_link");
+  KinBody::LinkPtr fingerlink1 = robot->GetLink("r_gripper_r_finger_tip_link");
+  
+  KinBodyPtr fingerbox0 = GetBodyByName(*env, "fingerbox0");
+  KinBodyPtr fingerbox1 = GetBodyByName(*env, "fingerbox1");
+  fingerbox0->SetTransform(fingerlink0->GetTransform());
+  fingerbox1->SetTransform(fingerlink1->GetTransform());
+  robot->Grab(fingerbox0, fingerlink0);
+  robot->Grab(fingerbox1, fingerlink1);    
+  
+  
+  Face finger0 = GetFace(fingerbox0->GetLinks()[0], OR::Vector(1,0,0));
+  Face finger1 = GetFace(fingerbox1->GetLinks()[0], OR::Vector(1,0,0));
+  // finger0.poly /= 2;
+  // finger1.poly /= 2;
+    
+  cout << "finger0 poly" << finger0.poly << endl;
     
   Face boxfront = GetFace(box->GetLinks()[0], OR::Vector(-1,0,0));
   Face boxbottom = GetFace(box->GetLinks()[0], OR::Vector(0,0,-1));
@@ -805,30 +835,131 @@ void SetupPR2Push(EnvironmentBasePtr env, boost::shared_ptr<MechanicsProblem>& p
 
   prob.reset(new MechanicsProblem(nSteps, dynamicBodies, staticBodies, robotConfig));
 
-  prob->AddContacts(STICKING, 0, nSteps-1, finger0, boxfront);
-  prob->AddContacts(STICKING, 0, nSteps-1, finger1, boxfront);
+  prob->AddContacts(STICKING, 0, nSteps-1, boxfront, finger0);
+  prob->AddContacts(STICKING, 0, nSteps-1, boxfront, finger1);
   prob->AddContacts(SLIDING, 0, nSteps-1, boxbottom, tabletop);
   prob->AddDynamicsConstraints();
   prob->AddMotionCosts(10,10,10);
-   prob->AddCollisionCosts(1);
+   prob->AddCollisionCosts(200);
   BasicTrustRegionSQP opt(prob);
 
   xinit = DblVec(prob->getNumVars(), 0);
-  VectorXd startPt(6);
+  VectorXd startPt = VectorXd::Zero(6);
   startPt.topRows(3) = toVector3d(box->GetTransform().trans);
   VectorXd endPt = startPt;
-  endPt[0] += .1;
+  endPt[0] += .12;
+  // endPt[1] = .05;
+
+  cout << "box start: " << startPt.transpose() << endl;
+  cout << "table transform" << table->GetLinks()[0]->GetTransform() << endl;
+
+
+  DblVec dofvals = robotConfig->GetDOFValues();
+  for (int j=0; j < robotConfig->GetDOF(); ++j) {
+    setVec(xinit, prob->m_th.col(j), VectorXd::Ones(nSteps)*dofvals[j]);    
+  }
+  prob->Callback(xinit);
+
+  
 
   VarArray& posvars = prob->m_obj2posvars[0];
   for (int i=0; i < nSteps; ++i) {
     for (int j=0; j < 6; ++j) {
-      double ptarg = (startPt(j) * (nSteps-i) + endPt(j) * i) / (nSteps-1);
+      double ptarg = (startPt(j) * (nSteps-1-i) + endPt(j) * i) / (nSteps-1);
       xinit[posvars(i,j).var_rep->index] = ptarg;
       if (constrain_all_poses || (i==0) || (i==nSteps-1)) prob->addLinearConstraint(exprSub(AffExpr(posvars(i, j)), ptarg), EQ);
     }
   }
   
 }
+
+void SetupPR2Lift(EnvironmentBasePtr env, boost::shared_ptr<MechanicsProblem>& prob, DblVec& xinit) {
+
+
+  env->Load(string(DATA_DIR) + "/pr2_lifting.env.xml");
+
+  RobotBasePtr robot = GetRobotByName(*env, "pr2");  
+  
+  KinBodyPtr box = GetBodyByName(*env, "box");
+  KinBodyPtr table = GetBodyByName(*env, "table");
+  assert(robot && box && table);
+  
+  vector<int> arminds = concat( GetManipulatorByName(*robot,"rightarm")->GetArmIndices(),
+                                GetManipulatorByName(*robot,"leftarm")->GetArmIndices());
+
+  RobotAndDOFPtr robotConfig(new RobotAndDOF(robot, arminds));
+
+  KinBody::LinkPtr rfingerlink0 = robot->GetLink("r_gripper_l_finger_tip_link");
+  KinBody::LinkPtr rfingerlink1 = robot->GetLink("r_gripper_r_finger_tip_link");
+  KinBody::LinkPtr lfingerlink0 = robot->GetLink("l_gripper_l_finger_tip_link");
+  KinBody::LinkPtr lfingerlink1 = robot->GetLink("l_gripper_r_finger_tip_link");
+  
+  KinBodyPtr rfingerbox0 = GetBodyByName(*env, "rfingerbox0");
+  KinBodyPtr rfingerbox1 = GetBodyByName(*env, "rfingerbox1");
+  KinBodyPtr lfingerbox0 = GetBodyByName(*env, "lfingerbox0");
+  KinBodyPtr lfingerbox1 = GetBodyByName(*env, "lfingerbox1");
+  
+  rfingerbox0->SetTransform(rfingerlink0->GetTransform());
+  rfingerbox1->SetTransform(rfingerlink1->GetTransform());
+  robot->Grab(rfingerbox0, rfingerlink0);
+  robot->Grab(rfingerbox1, rfingerlink1);    
+
+  lfingerbox0->SetTransform(lfingerlink0->GetTransform());
+  lfingerbox1->SetTransform(lfingerlink1->GetTransform());
+  robot->Grab(lfingerbox0, lfingerlink0);
+  robot->Grab(lfingerbox1, lfingerlink1);    
+  
+  
+  Face rfinger0 = GetFace(rfingerbox0->GetLinks()[0], OR::Vector(1,0,0));
+  Face rfinger1 = GetFace(rfingerbox1->GetLinks()[0], OR::Vector(1,0,0));
+  Face lfinger0 = GetFace(lfingerbox0->GetLinks()[0], OR::Vector(1,0,0));
+  Face lfinger1 = GetFace(lfingerbox1->GetLinks()[0], OR::Vector(1,0,0));
+  // finger0.poly /= 2;
+  // finger1.poly /= 2;
+    
+  Face boxleft = GetFace(box->GetLinks()[0], OR::Vector(0,1,0));
+  Face boxright = GetFace(box->GetLinks()[0], OR::Vector(0,-1,0));
+
+  vector<KinBodyPtr> staticBodies = list_of(table), dynamicBodies = list_of(box);
+
+  prob.reset(new MechanicsProblem(nSteps, dynamicBodies, staticBodies, robotConfig));
+
+  prob->AddContacts(STICKING, 0, nSteps-1, boxleft, lfinger0);
+  prob->AddContacts(STICKING, 0, nSteps-1, boxleft, lfinger1);
+  prob->AddContacts(STICKING, 0, nSteps-1, boxright, rfinger0);
+  prob->AddContacts(STICKING, 0, nSteps-1, boxright, rfinger1);
+  prob->AddDynamicsConstraints();
+  prob->AddMotionCosts(10,10,10);
+   prob->AddCollisionCosts(200);
+  BasicTrustRegionSQP opt(prob);
+
+  xinit = DblVec(prob->getNumVars(), 0);
+  VectorXd startPt = VectorXd::Zero(6);
+  startPt.topRows(3) = toVector3d(box->GetTransform().trans);
+  VectorXd endPt = startPt;
+  endPt[2] += .1;
+
+  cout << "box start: " << startPt.transpose() << endl;
+  cout << "table transform" << table->GetLinks()[0]->GetTransform() << endl;
+
+  DblVec dofvals = robotConfig->GetDOFValues();
+  for (int j=0; j < robotConfig->GetDOF(); ++j) {
+    setVec(xinit, prob->m_th.col(j), VectorXd::Ones(nSteps)*dofvals[j]);    
+  }
+  
+
+  VarArray& posvars = prob->m_obj2posvars[0];
+  for (int i=0; i < nSteps; ++i) {
+    for (int j=0; j < 6; ++j) {
+      double ptarg = (startPt(j) * (nSteps-1-i) + endPt(j) * i) / (nSteps-1);
+      xinit[posvars(i,j).var_rep->index] = ptarg;
+      if (constrain_all_poses || (i==0) || (i==nSteps-1)) prob->addLinearConstraint(exprSub(AffExpr(posvars(i, j)), ptarg), EQ);
+    }
+  }
+  
+}
+
+
 
 #if 0
 void SetupPR2Pickup(EnvironmentBasePtr env, boost::shared_ptr<MechanicsProblem>& prob, DblVec& xinit) {
@@ -911,7 +1042,7 @@ Then a later generation will accommodate non-faces
 
 int main(int argc, char** argv) {
 
-  vector<string> validProblems; validProblems += "3linkpush", "pr2push";
+  vector<string> validProblems; validProblems += "3linkpush", "pr2push", "pr2lift";
   string problem = validProblems[0];
   
   Config config;
@@ -919,6 +1050,7 @@ int main(int argc, char** argv) {
   config.add(new Parameter<string>("problem", &problem, "problem: [3linkpush, pr2push]"));
   config.add(new Parameter<bool>("idle", &idle, "idle after stuff"));
   config.add(new Parameter<bool>("constrain_all_poses", &constrain_all_poses, "constrain pose trajectory, as opposed to just start and end"));
+  config.add(new Parameter<int>("nSteps", &nSteps, "number of timesteps"));
   CommandParser parser(config);
   parser.read(argc, argv);
 
@@ -941,9 +1073,11 @@ int main(int argc, char** argv) {
   else if (problem == "pr2push") {
     SetupPR2Push(env, prob, xinit);
   }
+  else if (problem == "pr2lift") {
+    SetupPR2Lift(env, prob, xinit);
+  }
   
-  OSGViewerPtr viewer(new OSGViewer(env));
-  env->AddViewer(viewer);
+  OSGViewerPtr viewer = OSGViewer::GetOrCreate(env);
   
   BasicTrustRegionSQP opt(prob);
   opt.initialize(xinit);
@@ -951,6 +1085,7 @@ int main(int argc, char** argv) {
   opt.addCallback(&Callback);
   
   opt.optimize();
+  prob->AnimateSolution(opt.x());
 
   RaveDestroy();
 }

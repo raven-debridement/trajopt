@@ -40,31 +40,31 @@ std::ostream& operator<<(std::ostream& o, const OptResults& r) {
 
 
 
-static DblVec evaluateCosts(vector<CostPtr>& costs, const DblVec& x) {
+DblVec evaluateCosts(vector<CostPtr>& costs, const DblVec& x) {
   DblVec out(costs.size());
   for (size_t i=0; i < costs.size(); ++i) {
     out[i] = costs[i]->value(x);
   }
   return out;
 }
-static DblVec evaluateConstraintViols(vector<ConstraintPtr>& constraints, const DblVec& x) {
+DblVec evaluateConstraintViols(vector<ConstraintPtr>& constraints, const DblVec& x) {
   DblVec out(constraints.size());
   for (size_t i=0; i < constraints.size(); ++i) {
     out[i] = constraints[i]->violation(x);
   }
   return out;
 }
-static vector<ConvexObjectivePtr> convexifyCosts(vector<CostPtr>& costs, const DblVec& x, Model* model) {
+vector<ConvexObjectivePtr> convexifyCosts(vector<CostPtr>& costs, const DblVec& x) {//, Model* model) {
   vector<ConvexObjectivePtr> out(costs.size());
   for (size_t i=0; i < costs.size(); ++i) {
-    out[i] = costs[i]->convex(x,  model);
+    out[i] = costs[i]->convex(x);//,  model);
   }
   return out;
 }
-static vector<ConvexConstraintsPtr> convexifyConstraints(vector<ConstraintPtr>& cnts, const DblVec& x, Model* model) {
+vector<ConvexConstraintsPtr> convexifyConstraints(vector<ConstraintPtr>& cnts, const DblVec& x) {//, Model* model) {
   vector<ConvexConstraintsPtr> out(cnts.size());
   for (size_t i=0; i < cnts.size(); ++i) {
-    out[i] = cnts[i]->convex(x, model);
+    out[i] = cnts[i]->convex(x);//, model);
   }
   return out;
 }
@@ -84,12 +84,12 @@ DblVec evaluateModelCntViols(vector<ConvexConstraintsPtr>& cnts, const DblVec& x
   return out;
 }
 
-static vector<string> getCostNames(const vector<CostPtr>& costs) {
+vector<string> getCostNames(const vector<CostPtr>& costs) {
   vector<string> out(costs.size());
   for (size_t i=0; i < costs.size(); ++i) out[i] = costs[i]->name();
   return out;
 }
-static vector<string> getCntNames(const vector<ConstraintPtr>& cnts) {
+vector<string> getCntNames(const vector<ConstraintPtr>& cnts) {
   vector<string> out(cnts.size());
   for (size_t i=0; i < cnts.size(); ++i) out[i] = cnts[i]->name();
   return out;
@@ -122,10 +122,11 @@ void printCostInfo(const vector<double>& old_cost_vals, const vector<double>& mo
 }
 
 // todo: use different coeffs for each constraint
-vector<ConvexObjectivePtr> cntsToCosts(const vector<ConvexConstraintsPtr>& cnts, double err_coeff, Model* model) {
+vector<ConvexObjectivePtr> cntsToCosts(const vector<ConvexConstraintsPtr>& cnts, double err_coeff) {//, Model* model) {
   vector<ConvexObjectivePtr> out;
   BOOST_FOREACH(const ConvexConstraintsPtr& cnt, cnts) {
-    ConvexObjectivePtr obj(new ConvexObjective(model));
+    //ConvexObjectivePtr obj(new ConvexObjective(model));
+    ConvexObjectivePtr obj(new ConvexObjective());
     BOOST_FOREACH(const AffExpr& aff, cnt->eqs_) {
       obj->addAbs(aff, err_coeff);
     }
@@ -140,6 +141,7 @@ vector<ConvexObjectivePtr> cntsToCosts(const vector<ConvexConstraintsPtr>& cnts,
 void Optimizer::addCallback(const Callback& cb) {
   callbacks_.push_back(cb);
 }
+
 void Optimizer::callCallbacks(DblVec& x) {
   for (int i=0; i < callbacks_.size(); ++i) {
     callbacks_[i](prob_.get(), x);
@@ -172,13 +174,11 @@ void BasicTrustRegionSQP::initParameters() {
   trust_shrink_ratio_=.1;
   trust_expand_ratio_ = 1.5;
   cnt_tolerance_ = 1e-4;
-  max_merit_coeff_increases_ = 5;
+  max_merit_coeff_increases_ = 10;
   merit_coeff_increase_ratio_ = 10;
   max_time_ = INFINITY;
-
   merit_error_coeff_ = 10;
   trust_box_size_ = 1e-1;
-
   record_trust_region_history_ = false;
 
 }
@@ -196,11 +196,9 @@ void BasicTrustRegionSQP::setTrustBoxConstraints(const DblVec& x) {
   assert(vars.size() == x.size());
   DblVec& lb=prob_->getLowerBounds(), ub=prob_->getUpperBounds();
   DblVec lbtrust(x.size()), ubtrust(x.size());
-  const vector<bool>& incmask = prob_->getIncrementMask();
-  if (incmask.empty()) prob_->setIncrementMask(vector<bool>(x.size(), false));
   for (size_t i=0; i < x.size(); ++i) {
-    lbtrust[i] = fmax((incmask[i] ? 0 : x[i]) - trust_box_size_, lb[i]);
-    ubtrust[i] = fmin((incmask[i] ? 0 : x[i]) + trust_box_size_, ub[i]);
+    lbtrust[i] = fmax(x[i] - trust_box_size_, lb[i]);
+    ubtrust[i] = fmin(x[i] + trust_box_size_, ub[i]);
   }
   model_->setVarBounds(vars, lbtrust, ubtrust);
 }
@@ -253,8 +251,6 @@ OptStatus BasicTrustRegionSQP::optimize() {
     ++results_.n_merit_increases;
     for (int iter=1; ; ++iter) { /* sqp loop */
       callCallbacks(x_);
-      vector<bool> incmask = prob_->getIncrementMask();
-      for (int i=0; i < incmask.size(); ++i) if (incmask[i]) x_[i] = 0;
 
       LOG_DEBUG("current iterate: %s", CSTR(x_));
       LOG_INFO("merit increases iteration: %i; sqp iteration %i", merit_increases, iter);
@@ -278,15 +274,20 @@ OptStatus BasicTrustRegionSQP::optimize() {
       // }
 
 
-      vector<ConvexObjectivePtr> cost_models = convexifyCosts(prob_->getCosts(),x_, model_.get());
-      vector<ConvexConstraintsPtr> cnt_models = convexifyConstraints(constraints, x_, model_.get());
-      vector<ConvexObjectivePtr> cnt_cost_models = cntsToCosts(cnt_models, merit_error_coeff_, model_.get());
+      vector<ConvexObjectivePtr> cost_models = convexifyCosts(prob_->getCosts(),x_);//, model_.get());
+      vector<ConvexConstraintsPtr> cnt_models = convexifyConstraints(constraints, x_);//, model_.get());
+      vector<ConvexObjectivePtr> cnt_cost_models = cntsToCosts(cnt_models, merit_error_coeff_);//, model_.get());
+
+      BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models) cost->addAuxiliaryVariablesToModel(model_.get());
+      BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->addAuxiliaryVariablesToModel(model_.get());
       model_->update();
-      BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models)cost->addConstraintsToModel();
-      BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models)cost->addConstraintsToModel();
+
+      BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models) cost->addConstraintsToModel(model_.get());
+      BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->addConstraintsToModel(model_.get());
       model_->update();
+
       QuadExpr objective;
-      BOOST_FOREACH(ConvexObjectivePtr& co, cost_models)exprInc(objective, co->quad_);
+      BOOST_FOREACH(ConvexObjectivePtr& co, cost_models) exprInc(objective, co->quad_);
       BOOST_FOREACH(ConvexObjectivePtr& co, cnt_cost_models){
         exprInc(objective, co->quad_);
       }
@@ -307,8 +308,8 @@ OptStatus BasicTrustRegionSQP::optimize() {
         CvxOptStatus status = model_->optimize();
         ++results_.n_qp_solves;
         if (status != CVX_SOLVED) {
-          LOG_ERROR("convex solver failed! set TRAJOPT_LOG_THRESH=DEBUG to see solver output. saving model to /tmp/fail.lp");
-          model_->writeToFile("/tmp/fail.lp");
+          LOG_ERROR("convex solver failed! set TRAJOPT_LOG_THRESH=DEBUG to see solver output. saving model to /tmp/fail2.lp");
+          model_->writeToFile("/tmp/fail2.lp");
           retval = OPT_FAILED;
           goto cleanup;
         }
