@@ -1,8 +1,5 @@
-find_package(Qt4 REQUIRED)
-
-include(${QT_USE_FILE})
-ADD_DEFINITIONS(${QT_DEFINITIONS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+
 include_directories(
   SYSTEM
   ${BULLET_INCLUDE_DIRS}  
@@ -13,16 +10,18 @@ include_directories(
 )
 
 set(BSP_SOURCE_FILES
-  bsp_optimizer_task.cpp
-  bsp_qt_plotter.cpp
   costs.cpp
   optimizers.cpp
   utils.cpp
-  ../trajopt/bullet_unity.cpp
+  collision/belief_collision.cpp
+  collision/belief_collision_checker.cpp
+  collision/belief_continuous_collision_collector.cpp
+  collision/belief_discrete_collision_collector.cpp
+  collision/sigma_hull_shape.cpp
+  collision/sigma_hull_cast_shape.cpp
+  collision/utils.cpp
+  #../trajopt/bullet_unity.cpp
 )
 
-SET(QT_HEADERS bsp_optimizer_task.hpp bsp_qt_plotter.hpp)
-QT4_WRAP_CPP(QT_HEADERS_MOC ${QT_HEADERS})
-
-add_library(bsp ${BSP_SOURCE_FILES} ${QT_HEADERS_MOC})
-target_link_libraries(bsp trajopt ${QT_LIBRARIES})
+add_library(bsp ${BSP_SOURCE_FILES})
+target_link_libraries(bsp trajopt)

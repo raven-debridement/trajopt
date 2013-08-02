@@ -1,6 +1,8 @@
 #pragma once
 
 #include "bsp/bsp.hpp"
+#include "bsp_qt/bsp_qt_plotter.hpp"
+#include "bsp_qt/bsp_optimizer_task.hpp"
 #include "geometry_2d.hpp"
 #include <QApplication>
 #include <QtCore>
@@ -135,7 +137,7 @@ namespace ArmBSP {
   public:
     ArmOptimizerTask(QObject* parent=nullptr);
     ArmOptimizerTask(int argc, char **argv, QObject* parent=nullptr);
-    virtual void run();
+    int run();
     void stage_plot_callback(boost::shared_ptr<ArmOptPlotter> plotter, OptProb*, DblVec& x);
   };
 

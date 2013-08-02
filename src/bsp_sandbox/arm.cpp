@@ -476,7 +476,7 @@ namespace ArmBSP {
     //wait_to_proceed(boost::bind(&ArmOptPlotter::update_plot_data, plotter, &x));
   }
 
-  void ArmOptimizerTask::run() {
+  int ArmOptimizerTask::run() {
     srand(static_cast<unsigned int>(std::time(0)));
     int T = 12;
     bool plotting = true;

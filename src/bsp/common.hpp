@@ -1,9 +1,11 @@
 #pragma once
 
 #include "sco/expr_ops.hpp"
+#include "sco/expr_vec_ops.hpp"
 #include "sco/modeling_utils.hpp"
 #include "sco/modeling.hpp"
 #include "osgviewer/osgviewer.hpp"
+#include "trajopt/bullet_collision_checker.hpp"
 #include "trajopt/collision_checker.hpp"
 #include "trajopt/collision_terms.hpp"
 #include "trajopt/common.hpp"

@@ -102,11 +102,11 @@ namespace BarrettRobotBSP {
   }
 
   void BarrettRobotBSPProblemHelper::add_collision_term(OptProb& prob) {
-    //for (int i = 0; i <= T; ++i) {
-    for (int i = 0; i < T; ++i) {
+    for (int i = 0; i <= T; ++i) {
+    //for (int i = 0; i < T; ++i) {
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
-      //prob.addCost(CostPtr(new BeliefCollisionCost<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
-      prob.addCost(CostPtr(new BeliefCollisionCost<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+      prob.addCost(CostPtr(new BeliefCollisionCost<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
+      //prob.addCost(CostPtr(new BeliefCollisionCost<BarrettRobotBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
     cc->SetContactDistance(0.065);
@@ -148,93 +148,84 @@ namespace BarrettRobotBSP {
              EkfBeliefFunc<BarrettRobotStateFunc, BarrettRobotObserveFunc, BeliefT>(helper, f, h),
              barrett_robot_helper(boost::static_pointer_cast<BarrettRobotBSPProblemHelper>(helper)) {}
 
-  BarrettRobotOptimizerTask::BarrettRobotOptimizerTask(QObject* parent) : BSPOptimizerTask(parent) {}
-
-  BarrettRobotOptimizerTask::BarrettRobotOptimizerTask(int argc, char **argv, QObject* parent) : BSPOptimizerTask(argc, argv, parent) {}
-
-  int BarrettRobotOptimizerTask::run() {
-    int T = 26;
-    bool sim_plotting = false;
-    bool stage_plotting = false;
-    bool first_step_only = false;
-
-    string data_dir = get_current_directory() + "/../data";
-
-    {
-      Config config;
-      config.add(new Parameter<bool>("sim_plotting", &sim_plotting, "sim_plotting"));
-      config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
-      config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
-      config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
-      CommandParser parser(config);
-      parser.read(argc, argv, true);
-    }
-
-    string manip_name("arm");
-    string link_name("wam7");
-
-    RaveInitialize();
-    EnvironmentBasePtr env = RaveCreateEnvironment();
-    env->StopSimulation();
-    env->Load(data_dir + "/barrett.env.xml");
-    OSGViewerPtr viewer;
-    RobotBasePtr robot = GetRobot(*env);
-
-    auto initial_trajectory = get_initial_trajectory(data_dir, T);
-    auto initial_controls = get_initial_controls(initial_trajectory);
-
-    Vector7d start = initial_trajectory[0];
-    Matrix7d start_sigma = Matrix7d::Identity() * 0.22 * 0.22;
-
-    Matrix4d goal_trans;
-    goal_trans <<  0,  0, 1, 0.6,
-                   0,  1, 0, 0.4,
-                  -1,  0, 0, 0.6,
-                   0,  0, 0,   1;
-
-    initialize_robot(robot, start);
-
-    BarrettRobotBSPPlannerPtr planner(new BarrettRobotBSPPlanner());
-
-    planner->start = start;
-    planner->start_sigma = start_sigma;
-    planner->goal_trans = goal_trans;
-    planner->T = T;
-    planner->controls = initial_controls;
-    planner->robot = robot;
-    planner->rad = RADFromName(manip_name, robot);
-    planner->link = planner->rad->GetRobot()->GetLink(link_name);
-    planner->method = BSP::DiscontinuousBeliefSpace;
-    planner->initialize();
-
-
-    boost::function<void(OptProb*, DblVec&)> opt_callback;
-    if (stage_plotting || sim_plotting) {
-      viewer = OSGViewer::GetOrCreate(env);
-      initialize_viewer(viewer);
-    }
-    if (stage_plotting) {
-      opt_callback = boost::bind(&OpenRAVEPlotterMixin<BarrettRobotBSPPlanner>::stage_plot_callback, 
-                                 planner, planner->helper->rad, viewer, _1, _2);
-    }
-
-    while (!planner->finished()) {
-      planner->solve(opt_callback, 1, 1);
-      planner->simulate_execution();
-      if (first_step_only) break;
-      if (sim_plotting) {
-        OpenRAVEPlotterMixin<BarrettRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
-      }
-    }
-
-    RaveDestroy();
-  }
-
 }
 
 using namespace BarrettRobotBSP;
 
 int main(int argc, char *argv[]) {
-	BarrettRobotOptimizerTask task(argc, argv);
-  return task.run();
+  int T = 26;
+  bool sim_plotting = false;
+  bool stage_plotting = false;
+  bool first_step_only = false;
+
+  string data_dir = get_current_directory() + "/../data";
+
+  {
+    Config config;
+    config.add(new Parameter<bool>("sim_plotting", &sim_plotting, "sim_plotting"));
+    config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
+    config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
+    config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
+    CommandParser parser(config);
+    parser.read(argc, argv, true);
+  }
+
+  string manip_name("arm");
+  string link_name("wam7");
+
+  RaveInitialize();
+  EnvironmentBasePtr env = RaveCreateEnvironment();
+  env->StopSimulation();
+  env->Load(data_dir + "/barrett.env.xml");
+  OSGViewerPtr viewer;
+  RobotBasePtr robot = GetRobot(*env);
+
+  auto initial_trajectory = get_initial_trajectory(data_dir, T);
+  auto initial_controls = get_initial_controls(initial_trajectory);
+
+  Vector7d start = initial_trajectory[0];
+  Matrix7d start_sigma = Matrix7d::Identity() * 0.22 * 0.22;
+
+  Matrix4d goal_trans;
+  goal_trans <<  0,  0, 1, 0.6,
+                 0,  1, 0, 0.4,
+                -1,  0, 0, 0.6,
+                 0,  0, 0,   1;
+
+  initialize_robot(robot, start);
+
+  BarrettRobotBSPPlannerPtr planner(new BarrettRobotBSPPlanner());
+
+  planner->start = start;
+  planner->start_sigma = start_sigma;
+  planner->goal_trans = goal_trans;
+  planner->T = T;
+  planner->controls = initial_controls;
+  planner->robot = robot;
+  planner->rad = RADFromName(manip_name, robot);
+  planner->link = planner->rad->GetRobot()->GetLink(link_name);
+  planner->method = BSP::DiscontinuousBeliefSpace;
+  planner->initialize();
+
+
+  boost::function<void(OptProb*, DblVec&)> opt_callback;
+  if (stage_plotting || sim_plotting) {
+    viewer = OSGViewer::GetOrCreate(env);
+    initialize_viewer(viewer);
+  }
+  if (stage_plotting) {
+    opt_callback = boost::bind(&OpenRAVEPlotterMixin<BarrettRobotBSPPlanner>::stage_plot_callback, 
+                               planner, planner->helper->rad, viewer, _1, _2);
+  }
+
+  while (!planner->finished()) {
+    planner->solve(opt_callback, 1, 1);
+    planner->simulate_execution();
+    if (first_step_only) break;
+    if (sim_plotting) {
+      OpenRAVEPlotterMixin<BarrettRobotBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
+    }
+  }
+
+  RaveDestroy();
 }
