@@ -18,6 +18,7 @@ enum OptStatus {
   OPT_PENALTY_ITERATION_LIMIT,
   OPT_FAILED,
   OPT_ALPHA_ITERATION_LIMIT,
+  OPT_INFEASIBLE,
   INVALID
 };
 static const char* OptStatus_strings[]  = {
@@ -26,6 +27,7 @@ static const char* OptStatus_strings[]  = {
   "PENALTY_ITERATION_LIMIT",
   "FAILED",
   "ALPHA_ITERATION_LIMIT",
+  "INFEASIBLE",
   "INVALID"
 };
 inline string statusToString(OptStatus status) {
@@ -111,7 +113,7 @@ public:
   OptStatus optimize();
 protected:
   void adjustTrustRegion(double ratio);
-  void setTrustBoxConstraints(const vector<double>& x);
+  void setTrustBoxConstraints(const vector<double>& x, Model* model);
   void initParameters();
   ModelPtr model_;
 };
@@ -127,5 +129,5 @@ vector<string> getCntNames(const vector<ConstraintPtr>& cnts);
 void printCostInfo(const vector<double>& old_cost_vals, const vector<double>& model_cost_vals, const vector<double>& new_cost_vals,
                   const vector<double>& old_cnt_vals, const vector<double>& model_cnt_vals, const vector<double>& new_cnt_vals,
     const vector<string>& cost_names, const vector<string>& cnt_names, double merit_coeff);
-vector<ConvexObjectivePtr> cntsToCosts(const vector<ConvexConstraintsPtr>& cnts, double err_coeff, Model* model);
+vector<ConvexObjectivePtr> cntsToCosts(const vector<ConvexConstraintsPtr>& cnts, double err_coeff);
 }

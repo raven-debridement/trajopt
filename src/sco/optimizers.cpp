@@ -190,7 +190,8 @@ void BasicTrustRegionSQP::setProblem(OptProbPtr prob) {
 void BasicTrustRegionSQP::adjustTrustRegion(double ratio) {
   trust_box_size_ *= ratio;
 }
-void BasicTrustRegionSQP::setTrustBoxConstraints(const DblVec& x) {
+void BasicTrustRegionSQP::setTrustBoxConstraints(const DblVec& x, Model* model) {
+  assert (model != NULL);
   vector<Var>& vars = prob_->getVars();
   assert(vars.size() == x.size());
   DblVec& lb=prob_->getLowerBounds(), ub=prob_->getUpperBounds();
@@ -199,7 +200,7 @@ void BasicTrustRegionSQP::setTrustBoxConstraints(const DblVec& x) {
     lbtrust[i] = fmax(x[i] - trust_box_size_, lb[i]);
     ubtrust[i] = fmin(x[i] + trust_box_size_, ub[i]);
   }
-  model_->setVarBounds(vars, lbtrust, ubtrust);
+  model->setVarBounds(vars, lbtrust, ubtrust);
 }
 
 #if 0
@@ -300,7 +301,7 @@ OptStatus BasicTrustRegionSQP::optimize() {
 
       while (trust_box_size_ >= min_trust_box_size_) {
 
-        setTrustBoxConstraints(x_);
+        setTrustBoxConstraints(x_, model_.get());
         CvxOptStatus status = model_->optimize();
         ++results_.n_qp_solves;
         if (status != CVX_SOLVED) {
