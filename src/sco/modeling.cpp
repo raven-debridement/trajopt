@@ -131,6 +131,8 @@ void ConvexObjective::addToModelAndObjective(Model* model, AffExpr& objective, b
     }
   }
 
+  model->update();
+
   vector<Cnt> cnts;
   cnts.reserve(eqs.size() + ineqs.size());
   BOOST_FOREACH(const AffExpr& aff, eqs) {
@@ -139,6 +141,8 @@ void ConvexObjective::addToModelAndObjective(Model* model, AffExpr& objective, b
   BOOST_FOREACH(const AffExpr& aff, ineqs) {
     cnts.push_back(model->addIneqCnt(aff, ""));
   }
+
+  model->update();
 
   model2vars_.insert(ModelVarsPair(model, vars));
   model2cnts_.insert(ModelCntsPair(model, cnts));

@@ -100,6 +100,7 @@ Cnt GurobiModel::addEqCnt(const AffExpr& expr, const string& name) {
   vector<int> inds = vars2inds(expr.vars);
   vector<double> vals = expr.coeffs;
   simplify2(inds, vals);
+
   ENSURE_SUCCESS(GRBaddconstr(m_model, inds.size(),
        const_cast<int*>(inds.data()), const_cast<double*>(vals.data()), GRB_EQUAL, -expr.constant, const_cast<char*>(name.c_str())));
   m_cnts.push_back(new CntRep(m_cnts.size(), this));

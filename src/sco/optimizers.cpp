@@ -281,7 +281,7 @@ OptStatus BasicTrustRegionSQP::optimize() {
 
       BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models) cost->addToModelAndObjective(model_.get(), objective);
       BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->addToModelAndObjective(model_.get(), objective);
-      model_->update();
+      //model_->update();
 
       //BOOST_FOREACH(ConvexObjectivePtr& co, cost_models) exprInc(objective, co->quad_);
       //BOOST_FOREACH(ConvexObjectivePtr& co, cnt_cost_models){
