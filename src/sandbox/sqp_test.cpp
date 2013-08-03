@@ -50,7 +50,7 @@ class CostError : public ScalarOfVector {
 public:
   CostError() {}
   double operator()(const VectorXd& a) const {
-    return a(0) + a(1);
+    return (a(1) - 1) * (a(1) - 1);
   }
 };
 
@@ -58,7 +58,7 @@ class CntError1 : public VectorOfVector {
 public:
   CntError1() {}
   VectorXd operator()(const VectorXd& a) const {
-    Vector1d ans; ans << 1 - a(1)*a(1);//a(0)*a(0);//a(0)*a(0) + 1 - a(1);
+    Vector1d ans; ans << a(0)*a(0);//a(0)*a(0) + 1 - a(1);
     return ans;
   }
 };
@@ -67,7 +67,7 @@ class CntError2 : public VectorOfVector {
 public:
   CntError2() {}
   VectorXd operator()(const VectorXd& a) const {
-    Vector1d ans; ans << a(0)*a(1);//a(0)*a(0)*a(0);//a(0) - 1 - a(2);
+    Vector1d ans; ans << a(0)*a(0)*a(0);//a(0) - 1 - a(2);
     return ans;
   }
 };
@@ -162,7 +162,7 @@ public:
     x_ = prob_->getClosestFeasiblePoint(x_);
 
     // initialize LP model
-    ModelPtr lp_model = model_->cloneModel();
+    //ModelPtr lp_model = model_->cloneModel();
     
     assert(x_.size() == prob_->getVars().size());
     assert(prob_->getCosts().size() > 0 || constraints.size() > 0);
@@ -205,9 +205,6 @@ public:
       
 //    objective = cleanupExpr(objective);
       model_->setObjective(objective);
-
-      model_->writeToFile("/tmp/fail2.lp");                                                                                 \
-      exit(1);
 
 //    if (logging::filter() >= IPI_LEVEL_DEBUG) {
 //      DblVec model_cost_vals;
@@ -268,12 +265,14 @@ public:
           old_model_merit - current_model_merit >= min_model_merit_improve_ratio_ * merit_error_coeff_ * old_model_total_cnt_viol) {
         //goto linesearch; 
       } else {
-
+        
         // 3. solve LP:
         vector<ConvexObjectivePtr> lp_cnt_cost_models = cntsToCosts(cnt_models, 1);
         AffExpr lp_objective;
 
-        BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->addToModelAndObjective(lp_model.get(), lp_objective);
+        BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models) cost->removeFromModel(model_.get());
+        BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->removeFromModel(model_.get());
+        BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->addToModelAndObjective(model_.get(), lp_objective);
         lp_model->setObjective(lp_objective);
         setTrustBoxConstraints(x_, lp_model.get());
 
@@ -385,7 +384,7 @@ int main() {
     var_names.push_back("x2");
     //var_names.push_back("x3");
     DblVec lbs, ubs;
-    lbs.push_back(0); lbs.push_back(0);// lbs.push_back(0);
+    lbs.push_back(-INFINITY); lbs.push_back(-INFINITY);// lbs.push_back(0);
     ubs.push_back(INFINITY); ubs.push_back(INFINITY);// ubs.push_back(INFINITY);
     vars = prob->createVariables(var_names, lbs, ubs);
   }
@@ -397,18 +396,18 @@ int main() {
 
   {
     VectorOfVectorPtr f(new CntError1());
-    prob->addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, Vector1d::Ones(), INEQ, "constraint_1")));
+    prob->addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, Vector1d::Ones(), EQ, "constraint_1")));
   }
 
   {
     VectorOfVectorPtr f(new CntError2());
-    prob->addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, Vector1d::Ones(), INEQ, "constraint_2")));
+    prob->addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, Vector1d::Ones(), EQ, "constraint_2")));
   }
 
-  BasicTrustRegionSQP opt(prob);
+  LineSearchSQP opt(prob);
 
   {
-    DblVec initVec = toDblVec(Vector2d(0.1, 0.9));//-3, 1, 1));
+    DblVec initVec = toDblVec(Vector2d(1, 0));//-3, 1, 1));
     opt.initialize(initVec);
   }
 
