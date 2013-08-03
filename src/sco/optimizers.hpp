@@ -42,6 +42,7 @@ struct OptResults {
   vector<double> cost_vals;
   DblVec cnt_viols;
   int n_func_evals, n_qp_solves, n_lp_solves;
+  int n_iters;
   int n_merit_increases;
   void clear() {
     x.clear();
@@ -116,6 +117,34 @@ protected:
   void setTrustBoxConstraints(const vector<double>& x, Model* model);
   void initParameters();
   ModelPtr model_;
+};
+
+class LineSearchSQP : public BasicTrustRegionSQP {
+public:
+
+  double trust_shrink_ratio_;
+  double trust_expand_ratio_;
+  double cnt_tolerance_;
+  double merit_coeff_increase_ratio_;
+  double merit_error_coeff_;
+  double trust_box_size_;
+
+  double min_cnt_improve_ratio;
+  double min_model_merit_improve_ratio_;
+  double line_search_shrink_ratio_;
+  double min_merit_improve_ratio;
+  double trust_region_shrink_threshold_;
+  double trust_region_expand_threshold_;
+  double min_trust_box_size_;
+  double max_trust_box_size_;
+  double opt_eps;
+
+	LineSearchSQP();
+	LineSearchSQP(OptProbPtr prob);
+  bool hasViolation(const DblVec& cnt_viols);
+  void unsetTrustBoxConstraints(Model* model);
+  void initParameters();
+	OptStatus optimize();
 };
 
 DblVec evaluateCosts(vector<CostPtr>& costs, const DblVec& x, Model* model);

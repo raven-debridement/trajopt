@@ -185,6 +185,11 @@ void ConvexObjective::removeFromModel(Model* model) {
     model->removeCnts(model2cnts_.at(model));
     model2cnts_.erase(model);
   }
+
+  if (model2quad_.count(model) > 0) {
+    model2quad_.erase(model);
+  }
+
 }
 
 void ConvexObjective::removeFromModels() {
