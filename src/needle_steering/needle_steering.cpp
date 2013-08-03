@@ -130,10 +130,10 @@ int main(int argc, char** argv)
 
   helper->ConfigureOptimizer(opt);
 
-  boost::shared_ptr<TrajPlotter> plotter;
-  plotter.reset(new TrajPlotter(helper->local_configs, helper->twistvars));
+  boost::shared_ptr<Needle::TrajPlotter> plotter;
+  plotter.reset(new Needle::TrajPlotter(helper->local_configs, helper->twistvars));
   if (plotting) {
-    opt.addCallback(boost::bind(&TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2, helper));
+    opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2, helper));
   }
 
   opt.optimize();

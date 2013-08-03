@@ -160,7 +160,7 @@ int main() {
     opt.initialize(initVec);
   #endif
 
-  #if 0 // Settings C
+  #if 1 // Settings C
     vector<string> var_names;
     var_names.push_back("x1");
     var_names.push_back("x2");
@@ -189,7 +189,7 @@ int main() {
     opt.initialize(initVec);
   #endif
 
-  #if 1 // Settings E
+  #if 0 // Settings E
     vector<string> var_names;
     var_names.push_back("x");
     DblVec lbs, ubs;

@@ -7,13 +7,13 @@ namespace Needle {
     exprInc(expr, exprMult(var, coeff * helper->T));
   }
 
-  double ConstantSpeedCost::value(const vector<double>& xvec) {
+  double ConstantSpeedCost::value(const vector<double>& xvec, Model* model) {
     double speed = getVec(xvec, singleton<Var>(var))[0];
     return speed * coeff * helper->T;
   }
 
-  ConvexObjectivePtr ConstantSpeedCost::convex(const vector<double>& xvec, Model* model) {
-    ConvexObjectivePtr out(new ConvexObjective(model));
+  ConvexObjectivePtr ConstantSpeedCost::convex(const vector<double>& xvec) {
+    ConvexObjectivePtr out(new ConvexObjective());
     out->addAffExpr(expr);
     return out;
   }
@@ -25,13 +25,13 @@ namespace Needle {
     }
   }
 
-  double VariableSpeedCost::value(const vector<double>& xvec) {
+  double VariableSpeedCost::value(const vector<double>& xvec, Model* model) {
     VectorXd speeds = getVec(xvec, vars);
     return coeff * speeds.array().sum();
   }
 
-  ConvexObjectivePtr VariableSpeedCost::convex(const vector<double>& xvec, Model* model) {
-    ConvexObjectivePtr out(new ConvexObjective(model));
+  ConvexObjectivePtr VariableSpeedCost::convex(const vector<double>& xvec) {
+    ConvexObjectivePtr out(new ConvexObjective());
     out->addAffExpr(expr);
     return out;
   }
@@ -43,13 +43,13 @@ namespace Needle {
     }
   }
 
-  double SpeedDeviationCost::value(const vector<double>& xvec) {
+  double SpeedDeviationCost::value(const vector<double>& xvec, Model* model) {
     VectorXd speeds = getVec(xvec, vars);
     return coeff * (speeds.array() - deviation).square().sum();
   }
 
-  ConvexObjectivePtr SpeedDeviationCost::convex(const vector<double>& xvec, Model* model) {
-    ConvexObjectivePtr out(new ConvexObjective(model));
+  ConvexObjectivePtr SpeedDeviationCost::convex(const vector<double>& xvec) {
+    ConvexObjectivePtr out(new ConvexObjective());
     out->addQuadExpr(expr);
     return out;
   }
@@ -60,26 +60,26 @@ namespace Needle {
     }
   }
 
-  double RotationQuadraticCost::value(const vector<double>& xvec) {
+  double RotationQuadraticCost::value(const vector<double>& xvec, Model* model) {
     VectorXd vals = getVec(xvec, vars);
     return vals.array().square().sum() * coeff;
   }
 
-  ConvexObjectivePtr RotationQuadraticCost::convex(const vector<double>& xvec, Model* model) {
-    ConvexObjectivePtr out(new ConvexObjective(model));
+  ConvexObjectivePtr RotationQuadraticCost::convex(const vector<double>& xvec) {
+    ConvexObjectivePtr out(new ConvexObjective());
     out->addQuadExpr(expr);
     return out;
   }
 
   RotationL1Cost::RotationL1Cost(const VarVector& vars, double coeff, NeedleProblemHelperPtr helper) : Cost("Rotation"), vars(vars), coeff(coeff), helper(helper) {}
 
-  double RotationL1Cost::value(const vector<double>& xvec) {
+  double RotationL1Cost::value(const vector<double>& xvec, Model* model) {
     VectorXd vals = getVec(xvec, vars);
     return vals.array().abs().sum() * coeff;
   }
 
-  ConvexObjectivePtr RotationL1Cost::convex(const vector<double>& xvec, Model* model) {
-    ConvexObjectivePtr out(new ConvexObjective(model));
+  ConvexObjectivePtr RotationL1Cost::convex(const vector<double>& xvec) {
+    ConvexObjectivePtr out(new ConvexObjective());
     for (int i = 0; i < vars.size(); ++i) {
       out->addAbs(AffExpr(vars[i]), coeff);
     }

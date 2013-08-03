@@ -666,6 +666,7 @@ OptStatus LineSearchSQP::optimize() {
       //current_x = x + alpha * step;//new_x; // new_x = x + 1 * step
       current_cost_vals = evaluateCosts(prob_->getCosts(), current_x, model_.get());
       current_cnt_viols = evaluateConstraintViols(constraints, current_x, model_.get());
+      ++results_.n_func_evals;
       current_merit = vecSum(current_cost_vals) + merit_error_coeff_ * vecSum(current_cnt_viols);
       merit_improve_bound = min_merit_improve_ratio * alpha * (old_model_merit - current_model_merit);
       alpha = alpha * line_search_shrink_ratio_;
@@ -676,6 +677,19 @@ OptStatus LineSearchSQP::optimize() {
 
     double actual_improve = old_merit - current_merit;
     double model_improve = old_model_merit - current_model_merit;
+
+    
+    if (util::GetLogLevel() >= util::LevelInfo) {
+      LOG_INFO(" ");
+      printCostInfo(results_.cost_vals, current_model_cost_vals, current_cost_vals,
+                    results_.cnt_viols, current_model_cnt_viols, current_cnt_viols, cost_names,
+                    cnt_names, merit_error_coeff_);
+      printf("%15s | %10.3e | %10.3e | %10.3e | %10.3e\n", "TOTAL", old_merit, model_improve, actual_improve, actual_improve / model_improve);
+    }
+
+    if (model_improve < -1e-5) {
+      LOG_ERROR("approximate merit function got worse (%.3e). (convexification is probably wrong to zeroth order)", model_improve);
+    }
 
     x_ = current_x;
     results_.cost_vals = current_cost_vals;
@@ -688,6 +702,8 @@ OptStatus LineSearchSQP::optimize() {
     } else {
       trust_box_size_ = vecMax(chosen_step);
     }
+
+    LOG_INFO("new box size: %.4f", trust_box_size_);
 
     trust_box_size_ = max(min_trust_box_size_, min(trust_box_size_, max_trust_box_size_));
   }
