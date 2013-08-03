@@ -60,7 +60,7 @@ void vecDiff(const DblVec& a, const DblVec& b, DblVec& c) {
 void vecScale(const DblVec& a, double scale, DblVec& c) {
   c.resize(a.size());
   for (int i = 0; i < a.size(); ++i) {
-    c[i] = a[i] * b;
+    c[i] = a[i] * scale;
   }
 }
 

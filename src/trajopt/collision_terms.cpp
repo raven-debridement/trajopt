@@ -206,8 +206,8 @@ CollisionCost::CollisionCost(double dist_pen, double coeff, ConfigurationPtr rad
     Cost("cast_collision"),
     m_calc(new CastCollisionEvaluator(rad, vars0, vars1)), m_dist_pen(dist_pen), m_coeff(coeff)
 {}
-ConvexObjectivePtr CollisionCost::convex(const vector<double>& x, Model* model) {
-  ConvexObjectivePtr out(new ConvexObjective(model));
+ConvexObjectivePtr CollisionCost::convex(const vector<double>& x) {
+  ConvexObjectivePtr out(new ConvexObjective());
   vector<AffExpr> exprs;
   NamePairs bodyNames;
   m_calc->CalcDistExpressions(x, exprs, bodyNames);
@@ -217,7 +217,7 @@ ConvexObjectivePtr CollisionCost::convex(const vector<double>& x, Model* model) 
   }
   return out;
 }
-double CollisionCost::value(const vector<double>& x) {
+double CollisionCost::value(const vector<double>& x, Model* model) {
   DblVec dists;
   NamePairs bodyNames;
   m_calc->CalcDists(x, dists, bodyNames);
@@ -247,8 +247,8 @@ CollisionConstraint::CollisionConstraint(double dist_pen, double coeff, Configur
 {
   name_="collision";
 }
-ConvexConstraintsPtr CollisionConstraint::convex(const vector<double>& x, Model* model) {
-  ConvexConstraintsPtr out(new ConvexConstraints(model));
+ConvexConstraintsPtr CollisionConstraint::convex(const vector<double>& x) {
+  ConvexConstraintsPtr out(new ConvexConstraints());
   vector<AffExpr> exprs;
   NamePairs bodyNames;
   m_calc->CalcDistExpressions(x, exprs, bodyNames);
@@ -258,7 +258,7 @@ ConvexConstraintsPtr CollisionConstraint::convex(const vector<double>& x, Model*
   }
   return out;
 }
-DblVec CollisionConstraint::value(const vector<double>& x) {
+DblVec CollisionConstraint::value(const vector<double>& x, Model* model) {
   DblVec dists;
   NamePairs bodyNames;
   m_calc->CalcDists(x, dists, bodyNames);
@@ -280,8 +280,8 @@ CollisionTaggedCost::CollisionTaggedCost(const Str2Dbl& tag2dist_pen, const Str2
     m_calc(new CastCollisionEvaluator(rad, vars0, vars1)), m_tag2dist_pen(tag2dist_pen), m_tag2coeff(tag2coeff)
 {}
 
-ConvexObjectivePtr CollisionTaggedCost::convex(const vector<double>& x, Model* model) {
-  ConvexObjectivePtr out(new ConvexObjective(model));
+ConvexObjectivePtr CollisionTaggedCost::convex(const vector<double>& x) {
+  ConvexObjectivePtr out(new ConvexObjective());
   vector<AffExpr> exprs;
   NamePairs bodyNames;
   m_calc->CalcDistExpressions(x, exprs, bodyNames);
@@ -296,7 +296,7 @@ ConvexObjectivePtr CollisionTaggedCost::convex(const vector<double>& x, Model* m
   return out;
 }
 
-double CollisionTaggedCost::value(const vector<double>& x) {
+double CollisionTaggedCost::value(const vector<double>& x, Model* model) {
   DblVec dists;
   NamePairs bodyNames;
   m_calc->CalcDists(x, dists, bodyNames);
@@ -337,8 +337,8 @@ CollisionTaggedConstraint::CollisionTaggedConstraint(const Str2Dbl& tag2dist_pen
   name_="collision";
 }
 
-ConvexConstraintsPtr CollisionTaggedConstraint::convex(const vector<double>& x, Model* model) {
-  ConvexConstraintsPtr out(new ConvexConstraints(model));
+ConvexConstraintsPtr CollisionTaggedConstraint::convex(const vector<double>& x) {
+  ConvexConstraintsPtr out(new ConvexConstraints());
   vector<AffExpr> exprs;
   NamePairs bodyNames;
   m_calc->CalcDistExpressions(x, exprs, bodyNames);
@@ -351,7 +351,7 @@ ConvexConstraintsPtr CollisionTaggedConstraint::convex(const vector<double>& x, 
   return out;
 }
 
-DblVec CollisionTaggedConstraint::value(const vector<double>& x) {
+DblVec CollisionTaggedConstraint::value(const vector<double>& x, Model* model) {
   DblVec dists;
   NamePairs bodyNames;
   m_calc->CalcDists(x, dists, bodyNames);

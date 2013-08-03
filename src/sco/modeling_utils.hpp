@@ -40,8 +40,8 @@ class CostFromFunc : public Cost {
 public:
   /// supply function, obtain derivative and hessian numerically
   CostFromFunc(ScalarOfVectorPtr f, const VarVector& vars, const string& name, bool full_hessian=false);
-  double value(const vector<double>& x);
-  ConvexObjectivePtr convex(const vector<double>& x, Model* model);
+  double value(const vector<double>& x, Model* model);
+  ConvexObjectivePtr convex(const vector<double>& x);
 protected:
   ScalarOfVectorPtr f_;
   VarVector vars_;
@@ -55,8 +55,8 @@ public:
   CostFromErrFunc(VectorOfVectorPtr f, const VarVector& vars, const VectorXd& coeffs, PenaltyType pen_type, const string& name);
   /// supply error function and gradient
   CostFromErrFunc(VectorOfVectorPtr f, MatrixOfVectorPtr dfdx, const VarVector& vars, const VectorXd& coeffs, PenaltyType pen_type, const string& name);
-  double value(const vector<double>& x);
-  ConvexObjectivePtr convex(const vector<double>& x, Model* model);
+  double value(const vector<double>& x, Model* model);
+  ConvexObjectivePtr convex(const vector<double>& x);
 protected:
   VectorOfVectorPtr f_;
   MatrixOfVectorPtr dfdx_;
@@ -72,8 +72,8 @@ public:
   ConstraintFromFunc(VectorOfVectorPtr f, const VarVector& vars, const VectorXd& coeffs, ConstraintType type, const std::string& name);
   /// supply error function and gradient
   ConstraintFromFunc(VectorOfVectorPtr f, MatrixOfVectorPtr dfdx, const VarVector& vars, const VectorXd& coeffs, ConstraintType type, const std::string& name);
-  vector<double> value(const vector<double>& x);
-  ConvexConstraintsPtr convex(const vector<double>& x, Model* model);
+  vector<double> value(const vector<double>& x, Model* model);
+  ConvexConstraintsPtr convex(const vector<double>& x);
   ConstraintType type() {return type_;}
 protected:
   VectorOfVectorPtr f_;

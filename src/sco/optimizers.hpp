@@ -116,12 +116,12 @@ protected:
   ModelPtr model_;
 };
 
-DblVec evaluateCosts(vector<CostPtr>& costs, const DblVec& x);
-DblVec evaluateConstraintViols(vector<ConstraintPtr>& constraints, const DblVec& x);
-vector<ConvexObjectivePtr> convexifyCosts(vector<CostPtr>& costs, const DblVec& x, Model* model);
-vector<ConvexConstraintsPtr> convexifyConstraints(vector<ConstraintPtr>& cnts, const DblVec& x, Model* model);
-DblVec evaluateModelCosts(vector<ConvexObjectivePtr>& costs, const DblVec& x);
-DblVec evaluateModelCntViols(vector<ConvexConstraintsPtr>& cnts, const DblVec& x);
+DblVec evaluateCosts(vector<CostPtr>& costs, const DblVec& x, Model* model);
+DblVec evaluateConstraintViols(vector<ConstraintPtr>& constraints, const DblVec& x, Model* model);
+vector<ConvexObjectivePtr> convexifyCosts(vector<CostPtr>& costs, const DblVec& x);
+vector<ConvexConstraintsPtr> convexifyConstraints(vector<ConstraintPtr>& cnts, const DblVec& x);
+DblVec evaluateModelCosts(vector<ConvexObjectivePtr>& costs, const DblVec& x, Model* model);
+DblVec evaluateModelCntViols(vector<ConvexConstraintsPtr>& cnts, const DblVec& x, Model* model);
 vector<string> getCostNames(const vector<CostPtr>& costs);
 vector<string> getCntNames(const vector<ConstraintPtr>& cnts);
 void printCostInfo(const vector<double>& old_cost_vals, const vector<double>& model_cost_vals, const vector<double>& new_cost_vals,

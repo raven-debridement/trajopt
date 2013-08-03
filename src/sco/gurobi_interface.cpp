@@ -258,15 +258,7 @@ VarVector GurobiModel::getVars() const {
   return m_vars;
 }
 
-vector<double> GurobiModel::getLowerBounds() const {
-  return m_lbs;
-}
-
-vector<double> GurobiModel::getUpperBounds() const {
-  return m_ubs;
-}
-
-ModelPtr cloneModel() const {
+ModelPtr GurobiModel::cloneModel() const {
   boost::shared_ptr<GurobiModel> model(new GurobiModel());
   ENSURE_SUCCESS(GRBfreemodel(model->m_model));
   model->m_vars = m_vars;

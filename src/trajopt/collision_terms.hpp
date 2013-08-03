@@ -90,8 +90,8 @@ public:
   CollisionCost(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars);
   /* constructor for cast cost */
   CollisionCost(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
-  virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
-  virtual double value(const vector<double>&);
+  virtual ConvexObjectivePtr convex(const vector<double>& x);
+  virtual double value(const vector<double>&, Model*);
   void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
 protected:
   CollisionEvaluatorPtr m_calc;
@@ -104,8 +104,8 @@ public:
   CollisionConstraint(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars);
   /* constructor for cast cost */
   CollisionConstraint(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
-  virtual ConvexConstraintsPtr convex(const vector<double>& x, Model* model);
-  virtual DblVec value(const vector<double>&);
+  virtual ConvexConstraintsPtr convex(const vector<double>& x);
+  virtual DblVec value(const vector<double>&, Model*);
   void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
 protected:
   CollisionEvaluatorPtr m_calc;
@@ -117,8 +117,8 @@ class TRAJOPT_API CollisionTaggedCost : public Cost {
 public:
   CollisionTaggedCost(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad, const VarVector& vars);
   CollisionTaggedCost(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
-  virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model);
-  virtual double value(const vector<double>&);
+  virtual ConvexObjectivePtr convex(const vector<double>& x);
+  virtual double value(const vector<double>&, Model*);
 private:
   CollisionEvaluatorPtr m_calc;
   Str2Dbl m_tag2dist_pen;
@@ -131,8 +131,8 @@ public:
   CollisionTaggedConstraint(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad, const VarVector& vars);
   /* constructor for cast cost */
   CollisionTaggedConstraint(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
-  virtual ConvexConstraintsPtr convex(const vector<double>& x, Model* model);
-  virtual DblVec value(const vector<double>&);
+  virtual ConvexConstraintsPtr convex(const vector<double>& x);
+  virtual DblVec value(const vector<double>&, Model* model);
 private:
   CollisionEvaluatorPtr m_calc;
   Str2Dbl m_tag2dist_pen;

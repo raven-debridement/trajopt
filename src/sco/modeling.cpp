@@ -14,35 +14,33 @@ using namespace std;
 namespace sco {
 
 void ConvexObjective::addAffExpr(const AffExpr& affexpr) {
-  exprInc(quad_, affexpr);
+  objective_infos_.push_back(ObjectiveInfo(Objective_AffExpr, affexpr));
+  //exprInc(quad_, affexpr);
 }
 void ConvexObjective::addQuadExpr(const QuadExpr& quadexpr) {
-  exprInc(quad_, quadexpr);
+  objective_infos_.push_back(ObjectiveInfo(Objective_QuadExpr, quadexpr));
+  //exprInc(quad_, quadexpr);
 }
 void ConvexObjective::addHinge(const AffExpr& affexpr, double coeff) {
-  Var hinge = model_->addVar("hinge", 0, INFINITY);
-  vars_.push_back(hinge);
-  ineqs_.push_back(affexpr);
-  exprDec(ineqs_.back(), hinge);
-  AffExpr hinge_cost = exprMult(AffExpr(hinge), coeff);
-  exprInc(quad_, hinge_cost);
+  objective_infos_.push_back(ObjectiveInfo(Objective_Hinge, affexpr, coeff));//"hinge", 0, INFINITY
 }
 void ConvexObjective::addAbs(const AffExpr& affexpr, double coeff) {
-  Var neg = model_->addVar("neg", 0, INFINITY);
-  Var pos = model_->addVar("pos", 0, INFINITY);
-  vars_.push_back(neg);
-  vars_.push_back(pos);
-  AffExpr neg_plus_pos;
-  neg_plus_pos.coeffs = vector<double>(2, coeff);
-  neg_plus_pos.vars.push_back(neg);
-  neg_plus_pos.vars.push_back(pos);
-  exprInc(quad_, neg_plus_pos);
-  AffExpr affeq = affexpr;
-  affeq.vars.push_back(neg);
-  affeq.vars.push_back(pos);
-  affeq.coeffs.push_back(1);
-  affeq.coeffs.push_back(-1);
-  eqs_.push_back(affeq);
+  objective_infos_.push_back(ObjectiveInfo(Objective_Abs, affexpr, coeff));
+  //Var neg = model_->addVar("neg", 0, INFINITY);
+  //Var pos = model_->addVar("pos", 0, INFINITY);
+  //vars_.push_back(neg);
+  //vars_.push_back(pos);
+  //AffExpr neg_plus_pos;
+  //neg_plus_pos.coeffs = vector<double>(2, coeff);
+  //neg_plus_pos.vars.push_back(neg);
+  //neg_plus_pos.vars.push_back(pos);
+  //exprInc(quad_, neg_plus_pos);
+  //AffExpr affeq = affexpr;
+  //affeq.vars.push_back(neg);
+  //affeq.vars.push_back(pos);
+  //affeq.coeffs.push_back(1);
+  //affeq.coeffs.push_back(-1);
+  //eqs_.push_back(affeq);
 }
 void ConvexObjective::addHinges(const AffExprVector& ev) {
   for (size_t i=0; i < ev.size(); ++i) addHinge(ev[i],1);
@@ -51,32 +49,150 @@ void ConvexObjective::addL1Norm(const AffExprVector& ev) {
   for (size_t i=0; i < ev.size(); ++i) addAbs(ev[i],1);
 }
 void ConvexObjective::addL2Norm(const AffExprVector& ev) {
-  for (size_t i=0; i < ev.size(); ++i) exprInc(quad_, exprSquare(ev[i]));
+  for (size_t i=0; i < ev.size(); ++i) addQuadExpr(exprSquare(ev[i]));
 }
-void ConvexObjective::addMax(const AffExprVector& ev) {
-  Var m = model_->addVar("max", -INFINITY, INFINITY);
-  for (size_t i=0; i < ev.size(); ++i) {
-    ineqs_.push_back(ev[i]);
-    exprDec(ineqs_.back(), m);
+void ConvexObjective::addMax(const AffExprVector& ev) { // this is probably buggy
+  objective_infos_.push_back(ObjectiveInfo(Objective_Max, ev));
+
+  //Var m = model_->addVar("max", -INFINITY, INFINITY);
+  //for (size_t i=0; i < ev.size(); ++i) {
+  //  ineqs_.push_back(ev[i]);
+  //  exprDec(ineqs_.back(), m);
+  //}
+}
+
+void ConvexObjective::addToModelAndObjective(Model* model, AffExpr& objective, bool permissive) {
+  assert (model != NULL);
+  assert (model2vars_.count(model) == 0);
+  assert (model2cnts_.count(model) == 0);
+  assert (model2quad_.count(model) == 0);
+
+  vector<AffExpr> eqs;
+  vector<AffExpr> ineqs;
+  vector<Var> vars;
+
+  QuadExpr quad;
+
+  BOOST_FOREACH(const ObjectiveInfo& info, objective_infos_) {
+    switch (info.type_) {
+      case Objective_AffExpr: {
+        exprInc(objective, info.affexpr_);
+        exprInc(quad, info.affexpr_);
+        break;
+      }
+      case Objective_QuadExpr: {
+        if (!permissive) {
+          throw std::runtime_error("Error: attempt to add quadratic expression to affine objective");
+        }
+        break;
+      }
+      case Objective_Hinge: {
+        Var hinge = model->addVar("hinge", 0, INFINITY);
+        vars.push_back(hinge);
+        ineqs.push_back(info.affexpr_);
+        exprDec(ineqs.back(), hinge);
+        AffExpr hinge_cost = exprMult(AffExpr(hinge), info.coeff_);
+        exprInc(objective, hinge_cost);
+        exprInc(quad, hinge_cost);
+        break;
+      }
+      case Objective_Abs: {
+        Var neg = model->addVar("neg", 0, INFINITY);
+        Var pos = model->addVar("pos", 0, INFINITY);
+        vars.push_back(neg);
+        vars.push_back(pos);
+        AffExpr neg_plus_pos;
+        neg_plus_pos.coeffs = vector<double>(2, info.coeff_);
+        neg_plus_pos.vars.push_back(neg);
+        neg_plus_pos.vars.push_back(pos);
+        exprInc(objective, neg_plus_pos);
+        exprInc(quad, neg_plus_pos);
+        AffExpr affeq = info.affexpr_;
+        affeq.vars.push_back(neg);
+        affeq.vars.push_back(pos);
+        affeq.coeffs.push_back(1);
+        affeq.coeffs.push_back(-1);
+        eqs.push_back(affeq);
+        break;
+      }
+      case Objective_Max: {
+        Var m = model->addVar("max", -INFINITY, INFINITY);
+        vars.push_back(m);
+        for (size_t i=0; i < info.ev_.size(); ++i) {
+          ineqs.push_back(info.ev_[i]);
+          exprDec(ineqs.back(), m);
+        }
+        break;
+      }
+      default: {
+        throw std::runtime_error("unsupported auxiliary type");
+        break;
+      }
+    }
+  }
+
+  vector<Cnt> cnts;
+  cnts.reserve(eqs.size() + ineqs.size());
+  BOOST_FOREACH(const AffExpr& aff, eqs) {
+    cnts.push_back(model->addEqCnt(aff, ""));
+  }
+  BOOST_FOREACH(const AffExpr& aff, ineqs) {
+    cnts.push_back(model->addIneqCnt(aff, ""));
+  }
+
+  model2vars_.insert(ModelVarsPair(model, vars));
+  model2cnts_.insert(ModelCntsPair(model, cnts));
+  model2quad_.insert(ModelQuadPair(model, quad));
+}
+
+void ConvexObjective::addToModelAndObjective(Model* model, QuadExpr& objective) {
+  assert (model != NULL);
+
+  addToModelAndObjective(model, objective.affexpr, true);
+
+  QuadExpr& quad = model2quad_.at(model);
+
+  BOOST_FOREACH(const ObjectiveInfo& info, objective_infos_) {
+    if (info.type_ == Objective_QuadExpr) {
+      exprInc(objective, info.quadexpr_);
+      exprInc(quad, info.quadexpr_);
+    }
   }
 }
 
-void ConvexObjective::addConstraintsToModel() {
-  cnts_.reserve(eqs_.size() + ineqs_.size());
-  BOOST_FOREACH(const AffExpr& aff, eqs_) {
-    cnts_.push_back(model_->addEqCnt(aff, ""));
+//void ConvexObjective::addConstraintsToModel() {
+//  cnts_.reserve(eqs_.size() + ineqs_.size());
+//  BOOST_FOREACH(const AffExpr& aff, eqs_) {
+//    cnts_.push_back(model_->addEqCnt(aff, ""));
+//  }
+//  BOOST_FOREACH(const AffExpr& aff, ineqs_) {
+//    cnts_.push_back(model_->addIneqCnt(aff, ""));
+//  }
+//}
+
+void ConvexObjective::removeFromModel(Model* model) {
+  assert (model != NULL);
+  if (model2vars_.count(model) > 0) {
+    model->removeVars(model2vars_.at(model));
+    model2vars_.erase(model);
   }
-  BOOST_FOREACH(const AffExpr& aff, ineqs_) {
-    cnts_.push_back(model_->addIneqCnt(aff, ""));
+
+  if (model2cnts_.count(model) > 0) {
+    model->removeCnts(model2cnts_.at(model));
+    model2cnts_.erase(model);
   }
 }
 
 void ConvexObjective::removeFromModels() {
-  cout << "removing from model" << endl;
-  model_->removeCnts(cnts_);
-  model_->removeVars(vars_);
-  model_ = NULL;
+  vector<Model*> models;
+  BOOST_FOREACH(const Model2Vars::value_type& pair, model2vars_) {
+    models.push_back(pair.first);    
+  }
+  BOOST_FOREACH(Model* model, models) {
+    removeFromModel(model);
+  }
 }
+
 ConvexObjective::~ConvexObjective() {
   removeFromModels();
 }
@@ -89,43 +205,63 @@ void ConvexConstraints::addIneqCnt(const AffExpr& aff) {
   ineqs_.push_back(aff);
 }
 
-void ConvexConstraints::addConstraintsToModel() {
-  cnts_.reserve(eqs_.size() + ineqs_.size());
+void ConvexConstraints::addToModel(Model* model) {
+  assert (model != NULL);
+  assert (model2cnts_.count(model) == 0);
+
+  vector<Cnt> cnts;
+  cnts.reserve(eqs_.size() + ineqs_.size());
   BOOST_FOREACH(const AffExpr& aff, eqs_) {
-    cnts_.push_back(model_->addEqCnt(aff, ""));
+    cnts.push_back(model->addEqCnt(aff, ""));
   }
   BOOST_FOREACH(const AffExpr& aff, ineqs_) {
-    cnts_.push_back(model_->addIneqCnt(aff, ""));
+    cnts.push_back(model->addIneqCnt(aff, ""));
+  }
+  model2cnts_.insert(ModelCntsPair(model, cnts));
+}
+
+void ConvexConstraints::removeFromModel(Model* model) {
+  assert (model != NULL);
+  if (model2cnts_.count(model) > 0) {
+    model->removeCnts(model2cnts_.at(model));
+    model2cnts_.erase(model);
   }
 }
 
-void ConvexConstraints::removeFromModel() {
-  model_->removeCnts(cnts_);
-  model_ = NULL;
-}
-
-vector<double> ConvexConstraints::violations(const vector<double>& x) {
+vector<double> ConvexConstraints::violations(const vector<double>& x, Model* model) {
   DblVec out;
   out.reserve(eqs_.size() + ineqs_.size());
   BOOST_FOREACH(const AffExpr& aff, eqs_) out.push_back(fabs(aff.value(x.data())));
   BOOST_FOREACH(const AffExpr& aff, ineqs_) out.push_back(pospart(aff.value(x.data())));
   return out;
 }
-double ConvexConstraints::violation(const vector<double>& x) {
-  return vecSum(violations(x));
+double ConvexConstraints::violation(const vector<double>& x, Model* model) {
+  return vecSum(violations(x, model));
+}
+
+void ConvexConstraints::removeFromModels() {
+  vector<Model*> models;
+  BOOST_FOREACH(const Model2Cnts::value_type& pair, model2cnts_) {
+    models.push_back(pair.first);
+  }
+  BOOST_FOREACH(Model* model, models) {
+    removeFromModel(model);
+  }
 }
 
 ConvexConstraints::~ConvexConstraints() {
-  if (inModel()) removeFromModel();
+  removeFromModels();
 }
 
-double ConvexObjective::value(const vector<double>& x)  {
-  return quad_.value(x);
+double ConvexObjective::value(const vector<double>& x, Model* model)  {
+  assert (model != NULL);
+  assert (model2quad_.count(model) > 0);
+  return model2quad_.at(model).value(x);
 }
 
 
-vector<double> Constraint::violations(const DblVec& x) {
-  DblVec val = value(x);
+vector<double> Constraint::violations(const DblVec& x, Model* model) {
+  DblVec val = value(x, model);
   DblVec out(val.size());
 
   if (type() == EQ) {
@@ -138,8 +274,8 @@ vector<double> Constraint::violations(const DblVec& x) {
   return out;
 }
 
-double Constraint::violation(const DblVec& x) {
-  return vecSum(violations(x));
+double Constraint::violation(const DblVec& x, Model* model) {
+  return vecSum(violations(x, model));
 }
 
 OptProb::OptProb() : model_(createModel()) {}
