@@ -703,9 +703,9 @@ OptStatus LineSearchSQP::optimize() {
       trust_box_size_ = vecMax(chosen_step);
     }
 
-    LOG_INFO("new box size: %.4f", trust_box_size_);
-
     trust_box_size_ = max(min_trust_box_size_, min(trust_box_size_, max_trust_box_size_));
+
+    LOG_INFO("new box size: %.4f", trust_box_size_);
   }
 
   cleanup:

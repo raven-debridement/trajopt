@@ -86,6 +86,8 @@ namespace BSP {
       //opt.trust_box_size_             = 1;
       //opt.cnt_tolerance_              = 1e-06;
       opt.merit_error_coeff_ = 10;
+      opt.trust_shrink_ratio_ = 0.1;
+      opt.trust_expand_ratio_ = 1.5;
     }
 
     virtual void initialize() {
