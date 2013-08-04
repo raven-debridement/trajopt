@@ -72,19 +72,20 @@ namespace BSP {
       return (helper->T <= 0);
     }
 
-    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time=true) {
-      opt.max_iter_                   = 250;
-      opt.merit_error_coeff_          = 100;
-      opt.merit_coeff_increase_ratio_ = 10;
-      opt.max_merit_coeff_increases_  = 2;
-      opt.trust_shrink_ratio_         = 0.8;
-      opt.trust_expand_ratio_         = 1.2;
-      opt.min_trust_box_size_         = 0.001;
-      opt.min_approx_improve_         = 1e-2;
-      opt.min_approx_improve_frac_    = 1e-4;
-      opt.improve_ratio_threshold_    = 0.1;
-      opt.trust_box_size_             = 1;
-      opt.cnt_tolerance_              = 1e-06;
+    virtual void initialize_optimizer_parameters(LineSearchSQP& opt, bool is_first_time=true) {
+      //opt.max_iter_                   = 250;
+      //opt.merit_error_coeff_          = 100;
+      //opt.merit_coeff_increase_ratio_ = 10;
+      //opt.max_merit_coeff_increases_  = 2;
+      //opt.trust_shrink_ratio_         = 0.8;
+      //opt.trust_expand_ratio_         = 1.2;
+      //opt.min_trust_box_size_         = 0.001;
+      //opt.min_approx_improve_         = 1e-2;
+      //opt.min_approx_improve_frac_    = 1e-4;
+      //opt.improve_ratio_threshold_    = 0.1;
+      //opt.trust_box_size_             = 1;
+      //opt.cnt_tolerance_              = 1e-06;
+      opt.merit_error_coeff_ = 10;
     }
 
     virtual void initialize() {
@@ -143,7 +144,7 @@ namespace BSP {
       }
 
       for (int i = 0; i < n_alpha_iterations; ++i) {
-        BSPTrustRegionSQP opt(prob);
+        LineSearchSQP opt(prob);
         initialize_optimizer_parameters(opt, i == 0);
         helper->configure_optimizer(*prob, opt);
         if (opt_callback) {

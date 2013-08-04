@@ -17,8 +17,8 @@ namespace BSP {
     /* constructor for continuous */
     BeliefCollisionCost(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1, BeliefFuncPtr belief_func, OR::KinBody::LinkPtr endeffector) : Cost("belief_collision"), m_dist_pen(dist_pen), m_coeff(coeff), m_calc(new BeliefContinuousCollisionEvaluator<BeliefFuncT>(rad, vars0, vars1, belief_func, endeffector)) {}
 
-    ConvexObjectivePtr convex(const vector<double>& x, Model* model) {
-      ConvexObjectivePtr out(new ConvexObjective(model));
+    ConvexObjectivePtr convex(const vector<double>& x) {
+      ConvexObjectivePtr out(new ConvexObjective());
       vector<AffExpr> exprs;
       NamePairs bodyNames;
       m_calc->CalcDistExpressions(x, exprs, bodyNames);
@@ -29,7 +29,7 @@ namespace BSP {
       return out;
     }
 
-    double value(const vector<double>& x) {
+    double value(const vector<double>& x, Model* model) {
       DblVec dists;
       NamePairs bodyNames;
       m_calc->CalcDists(x, dists, bodyNames);

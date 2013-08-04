@@ -21,8 +21,8 @@ namespace BSP {
       name_ = "belief_collision"; 
     }
 
-    ConvexConstraintsPtr convex(const vector<double>& x, Model* model) {
-      ConvexConstraintsPtr out(new ConvexConstraints(model));
+    ConvexConstraintsPtr convex(const vector<double>& x) {
+      ConvexConstraintsPtr out(new ConvexConstraints());
       vector<AffExpr> exprs;
       NamePairs bodyNames;
       m_calc->CalcDistExpressions(x, exprs, bodyNames);
@@ -32,7 +32,7 @@ namespace BSP {
       }
       return out;
     }
-    DblVec value(const vector<double>& x) {
+    DblVec value(const vector<double>& x, Model* model) {
       DblVec dists;
       NamePairs bodyNames;
       m_calc->CalcDists(x, dists, bodyNames);

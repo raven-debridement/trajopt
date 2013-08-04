@@ -37,8 +37,8 @@ namespace BSP {
       assert(x_.size() == prob_->getVars().size());
       assert(prob_->getCosts().size() > 0 || constraints.size() > 0);
 
-      results_.cnt_viols = evaluateConstraintViols(constraints, x_);
-      results_.cost_vals = evaluateCosts(prob_->getCosts(), x_);
+      results_.cnt_viols = evaluateConstraintViols(constraints, x_, model_.get());
+      results_.cost_vals = evaluateCosts(prob_->getCosts(), x_, model_.get());
       //assert(results_.n_func_evals == 0);
       ++results_.n_func_evals;
 
@@ -52,8 +52,8 @@ namespace BSP {
 
         // speedup: if you just evaluated the cost when doing the line search, use that
         if (results_.cost_vals.empty() && results_.cnt_viols.empty()) { //only happens on the first iteration
-          results_.cnt_viols = evaluateConstraintViols(constraints, x_);
-          results_.cost_vals = evaluateCosts(prob_->getCosts(), x_);
+          results_.cnt_viols = evaluateConstraintViols(constraints, x_, model_.get());
+          results_.cost_vals = evaluateCosts(prob_->getCosts(), x_, model_.get());
           assert(results_.n_func_evals == 0);
           ++results_.n_func_evals;
         }
@@ -69,18 +69,15 @@ namespace BSP {
         // }
 
 
-        vector<ConvexObjectivePtr> cost_models = convexifyCosts(prob_->getCosts(),x_, model_.get());
-        vector<ConvexConstraintsPtr> cnt_models = convexifyConstraints(constraints, x_, model_.get());
-        vector<ConvexObjectivePtr> cnt_cost_models = cntsToCosts(cnt_models, merit_error_coeff_, model_.get());
-        model_->update();
-        BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models)cost->addConstraintsToModel();
-        BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models)cost->addConstraintsToModel();
-        model_->update();
+        vector<ConvexObjectivePtr> cost_models = convexifyCosts(prob_->getCosts(),x_);
+        vector<ConvexConstraintsPtr> cnt_models = convexifyConstraints(constraints, x_);
+        vector<ConvexObjectivePtr> cnt_cost_models = cntsToCosts(cnt_models, merit_error_coeff_);
+
         QuadExpr objective;
-        BOOST_FOREACH(ConvexObjectivePtr& co, cost_models)exprInc(objective, co->quad_);
-        BOOST_FOREACH(ConvexObjectivePtr& co, cnt_cost_models){
-          exprInc(objective, co->quad_);
-        }
+
+        BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models)cost->addToModelAndObjective(model_.get(), objective);
+        BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models)cost->addToModelAndObjective(model_.get(), objective);
+
         //    objective = cleanupExpr(objective);
         model_->setObjective(objective);
 
@@ -94,7 +91,7 @@ namespace BSP {
 
         while (trust_box_size_ >= min_trust_box_size_) {
 
-          setTrustBoxConstraints(x_);
+          setTrustBoxConstraints(x_, model_.get());
           CvxOptStatus status = model_->optimize();
           ++results_.n_qp_solves;
           if (status != CVX_SOLVED) {
@@ -105,22 +102,22 @@ namespace BSP {
           }
           DblVec model_var_vals = model_->getVarValues(model_->getVars());
 
-          DblVec model_cost_vals = evaluateModelCosts(cost_models, model_var_vals);
-          DblVec model_cnt_viols = evaluateModelCntViols(cnt_models, model_var_vals);
+          DblVec model_cost_vals = evaluateModelCosts(cost_models, model_var_vals, model_.get());
+          DblVec model_cnt_viols = evaluateModelCntViols(cnt_models, model_var_vals, model_.get());
 
           // the n variables of the OptProb happen to be the first n variables in the Model
           DblVec new_x(model_var_vals.begin(), model_var_vals.begin() + x_.size());
 
           if (GetLogLevel() >= util::LevelDebug) {
-            DblVec cnt_costs1 = evaluateModelCosts(cnt_cost_models, model_var_vals);
+            DblVec cnt_costs1 = evaluateModelCosts(cnt_cost_models, model_var_vals, model_.get());
             DblVec cnt_costs2 = model_cnt_viols;
             for (int i=0; i < cnt_costs2.size(); ++i) cnt_costs2[i] *= merit_error_coeff_;
             LOG_DEBUG("SHOULD BE ALMOST THE SAME: %s ?= %s", CSTR(cnt_costs1), CSTR(cnt_costs2) );
             // not exactly the same because cnt_costs1 is based on aux variables, but they might not be at EXACTLY the right value
           }
 
-          DblVec new_cost_vals = evaluateCosts(prob_->getCosts(), new_x);
-          DblVec new_cnt_viols = evaluateConstraintViols(constraints, new_x);
+          DblVec new_cost_vals = evaluateCosts(prob_->getCosts(), new_x, model_.get());
+          DblVec new_cnt_viols = evaluateConstraintViols(constraints, new_x, model_.get());
           ++results_.n_func_evals;
 
           double old_merit = vecSum(results_.cost_vals) + merit_error_coeff_ * vecSum(results_.cnt_viols);
