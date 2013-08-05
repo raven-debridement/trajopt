@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Robot file="baxter/baxter-reduced.dae" name="Baxter">
+  <Manipulator name="left_arm">
+    <base>base</base>
+    <effector>left_gripper</effector>
+  </Manipulator>
+  <Manipulator name="right_arm">
+    <base>base</base>
+    <effector>right_gripper</effector>
+  </Manipulator>
+</Robot>
