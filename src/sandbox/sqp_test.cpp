@@ -126,7 +126,7 @@ public:
 
 int main() {
   OptProbPtr prob(new OptProb());
-  LineSearchSQP opt(prob);
+  TrustRegionSLQP opt(prob);
 
   VarVector vars;
   #if 0 // Settings A

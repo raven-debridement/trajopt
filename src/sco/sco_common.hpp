@@ -19,6 +19,13 @@ inline double vecAbsSum(const DblVec& v) {
   for (int i=0; i < v.size(); ++i) out += fabs(v[i]);
   return out;
 }
+inline double vecAbsMax(const DblVec& v) {
+  double out = 0;
+  for (int i=0; i < v.size(); ++i) {
+    out = fmax(out, fabs(v[i]));
+  }
+  return out;
+}
 inline double pospart(double x) {
   return (x > 0) ? x : 0;
 }

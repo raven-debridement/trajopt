@@ -457,26 +457,26 @@ OptStatus BasicTrustRegionSQP::optimize() {
 
 }
 
-LineSearchSQP::LineSearchSQP() : BasicTrustRegionSQP() {
+TrustRegionSLQP::TrustRegionSLQP() : BasicTrustRegionSQP() {
   initParameters(); 
 }
 
-LineSearchSQP::LineSearchSQP(OptProbPtr prob) : BasicTrustRegionSQP(prob) {
+TrustRegionSLQP::TrustRegionSLQP(OptProbPtr prob) : BasicTrustRegionSQP(prob) {
   initParameters(); 
 }
 
-bool LineSearchSQP::hasViolation(const DblVec& cnt_viols) {
+bool TrustRegionSLQP::hasViolation(const DblVec& cnt_viols) {
   return cnt_viols.size() > 0 && vecMax(cnt_viols) > cnt_tolerance_;
 }
 
-void LineSearchSQP::unsetTrustBoxConstraints(Model* model) {
+void TrustRegionSLQP::unsetTrustBoxConstraints(Model* model) {
   assert (model != NULL);
   vector<Var>& vars = prob_->getVars();
   DblVec& lb=prob_->getLowerBounds(), ub=prob_->getUpperBounds();
   model->setVarBounds(vars, lb, ub);
 }
 
-void LineSearchSQP::initParameters() {
+void TrustRegionSLQP::initParameters() {
   
   trust_shrink_ratio_= 0.5;
   trust_expand_ratio_ = 2;
@@ -484,13 +484,14 @@ void LineSearchSQP::initParameters() {
   merit_coeff_increase_ratio_ = 10;
   merit_error_coeff_ = 1;
   trust_box_size_ = 1;
+  improve_ratio_threshold_ = .25;
+  max_iter_ = 50;
+  min_approx_improve_= 1e-4;
+  min_approx_improve_frac_ = -INFINITY;
 
+  max_merit_error_coeff_ = 1e8;
   min_cnt_improve_ratio = 0.1; // ep1
   min_model_merit_improve_ratio_ = 0.1; // ep2
-  line_search_shrink_ratio_ = 0.5; // tau
-  min_merit_improve_ratio = 1e-4; // eta
-  trust_region_shrink_threshold_ = 0.25; // eta_1
-  trust_region_expand_threshold_ = 0.75; // eta_2
   min_trust_box_size_ = 1e-3; // trust_region_min
   max_trust_box_size_ = 1e3; // trust_region_max
 
@@ -498,7 +499,7 @@ void LineSearchSQP::initParameters() {
 
 }
 
-OptStatus LineSearchSQP::optimize() {
+OptStatus TrustRegionSLQP::optimize() {
 
   vector<string> cost_names = getCostNames(prob_->getCosts());
   vector<ConstraintPtr> constraints = prob_->getConstraints();
@@ -539,6 +540,7 @@ OptStatus LineSearchSQP::optimize() {
     BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->addToModelAndObjective(model_.get(), objective);
     
     model_->setObjective(objective);
+    setTrustBoxConstraints(x_, model_.get());
 
     // archive the model variable values before optimization for later use
     DblVec old_model_var_vals = x_;//model_->getVarValues(model_->getVars());
@@ -547,7 +549,7 @@ OptStatus LineSearchSQP::optimize() {
     }
 
 
-    // 1. solve the problem constructed above _without_ a trust region size
+    // (1) solve the problem constructed above
     CvxOptStatus status = model_->optimize(); 
     ++results_.n_qp_solves;
     CHECK_STATUS(status, model_);
@@ -558,19 +560,13 @@ OptStatus LineSearchSQP::optimize() {
 
     //  check if result is close to the previous x and if all cnt viols are satisfied for the old x
     //    (stop in that case)
-    if (vecAbsSum(step) < opt_eps) {
-      if (!hasViolation(results_.cnt_viols)) {
-        if (results_.cnt_viols.size() > 0) LOG_INFO("woo-hoo! constraints are satisfied (to tolerance %.2e)", cnt_tolerance_);
-        retval = OPT_CONVERGED;
-        goto cleanup;
-      }
+    if (vecAbsMax(step) < opt_eps) {
+      goto check_convergence;
     }
-
 
     //double new_merit_error_coeff = merit_error_coeff_;
 
-    // 2. if model cnt viols = 0 and old_model_merit - new_model_merit >= min_approx_improve_ratio * merit_error_coeff * old_model_viols
-    //    go to 6.
+    // if model cnt viols = 0, go to (4) directly
     DblVec old_model_cost_vals = evaluateModelCosts(cost_models, old_model_var_vals, model_.get());
     DblVec old_model_cnt_viols = evaluateModelCntViols(cnt_models, old_model_var_vals, model_.get());
     DblVec current_model_cost_vals = evaluateModelCosts(cost_models, current_model_var_vals, model_.get());
@@ -584,12 +580,9 @@ OptStatus LineSearchSQP::optimize() {
     double old_model_merit = old_model_total_cost_val + merit_error_coeff_ * old_model_total_cnt_viol;
     double current_model_merit = current_model_total_cost_val + merit_error_coeff_ * current_model_total_cnt_viol;
 
-    if (!hasViolation(current_model_cnt_viols) &&
-        old_model_merit - current_model_merit >= min_model_merit_improve_ratio_ * merit_error_coeff_ * old_model_total_cnt_viol) {
-      //goto linesearch; 
-    } else {
+    if (hasViolation(current_model_cnt_viols)) {
       
-      // 3. solve LP:
+      // 2. solve LP:
       vector<ConvexObjectivePtr> lp_cnt_cost_models = cntsToCosts(cnt_models, 1);
       AffExpr lp_objective;
 
@@ -597,7 +590,6 @@ OptStatus LineSearchSQP::optimize() {
       BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->removeFromModel(model_.get());
       BOOST_FOREACH(ConvexObjectivePtr& cost, lp_cnt_cost_models) cost->addToModelAndObjective(model_.get(), lp_objective);
       model_->setObjective(lp_objective);
-      setTrustBoxConstraints(x_, model_.get());
 
       {
         CvxOptStatus lp_status = model_->optimize();
@@ -608,104 +600,128 @@ OptStatus LineSearchSQP::optimize() {
       DblVec lp_model_var_vals = model_->getVarValues(model_->getVars());
       DblVec lp_x(lp_model_var_vals.begin(), lp_model_var_vals.begin() + x_.size());
 
-      // if old_model_viols == lp_model_viols > 0 then stop infeasible 
       DblVec lp_model_cnt_viols = evaluateModelCntViols(cnt_models, lp_model_var_vals, model_.get());
       double lp_model_total_cnt_viol = vecSum(lp_model_cnt_viols);
-      if (fabs(old_model_total_cnt_viol - lp_model_total_cnt_viol) < opt_eps && hasViolation(old_model_cnt_viols)) {
-        retval = OPT_INFEASIBLE;
-        goto cleanup;
-      }
 
       QuadExpr objective;
       BOOST_FOREACH(ConvexObjectivePtr& cost, lp_cnt_cost_models) cost->removeFromModel(model_.get());
       BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models) cost->addToModelAndObjective(model_.get(), objective);
       BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->addToModelAndObjective(model_.get(), objective);
       model_->setObjective(objective);
-      unsetTrustBoxConstraints(model_.get());
 
-      // 4.
       if (fabs(lp_model_total_cnt_viol) < opt_eps) {
-        while (fabs(current_model_total_cnt_viol) > opt_eps) {
+        while (merit_error_coeff_ < max_merit_error_coeff_ && fabs(current_model_total_cnt_viol) > opt_eps) {
           merit_error_coeff_ *= merit_coeff_increase_ratio_;
+          LOG_INFO("new merit coefficient: %.4f", merit_error_coeff_);
           RESOLVE_QP();
         }
       } else {
-        while (old_model_total_cnt_viol - current_model_total_cnt_viol < min_cnt_improve_ratio * (old_model_total_cnt_viol - lp_model_total_cnt_viol)) {
+        while (merit_error_coeff_ < max_merit_error_coeff_ &&
+               old_model_total_cnt_viol - current_model_total_cnt_viol < min_cnt_improve_ratio * (old_model_total_cnt_viol - lp_model_total_cnt_viol)) {
           merit_error_coeff_ *= merit_coeff_increase_ratio_;
+          LOG_INFO("new merit coefficient: %.4f", merit_error_coeff_);
           RESOLVE_QP();
         }
       }
 
-      current_model_cost_vals = evaluateModelCosts(cost_models, current_model_var_vals, model_.get());
-      current_model_total_cost_val = vecSum(current_model_cost_vals);
-
-      // 5.
-      while ( (old_model_total_cost_val + merit_error_coeff_ * old_model_total_cnt_viol) /* old_model_merit */
-             -(current_model_total_cost_val + merit_error_coeff_ * current_model_total_cnt_viol) /* current_model_merit */
-            <  min_model_merit_improve_ratio_ * merit_error_coeff_ * (old_model_total_cnt_viol - lp_model_total_cnt_viol) ) {
-        merit_error_coeff_ *= merit_coeff_increase_ratio_;
-        RESOLVE_QP();
-        current_model_cost_vals = evaluateModelCosts(cost_models, current_model_var_vals, model_.get());
-        current_model_total_cost_val = vecSum(current_model_cost_vals);
-      }
-
-      old_model_merit = old_model_total_cost_val + merit_error_coeff_ * old_model_total_cnt_viol;
-      current_model_merit = current_model_total_cost_val + merit_error_coeff_ * current_model_total_cnt_viol;
-
     }
 
-    // 6.
-    //linesearch:
-    double alpha = 1;
+    current_model_cost_vals = evaluateModelCosts(cost_models, current_model_var_vals, model_.get());
+    current_model_total_cost_val = vecSum(current_model_cost_vals);
+
+    // (4).
+    while (merit_error_coeff_ < max_merit_error_coeff_ &&
+            (old_model_total_cost_val + merit_error_coeff_ * old_model_total_cnt_viol) /* old_model_merit */
+           -(current_model_total_cost_val + merit_error_coeff_ * current_model_total_cnt_viol) /* current_model_merit */
+          <  min_model_merit_improve_ratio_ * merit_error_coeff_ * (old_model_total_cnt_viol - current_model_total_cnt_viol) ) {
+      merit_error_coeff_ *= merit_coeff_increase_ratio_;
+      LOG_INFO("new merit coefficient: %.4f", merit_error_coeff_);
+      RESOLVE_QP();
+      current_model_cost_vals = evaluateModelCosts(cost_models, current_model_var_vals, model_.get());
+      current_model_total_cost_val = vecSum(current_model_cost_vals);
+    }
+
+    
+    DblVec current_cost_vals = evaluateCosts(prob_->getCosts(), new_x, model_.get());
+    DblVec current_cnt_viols = evaluateConstraintViols(constraints, new_x, model_.get());
+    ++results_.n_func_evals;
+
     double old_merit = vecSum(results_.cost_vals) + merit_error_coeff_ * vecSum(results_.cnt_viols);
-    DblVec current_x, current_cost_vals, current_cnt_viols, chosen_step;
-    double current_merit = 0, merit_improve_bound = 0;
-    do {
-      vecScale(step, alpha, chosen_step);
-      vecAdd(x_, chosen_step, current_x);
-      //current_x = x + alpha * step;//new_x; // new_x = x + 1 * step
-      current_cost_vals = evaluateCosts(prob_->getCosts(), current_x, model_.get());
-      current_cnt_viols = evaluateConstraintViols(constraints, current_x, model_.get());
-      ++results_.n_func_evals;
-      current_merit = vecSum(current_cost_vals) + merit_error_coeff_ * vecSum(current_cnt_viols);
-      merit_improve_bound = min_merit_improve_ratio * alpha * (old_model_merit - current_model_merit);
-      alpha = alpha * line_search_shrink_ratio_;
-    } while (old_merit - current_merit < merit_improve_bound);
+    double current_merit = vecSum(current_cost_vals) + merit_error_coeff_ * vecSum(current_cnt_viols);
 
-    
-    // 7. choose trust region size:
+    old_model_merit = old_model_total_cost_val + merit_error_coeff_ * old_model_total_cnt_viol;
+    current_model_merit = current_model_total_cost_val + merit_error_coeff_ * current_model_total_cnt_viol;
 
-    double actual_improve = old_merit - current_merit;
-    double model_improve = old_model_merit - current_model_merit;
+    // (5). choose trust region size:
 
-    
+    double exact_merit_improve = old_merit - current_merit;
+    double approx_merit_improve = old_model_merit - current_model_merit;
+    double merit_improve_ratio = exact_merit_improve / approx_merit_improve;
+
+    x_ = new_x;
+    results_.cost_vals = current_cost_vals;
+    results_.cnt_viols = current_cnt_viols;
+
     if (util::GetLogLevel() >= util::LevelInfo) {
       LOG_INFO(" ");
       printCostInfo(results_.cost_vals, current_model_cost_vals, current_cost_vals,
                     results_.cnt_viols, current_model_cnt_viols, current_cnt_viols, cost_names,
                     cnt_names, merit_error_coeff_);
-      printf("%15s | %10.3e | %10.3e | %10.3e | %10.3e\n", "TOTAL", old_merit, model_improve, actual_improve, actual_improve / model_improve);
+      printf("%15s | %10.3e | %10.3e | %10.3e | %10.3e\n", "TOTAL", old_merit, approx_merit_improve, exact_merit_improve, merit_improve_ratio);
+    }
+    if (merit_error_coeff_ > max_merit_error_coeff_) {
+      retval = OPT_PENALTY_ITERATION_LIMIT;
+      goto check_convergence;
     }
 
-    if (model_improve < -1e-5) {
-      LOG_ERROR("approximate merit function got worse (%.3e). (convexification is probably wrong to zeroth order)", model_improve);
+    if (iter >= max_iter_) {
+      LOG_INFO("iteration limit");
+      retval = OPT_SCO_ITERATION_LIMIT;
+      goto check_convergence;
     }
 
-    x_ = current_x;
-    results_.cost_vals = current_cost_vals;
-    results_.cnt_viols = current_cnt_viols;
-
-    if (actual_improve < trust_region_shrink_threshold_ * model_improve) {
-      trust_box_size_ = trust_shrink_ratio_ * vecMax(chosen_step);
-    } else if (actual_improve > trust_region_expand_threshold_ * model_improve) {
-      trust_box_size_ = trust_expand_ratio_ * vecMax(chosen_step);
+    if (approx_merit_improve < -1e-5) {
+      LOG_ERROR("approximate merit function got worse (%.3e). (convexification is probably wrong to zeroth order)", approx_merit_improve);
+    }
+    if (approx_merit_improve < min_approx_improve_) {
+      LOG_INFO("converged because improvement was small (%.3e < %.3e)", approx_merit_improve, min_approx_improve_);
+      retval = OPT_SCO_ITERATION_LIMIT;
+      goto check_convergence;
+    }
+    if (approx_merit_improve / old_merit < min_approx_improve_frac_) {
+      LOG_INFO(
+          "converged because improvement ratio was small (%.3e < %.3e)",
+          approx_merit_improve/old_merit, min_approx_improve_frac_);
+      retval = OPT_SCO_ITERATION_LIMIT;
+      goto check_convergence;
+    } 
+    else if (exact_merit_improve < 0 || merit_improve_ratio < improve_ratio_threshold_) {
+      adjustTrustRegion(trust_shrink_ratio_);
+      LOG_INFO("shrunk trust region. new box size: %.4f",
+          trust_box_size_);
+      if (record_trust_region_history_) {
+        LOG_TRUST_REGION;
+      }
     } else {
-      trust_box_size_ = vecMax(chosen_step);
+      adjustTrustRegion(trust_expand_ratio_);
+      LOG_INFO("expanded trust region. new box size: %.4f",trust_box_size_);
+      if (record_trust_region_history_) {
+        LOG_TRUST_REGION;
+      }
     }
-
+    
     trust_box_size_ = max(min_trust_box_size_, min(trust_box_size_, max_trust_box_size_));
 
     LOG_INFO("new box size: %.4f", trust_box_size_);
+    LOG_INFO("current step max: %.4f", vecAbsMax(step));
+  }
+
+  check_convergence:
+  if (!hasViolation(results_.cnt_viols)) {
+    if (results_.cnt_viols.size() > 0) LOG_INFO("woo-hoo! constraints are satisfied (to tolerance %.2e)", cnt_tolerance_);
+    retval = OPT_CONVERGED;
+  } else {
+    LOG_INFO("optimization couldn't satisfy all constraints");
   }
 
   cleanup:

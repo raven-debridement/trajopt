@@ -119,28 +119,25 @@ protected:
   ModelPtr model_;
 };
 
-class LineSearchSQP : public BasicTrustRegionSQP {
+class TrustRegionSLQP : public BasicTrustRegionSQP {
 public:
 
-  double trust_shrink_ratio_;
-  double trust_expand_ratio_;
-  double cnt_tolerance_;
-  double merit_coeff_increase_ratio_;
-  double merit_error_coeff_;
-  double trust_box_size_;
+  //double trust_shrink_ratio_;
+  //double trust_expand_ratio_;
+  //double cnt_tolerance_;
+  //double merit_coeff_increase_ratio_;
+  //double merit_error_coeff_;
+  //double trust_box_size_;
 
+  double max_merit_error_coeff_;
   double min_cnt_improve_ratio;
   double min_model_merit_improve_ratio_;
-  double line_search_shrink_ratio_;
-  double min_merit_improve_ratio;
-  double trust_region_shrink_threshold_;
-  double trust_region_expand_threshold_;
   double min_trust_box_size_;
   double max_trust_box_size_;
   double opt_eps;
 
-	LineSearchSQP();
-	LineSearchSQP(OptProbPtr prob);
+	TrustRegionSLQP();
+	TrustRegionSLQP(OptProbPtr prob);
   bool hasViolation(const DblVec& cnt_viols);
   void unsetTrustBoxConstraints(Model* model);
   void initParameters();
