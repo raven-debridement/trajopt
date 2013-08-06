@@ -40,6 +40,8 @@ namespace Needle {
 
   typedef Matrix<double, 6, 1> Vector6d;
 
+  typedef LineSearchSQP OptimizerT;
+
   inline double bound_inf(double result, double bound);
 
   void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<double>& lbs, const vector<double>& ubs, const vector<string>& name_prefix, const vector<VarArray*>& newvars);
@@ -210,9 +212,9 @@ namespace Needle {
     vector<LocalConfigurationPtr> local_configs;
 
     void ConfigureProblem(OptProb& prob);
-    void InitOptimizeVariables(BasicTrustRegionSQP& opt);
+    void InitOptimizeVariables(OptimizerT& opt);
     void OptimizerCallback(OptProb*, DblVec& x);
-    void ConfigureOptimizer(BasicTrustRegionSQP& opt);
+    void ConfigureOptimizer(OptimizerT& opt);
     void CreateVariables(OptProb& prob);
     void InitLocalConfigurations(const KinBodyPtr robot, OptProb& prob);
     void InitTrajectory(OptProb& prob);
@@ -241,6 +243,6 @@ namespace Needle {
     TrajPlotter(const vector<LocalConfigurationPtr>& local_configs, const VarArray& vars);
     void OptimizerCallback(OptProb*, DblVec& x, NeedleProblemHelperPtr helper);
     KinBodyPtr GetGoalKinBody(NeedleProblemHelperPtr helper);
-    void PlotBothTrajectories(OptProbPtr prob, const BasicTrustRegionSQP& opt, NeedleProblemHelperPtr helper);
+    void PlotBothTrajectories(OptProbPtr prob, const OptimizerT& opt, NeedleProblemHelperPtr helper);
   };
 }

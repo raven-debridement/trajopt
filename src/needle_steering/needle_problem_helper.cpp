@@ -44,7 +44,7 @@ namespace Needle {
     AddCollisionConstraint(prob);
   }
 
-  void NeedleProblemHelper::InitOptimizeVariables(BasicTrustRegionSQP& opt) {
+  void NeedleProblemHelper::InitOptimizeVariables(OptimizerT& opt) {
     DblVec initVec;
     // Initialize twistvars
     for (int i = 0; i <= T; ++i) {
@@ -198,7 +198,7 @@ namespace Needle {
     }
   }
 
-  void NeedleProblemHelper::ConfigureOptimizer(BasicTrustRegionSQP& opt) {
+  void NeedleProblemHelper::ConfigureOptimizer(OptimizerT& opt) {
     InitOptimizeVariables(opt);
     opt.addCallback(boost::bind(&Needle::NeedleProblemHelper::OptimizerCallback, this, _1, _2));
   }
@@ -222,7 +222,7 @@ namespace Needle {
       SWITCH_DEFAULT;
     }
     // Only the twist variables are incremental (i.e. their trust regions should be around zero)
-    prob.setIncremental(twistvars.flatten());
+    //prob.setIncremental(twistvars.flatten());
     if (curvature_constraint == BoundedRadius) {
       switch (curvature_formulation) {
         case UseCurvature:

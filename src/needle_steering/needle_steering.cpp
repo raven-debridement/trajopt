@@ -121,7 +121,7 @@ int main(int argc, char** argv)
   helper->robot = robot;
   helper->ConfigureProblem(*prob);
 
-  BasicTrustRegionSQP opt(prob);
+  OptimizerT opt(prob);
   opt.max_iter_ = 500;    
   opt.improve_ratio_threshold_ = improve_ratio_threshold;
   opt.trust_shrink_ratio_ = trust_shrink_ratio;

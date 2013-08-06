@@ -33,7 +33,7 @@ namespace Needle {
     return helper->robot;
   }
 
-  void TrajPlotter::PlotBothTrajectories(OptProbPtr prob, const BasicTrustRegionSQP& opt, NeedleProblemHelperPtr helper) {
+  void TrajPlotter::PlotBothTrajectories(OptProbPtr prob, const OptimizerT& opt, NeedleProblemHelperPtr helper) {
     DblVec x = prob->getModel()->getVarValues(prob->getModel()->getVars());
     vector<GraphHandlePtr> handles;
     KinBodyPtr robot = helper->robot;

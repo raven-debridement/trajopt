@@ -111,6 +111,7 @@ public:
   BasicTrustRegionSQP();
   BasicTrustRegionSQP(OptProbPtr prob);
   void setProblem(OptProbPtr prob);
+  bool hasViolation(const DblVec& cnt_viols);
   OptStatus optimize();
 protected:
   void adjustTrustRegion(double ratio);
