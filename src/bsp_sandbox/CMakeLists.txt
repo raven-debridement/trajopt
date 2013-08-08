@@ -50,3 +50,13 @@ target_link_libraries(four_links_robot bsp trajopt)
 
 add_executable(point_robot point_robot.cpp)
 target_link_libraries(point_robot bsp trajopt)
+
+add_executable(raven raven.cpp)
+target_link_libraries(raven bsp trajopt)
+
+add_library(ravenbsp raven.cpp)
+target_link_libraries(ravenbsp bsp trajopt)
+
+include_directories(${PYTHON_NUMPY_INCLUDE_DIR})
+boost_python_module(cravenbsppy ravenpy.cpp)
+target_link_libraries(cravenbsppy ravenbsp bsp trajopt ${Boost_SYSTEM_LIBRARY} ${OpenRAVE_BOTH_LIBRARIES})

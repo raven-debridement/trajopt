@@ -45,3 +45,9 @@ py::object toNdarray3(const T* data, size_t dim0, size_t dim1, size_t dim2) {
   memcpy(pout, data, dim0*dim1*dim2*sizeof(T));
   return out;
 }
+
+template<typename T>
+T toEigen(py::object py_vec) {
+	double* ptr = getPointer<double>(py_vec);
+	return T(ptr);
+}
