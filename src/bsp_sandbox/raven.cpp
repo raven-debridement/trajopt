@@ -14,8 +14,8 @@ namespace RavenBSP {
     return vector<T>(arr.begin(), arr.end());
   }
 
-  vector<Vector7d> get_initial_trajectory(const string& data_dir, int T) {
-    vector<Vector7d> ret;
+  vector<Vector6d> get_initial_trajectory(const string& data_dir, int T) {
+    vector<Vector6d> ret;
     ifstream traj_file(data_dir + "/raven_traj.txt", ifstream::in);
     if (!traj_file.is_open()) {
       cout << "error while loading initial trajectory!" << endl;
@@ -23,27 +23,40 @@ namespace RavenBSP {
       exit(1);
     }
     for (int i = 0; i <= T; ++i) {
-      Vector7d cur_traj;
-      for (int j = 0; j < 7; ++j) {
+      Vector6d cur_traj;
+      for (int j = 0; j < 6; ++j) {
         traj_file >> cur_traj(j);
       }
       ret.push_back(cur_traj);
+      cout << cur_traj << endl;
     }
     return ret;
   }
 
-  deque<Vector7d> get_initial_controls(const vector<Vector7d>& initial_trajectory) {
-    deque<Vector7d> ret;
+  deque<Vector6d> get_initial_controls(const vector<Vector6d>& initial_trajectory) {
+    deque<Vector6d> ret;
     for (int i = 0; i < (int)initial_trajectory.size() - 1; ++i) {
       ret.push_back(initial_trajectory[i+1] - initial_trajectory[i]);
     }
     return ret;
   }
 
-  void initialize_robot(RobotBasePtr robot, const Vector7d& start) {
+  void initialize_robot(RobotBasePtr robot, const Vector6d& start) {
 	  //TODO: change for raven
-    robot->SetDOFValues(vec(std::array<double, 4>{{1.3, 1.3, 1.3, 0.5}}), false, vec(std::array<int, 4>{{7, 8, 9, 10}}));
-    robot->SetActiveDOFs(vec(std::array<int, 7>{{0, 1, 2, 3, 4, 5, 6}}));
+	  double dofs[27] = {0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+	  	         0.00000000e+00,   1.11022302e-16,   0.00000000e+00,
+	  	         0.00000000e+00,   0.00000000e+00,   2.22044605e-16,
+	  	         0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+	  	         0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+	  	         5.11000000e-01,   1.60700000e+00,  -1.70000000e-01,
+	  	         1.52000000e-01,   1.13000000e-01,   0.00000000e+00,
+	  	         0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+	  	         0.00000000e+00,   0.00000000e+00,   0.00000000e+00};
+	    vector<double> dof_vec;
+	    dof_vec.insert(dof_vec.end(),dofs,dofs+27);
+	    robot->SetDOFValues(dof_vec,true);
+    //robot->SetDOFValues(vec(std::array<double, 4>{{1.3, 1.3, 1.3, 0.5}}), false, vec(std::array<int, 4>{{7, 8, 9, 10}}));
+    robot->SetActiveDOFs(vec(std::array<int, 6>{{15, 16, 17, 18, 19, 20}}));
     robot->SetActiveDOFValues(toDblVec(start));
   }
 
@@ -85,12 +98,12 @@ namespace RavenBSP {
 
   RavenBSPProblemHelper::RavenBSPProblemHelper() : BSPProblemHelper<RavenBeliefFunc>() {
 
-    set_state_dim(7); //TODO: 6
-    set_sigma_dof(28); //TODO: 21
+    set_state_dim(6); //TODO: 6
+    set_sigma_dof(21); //TODO: 21
     set_observe_dim(3); //TODO: 6 + 6
-    set_control_dim(7); //TODO: 6
+    set_control_dim(6); //TODO: 6
 
-    set_control_bounds( vector<double>(7, -0.3), vector<double>(7, 0.3) );
+    set_control_bounds( vector<double>(6, -0.3), vector<double>(6, 0.3) );
 
     set_variance_cost(VarianceT::Identity(state_dim, state_dim) * sqrt(10));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * sqrt(10));
@@ -136,7 +149,7 @@ namespace RavenBSP {
   ObserveT RavenObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
 	  //TODO: important update
     ObserveT ret(observe_dim);
-    Vector3d trans = forward_kinematics(x);
+    Vector3d trans(0,0,1); //forward_kinematics(x);
     Vector3d beacon(-1.0, 0.0, 0.5);
     double dist = 3.0 * (trans(0) - beacon(0)) * (trans(0) - beacon(0));
     ret(0) = 1.0 / (1.0 + dist) + 0.1 * n(0);
@@ -230,7 +243,7 @@ int main(int argc, char *argv[]) {
   bool stage_plotting = false;
   bool first_step_only = false;
 
-  string data_dir = get_current_directory(argv) + "/../../data";
+  string data_dir = get_current_directory(argv) + "/data";
 
   {
     Config config;
@@ -242,21 +255,21 @@ int main(int argc, char *argv[]) {
     parser.read(argc, argv, true);
   }
 
-  string manip_name("arm");
-  string link_name("wam7");
+  string manip_name("right_arm");
+  string link_name("tool_R");
 
   RaveInitialize();
   EnvironmentBasePtr env = RaveCreateEnvironment();
   env->StopSimulation();
-  env->Load(data_dir + "/barrett.env.xml");
+  env->Load(data_dir + "/raven-box.env.xml");
   OSGViewerPtr viewer;
   RobotBasePtr robot = GetRobot(*env);
 
   auto initial_trajectory = get_initial_trajectory(data_dir, T);
   auto initial_controls = get_initial_controls(initial_trajectory);
 
-  Vector7d start = initial_trajectory[0];
-  Matrix7d start_sigma = Matrix7d::Identity() * 0.22 * 0.22;
+  Vector6d start = initial_trajectory[0];
+  Matrix6d start_sigma = Matrix6d::Identity() * 0.22 * 0.22;
 
   Matrix4d goal_trans;
   goal_trans <<  0,  0, 1, 0.6,

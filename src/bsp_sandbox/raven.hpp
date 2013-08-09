@@ -19,17 +19,17 @@ namespace RavenBSP {
 
   // This will generate a bunch of types like StateT, ControlT, etc.
   BSP_TYPEDEFS(
-      7, // state_dim
-      7, // state_noise_dim
-      7, // control_dim
+      6, // state_dim
+      6, // state_noise_dim
+      6, // control_dim
       3, // observe_dim
       3, // observe_noise_dim
-      28, // sigma_dof
-      35 // belief_dim
+      21, // sigma_dof
+      27 // belief_dim
   );
 
-  typedef Matrix<double, 7, 1> Vector7d;
-  typedef Matrix<double, 7, 7> Matrix7d;
+  typedef Matrix<double, 6, 1> Vector6d;
+  typedef Matrix<double, 6, 6> Matrix6d;
 
   // state: { {robot_dofs} }
   // control: { {d_robot_dofs} }

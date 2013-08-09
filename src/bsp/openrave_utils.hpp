@@ -45,17 +45,17 @@ namespace BSP {
   struct OpenRAVEPlotterMixin {
     static void plot_opt_trajectory(boost::shared_ptr<BSPPlannerT> planner, RobotAndDOFPtr rad, OSGViewerPtr viewer, OptProb* prob, DblVec& x, vector<GraphHandlePtr>* handles) {
       assert (handles != nullptr);
-      //BOOST_FOREACH(CostPtr& cost, prob->getCosts()) {
-      //  if (Plotter* plotter = dynamic_cast<Plotter*>(cost.get())) {
-      //    plotter->Plot(x, *(rad->GetEnv()), *handles);
-      //  }
-      //}
-      //vector<ConstraintPtr> constraints = prob->getConstraints();
-      //BOOST_FOREACH(ConstraintPtr& cnt, constraints) {
-      //  if (Plotter* plotter = dynamic_cast<Plotter*>(cnt.get())) {
-      //    plotter->Plot(x, *(rad->GetEnv()), *handles);
-      //  }
-      //}
+      BOOST_FOREACH(CostPtr& cost, prob->getCosts()) {
+        if (Plotter* plotter = dynamic_cast<Plotter*>(cost.get())) {
+          plotter->Plot(x, *(rad->GetEnv()), *handles);
+        }
+      }
+      vector<ConstraintPtr> constraints = prob->getConstraints();
+      BOOST_FOREACH(ConstraintPtr& cnt, constraints) {
+        if (Plotter* plotter = dynamic_cast<Plotter*>(cnt.get())) {
+          plotter->Plot(x, *(rad->GetEnv()), *handles);
+        }
+      }
       for (int i = 0; i <= planner->helper->T; ++i) {
         cout << "dof: " << getVec(x, planner->helper->state_vars.row(i)).transpose() << endl;
         rad->SetDOFValues(toDblVec(getVec(x, planner->helper->state_vars.row(i))));
