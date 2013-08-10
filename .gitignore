@@ -39,3 +39,11 @@ ext/rbdl/doc
 *.vcproj
 *.sln
 callgrind.*
+*.cmake
+Makefile
+CMakeFiles
+CMakeCache.txt
+make_eclipse_project.sh
+src/cloudproc/determineNumpyPath.py
+src/humanoids/determineNumpyPath.py
+src/trajopt/determineNumpyPath.py

@@ -17,6 +17,22 @@ namespace BSP {
     return OpenRAVE::Transform(M);
   }
 
+  Matrix4d transformToMatrix(OpenRAVE::Transform rave_trans) {
+    Matrix4d* mat = new Matrix4d();
+    OpenRAVE::geometry::RaveTransformMatrix<double> rave_mat;
+    rave_mat = OpenRAVE::geometry::RaveTransformMatrix<double>(rave_trans);
+	(*mat)(0, 3) = rave_mat.trans.x;
+	(*mat)(1, 3) = rave_mat.trans.y;
+	(*mat)(2, 3) = rave_mat.trans.z;
+	(*mat)(3,3) = 1;
+	for (int row = 0; row < 3; ++row) {
+	  for (int col = 0; col < 3; ++col) {
+			(*mat)(row,col) = rave_mat.m[row*4+col];
+	  }
+	}
+    return *mat;
+  }
+
   template< class StateT, class VarianceT >
   void belief_to_endeffector_noise(RobotAndDOFPtr rad, OR::KinBody::LinkPtr endeffector, const StateT& state, const VarianceT& sigma, Vector3d* mean, Matrix3d* cov) {
     assert (mean != nullptr);
