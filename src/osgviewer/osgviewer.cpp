@@ -464,6 +464,7 @@ OSGViewer::OSGViewer(EnvironmentBasePtr env) : ViewerBase(env), m_idling(false) 
   AddKeyCallback('h', boost::bind(&OSGViewer::PrintHelp, this), "Display help");
   AddKeyCallback('p', boost::bind(&OSGViewer::Idle, this), "Toggle idle");
   AddKeyCallback(osgGA::GUIEventAdapter::KEY_Escape, &throw_runtime_error, "Quit (raise exception)");
+  AddKeyCallback('q', &throw_runtime_error, "Quit (raise exception)");
   PrintHelp();
   m_viewer.setRunFrameScheme(osgViewer::ViewerBase::ON_DEMAND);
 }

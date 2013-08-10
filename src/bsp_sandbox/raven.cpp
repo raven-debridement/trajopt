@@ -28,7 +28,6 @@ namespace RavenBSP {
         traj_file >> cur_traj(j);
       }
       ret.push_back(cur_traj);
-      cout << cur_traj << endl;
     }
     return ret;
   }
@@ -42,22 +41,24 @@ namespace RavenBSP {
   }
 
   void initialize_robot(RobotBasePtr robot, const Vector6d& start) {
-	  //TODO: change for raven
-	  double dofs[27] = {0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
-	  	         0.00000000e+00,   1.11022302e-16,   0.00000000e+00,
-	  	         0.00000000e+00,   0.00000000e+00,   2.22044605e-16,
-	  	         0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
-	  	         0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
-	  	         5.11000000e-01,   1.60700000e+00,  -1.70000000e-01,
-	  	         1.52000000e-01,   1.13000000e-01,   0.00000000e+00,
-	  	         0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
-	  	         0.00000000e+00,   0.00000000e+00,   0.00000000e+00};
-	    vector<double> dof_vec;
-	    dof_vec.insert(dof_vec.end(),dofs,dofs+27);
-	    robot->SetDOFValues(dof_vec,true);
+    double dofs[27] = {0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+			 0.00000000e+00,   1.11022302e-16,   0.00000000e+00,
+			 0.00000000e+00,   0.00000000e+00,   2.22044605e-16,
+			 0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+			 0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+			 5.11000000e-01,   1.60700000e+00,  -1.70000000e-01,
+			 1.52000000e-01,   1.13000000e-01,   0.00000000e+00,
+			 0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+			 0.00000000e+00,   0.00000000e+00,   0.00000000e+00};
+	vector<double> dof_vec;
+	dof_vec.insert(dof_vec.end(),dofs,dofs+27);
+	robot->SetDOFValues(dof_vec,true);
     //robot->SetDOFValues(vec(std::array<double, 4>{{1.3, 1.3, 1.3, 0.5}}), false, vec(std::array<int, 4>{{7, 8, 9, 10}}));
+	robot->SetActiveManipulator("right_arm");
     robot->SetActiveDOFs(vec(std::array<int, 6>{{15, 16, 17, 18, 19, 20}}));
     robot->SetActiveDOFValues(toDblVec(start));
+    cout << start << endl;;
+    cout << robot->GetActiveManipulator()->GetEndEffectorTransform() << endl;
   }
 
   void initialize_viewer(OSGViewerPtr viewer) {
@@ -98,10 +99,10 @@ namespace RavenBSP {
 
   RavenBSPProblemHelper::RavenBSPProblemHelper() : BSPProblemHelper<RavenBeliefFunc>() {
 
-    set_state_dim(6); //TODO: 6
-    set_sigma_dof(21); //TODO: 21
+    set_state_dim(6);
+    set_sigma_dof(21);
     set_observe_dim(3); //TODO: 6 + 6
-    set_control_dim(6); //TODO: 6
+    set_control_dim(6);
 
     set_control_bounds( vector<double>(6, -0.3), vector<double>(6, 0.3) );
 
@@ -111,7 +112,7 @@ namespace RavenBSP {
   }
 
   void RavenBSPProblemHelper::add_goal_constraint(OptProb& prob) {
-    VectorXd coeffs(6); coeffs << 1, 1, 1, 1, 1, 1;
+    VectorXd coeffs(6); coeffs << 1, 1, 1, 0, 0, 0;
     VectorOfVectorPtr f(new CartPoseErrCalculator(matrixToTransform(goal_trans), rad, link));
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, state_vars.row(T), coeffs, EQ, "goal")));
   }
@@ -238,7 +239,7 @@ void RavenBSPWrapper::run() {
 }
 
 int main(int argc, char *argv[]) {
-  int T = 26;
+  int T = 15; //26;
   bool sim_plotting = false;
   bool stage_plotting = false;
   bool first_step_only = false;
@@ -269,13 +270,18 @@ int main(int argc, char *argv[]) {
   auto initial_controls = get_initial_controls(initial_trajectory);
 
   Vector6d start = initial_trajectory[0];
-  Matrix6d start_sigma = Matrix6d::Identity() * 0.22 * 0.22;
+  Matrix6d start_sigma = Matrix6d::Identity() * pow(0.001,2);
 
   Matrix4d goal_trans;
-  goal_trans <<  0,  0, 1, 0.6,
-                 0,  1, 0, 0.4,
-                -1,  0, 0, 0.6,
-                 0,  0, 0,   1;
+//  goal_trans <<  0,  0, 1, 0.6,
+//                 0,  1, 0, 0.4,
+//                -1,  0, 0, 0.6,
+//                 0,  0, 0,   1;
+  goal_trans <<  0.23,  0.37, 0.9, 0.224506,
+                   -.14,  0.93, -.34, -0.348111,
+                  -.96,  -.05, 0.27, 0.17609,
+                   0,  0, 0,   1;
+
 
   initialize_robot(robot, start);
 
@@ -289,7 +295,7 @@ int main(int argc, char *argv[]) {
   planner->robot = robot;
   planner->rad = RADFromName(manip_name, robot);
   planner->link = planner->rad->GetRobot()->GetLink(link_name);
-  planner->method = BSP::DiscontinuousBeliefSpace;
+  planner->method = BSP::ContinuousBeliefSpace;
   planner->initialize();
 
 
@@ -306,6 +312,7 @@ int main(int argc, char *argv[]) {
   while (!planner->finished()) {
     planner->solve(opt_callback, 1, 1);
     planner->simulate_execution();
+    cout << robot->GetActiveManipulator()->GetEndEffectorTransform() << endl;
     if (first_step_only) break;
     if (sim_plotting) {
       OpenRAVEPlotterMixin<RavenBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
