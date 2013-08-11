@@ -47,10 +47,18 @@ namespace RavenBSP {
   }
 
   void initialize_viewer(OSGViewerPtr viewer) {
-    osg::Vec3d osg_eye(0, 0, 4);
-    osg::Vec3d osg_center(0, 0, 0);
-    osg::Vec3d osg_up(0, 1, 0);
+    osg::Vec3d osg_eye(0, 0, .4)// 0 0 4
+    osg::Vec3d osg_center(0, 0, 0); // 0 0 0
+    osg::Vec3d osg_up(0, 0, 0); // 0 1 0
     viewer->m_handler->setTransformation(osg_eye, osg_center, osg_up);
+    /*const osg::Matrixd camera_mat;
+    camera_mat << 0, 0, 1,// -.89,
+    			  -1, 0, 0,// -.3,
+			   	   0, -1, 0;// .4,
+				   //0,  0, 0,  1;*/
+    //osg::Vec3d eye(0,0,.4);
+    //osg::Quat quat(.5, -.5, -.5, .5);
+    //viewer->m_handler->setTransformation(eye, quat);
   }
 
   RavenBSPPlanner::RavenBSPPlanner() : BSPPlanner<RavenBSPProblemHelper>() {}
