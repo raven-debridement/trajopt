@@ -57,7 +57,7 @@ namespace BSPCollision {
       SigmaHullShape* shape = new SigmaHullShape(convex, t0i);
       RenderCollisionShape(shape, tfi[0], *boost::const_pointer_cast<OpenRAVE::EnvironmentBase>(m_env), handles, color);
       // ADDED
-      SetTransparency(handles.back(),0.2);//SetTransparency(handles.back(), 0.2);
+      SetTransparency(handles.back(),0.0);//SetTransparency(handles.back(), 0.2);
       // END ADDED
       delete shape;
     } else if (btCompoundShape* compound = dynamic_cast<btCompoundShape*>(shape)) {

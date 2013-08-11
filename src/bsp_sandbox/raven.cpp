@@ -120,7 +120,7 @@ namespace RavenBSP {
     for (int i = 0; i <= T; ++i) {
     //for (int i = 0; i < T; ++i) {
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<RavenBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
-      prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
+      prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_func, link)));
       //prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
   RaveInitialize();
   EnvironmentBasePtr env = RaveCreateEnvironment();
   env->StopSimulation();
-  env->Load(data_dir + "/raven-box.env.xml");
+  env->Load(data_dir + "/raven.env.xml");
   OSGViewerPtr viewer;
   RobotBasePtr robot = GetRobot(*env);
 
@@ -281,10 +281,29 @@ int main(int argc, char *argv[]) {
   //initialize_robot(robot, start);
   robot->SetActiveManipulator(manip_name);
 
-  robot->SetDOFValues(toDblVec(end),0,robot->GetActiveManipulator()->GetArmIndices());
-  Matrix4d goal_trans = transformToMatrix(robot->GetActiveManipulator()->GetEndEffectorTransform());
+  // set and get start EE transform from joint values
   robot->SetDOFValues(toDblVec(start),0,robot->GetActiveManipulator()->GetArmIndices());
+  OpenRAVE::geometry::RaveTransform<double> rave_start_trans = robot->GetActiveManipulator()->GetEndEffectorTransform();
 
+  // set end EE transform
+  OpenRAVE::geometry::RaveTransform<double> rave_goal_trans(rave_start_trans);
+  rave_goal_trans.trans.y += .04;
+  Matrix4d goal_trans = transformToMatrix(rave_goal_trans);
+
+  // create box obstacle
+  OpenRAVE::geometry::RaveTransform<double> box_trans;
+  box_trans.identity();
+  box_trans.trans.x = (rave_start_trans.trans.x + rave_goal_trans.trans.x) / 2;
+  box_trans.trans.y = (rave_start_trans.trans.y + rave_goal_trans.trans.y) / 2;
+  box_trans.trans.z = (rave_start_trans.trans.z + rave_goal_trans.trans.z) / 2;
+  Vector3d box_extents(.01,.0025,.02);
+  addOpenraveBox(env,"obstacle_box",box_trans,box_extents);
+
+  // create workspace floor
+  OpenRAVE::geometry::RaveTransform<double> floor_trans(box_trans);
+  floor_trans.trans.z -= box_extents[2];
+  Vector3d floor_extents(.1, .1, .0025);
+  addOpenraveBox(env,"workspace_floor",floor_trans,floor_extents);
 
   RavenBSPPlannerPtr planner(new RavenBSPPlanner());
 
@@ -308,6 +327,9 @@ int main(int argc, char *argv[]) {
 
     handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.05));
     handles.push_back(viewer->PlotAxes(matrixToTransform(goal_trans),.05));
+
+    cout << "Initial setup. Press p to continue to BSP" << endl;
+    viewer->Idle();
   }
   if (stage_plotting) {
     opt_callback = boost::bind(&OpenRAVEPlotterMixin<RavenBSPPlanner>::stage_plot_callback,

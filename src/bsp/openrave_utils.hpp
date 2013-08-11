@@ -33,6 +33,16 @@ namespace BSP {
     return *mat;
   }
 
+  void addOpenraveBox(OpenRAVE::EnvironmentBasePtr env, std::string name, OpenRAVE::Transform box_trans, Vector3d extents) {
+	  OpenRAVE::KinBodyPtr box_kinbody = OpenRAVE::RaveCreateKinBody(env,"");
+	  box_kinbody->SetName(name);
+	  std::vector<AABB> boxes(1);
+	  boxes[0].extents = Vector(extents[0], extents[1], extents[2]);
+	  box_kinbody->InitFromBoxes(boxes,true);
+	  env->Add(box_kinbody,true);
+	  box_kinbody->SetTransform(box_trans);
+  }
+
   template< class StateT, class VarianceT >
   void belief_to_endeffector_noise(RobotAndDOFPtr rad, OR::KinBody::LinkPtr endeffector, const StateT& state, const VarianceT& sigma, Vector3d* mean, Matrix3d* cov) {
     assert (mean != nullptr);
