@@ -71,12 +71,16 @@ namespace RavenBSP {
     void add_goal_constraint(OptProb& prob);
     void add_collision_term(OptProb& prob);
     void configure_problem(OptProb& prob);
+    void initialize();
     RavenBSPProblemHelper();
 
     RobotBasePtr robot;
     RobotAndDOFPtr rad;
     KinBody::LinkPtr link;
     Matrix4d goal_trans;
+
+    double sigma_pts_scale;
+    RavenBSP::StateT sigma_pts_scale_vec;
   };
 
   class RavenBSPPlanner : public BSPPlanner<RavenBSPProblemHelper> {
@@ -88,6 +92,9 @@ namespace RavenBSP {
     RobotAndDOFPtr rad;
     Matrix4d goal_trans;
     KinBody::LinkPtr link;
+
+    double sigma_pts_scale;
+    RavenBSP::StateT sigma_pts_scale_vec;
   };
 
   typedef boost::shared_ptr<RavenBSPPlanner> RavenBSPPlannerPtr;
@@ -111,6 +118,9 @@ namespace RavenBSP {
   	deque<RavenBSP::ControlT> controls;
   	Matrix4d goal_trans;
   	int T;
+
+    double sigma_pts_scale;
+    double insertion_factor;
 
   	string manip_name;
   	string link_name;
