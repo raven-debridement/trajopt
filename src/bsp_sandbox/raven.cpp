@@ -28,7 +28,6 @@ namespace RavenBSP {
         traj_file >> cur_traj(j);
       }
       ret.push_back(cur_traj);
-      cout << cur_traj << endl;
     }
     return ret;
   }
@@ -88,6 +87,10 @@ namespace RavenBSP {
     set_sigma_dof(21); //TODO: 21
     set_observe_dim(6); //TODO: 6 + 6
     set_control_dim(6); //TODO: 6
+    //set_state_dim(6);
+    //set_sigma_dof(21);
+    //set_observe_dim(3); //TODO: 6 + 6
+    //set_control_dim(6);
 
     set_control_bounds( vector<double>(6, -0.3), vector<double>(6, 0.3) );
 
@@ -97,7 +100,7 @@ namespace RavenBSP {
   }
 
   void RavenBSPProblemHelper::add_goal_constraint(OptProb& prob) {
-    VectorXd coeffs(6); coeffs << 1, 1, 1, 1, 1, 1;
+    VectorXd coeffs(6); coeffs << 1, 1, 1, 0, 0, 0;
     VectorOfVectorPtr f(new CartPoseErrCalculator(matrixToTransform(goal_trans), rad, link));
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, state_vars.row(T), coeffs, EQ, "goal")));
   }
@@ -229,7 +232,7 @@ void RavenBSPWrapper::run() {
 
 
 int main(int argc, char *argv[]) {
-  int T = 10;
+  int T = 15; //26;
   bool sim_plotting = false;
   bool stage_plotting = false;
   bool first_step_only = false;
@@ -288,6 +291,7 @@ int main(int argc, char *argv[]) {
   Vector3d floor_extents(.1, .1, .0025);
   addOpenraveBox(env,"workspace_floor",floor_trans,floor_extents);
 
+
   RavenBSPPlannerPtr planner(new RavenBSPPlanner());
 
 
@@ -299,7 +303,7 @@ int main(int argc, char *argv[]) {
   planner->robot = robot;
   planner->rad = RADFromName(manip_name, robot);
   planner->link = planner->rad->GetRobot()->GetLink(link_name);
-  planner->method = BSP::DiscontinuousBeliefSpace;
+  planner->method = BSP::ContinuousBeliefSpace;
   planner->initialize();
 
   vector<GraphHandlePtr> handles;
@@ -323,6 +327,7 @@ int main(int argc, char *argv[]) {
   while (!planner->finished()) {
     planner->solve(opt_callback, 1, 1);
     planner->simulate_execution();
+    cout << robot->GetActiveManipulator()->GetEndEffectorTransform() << endl;
     if (first_step_only) break;
     if (sim_plotting) {
       OpenRAVEPlotterMixin<RavenBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
