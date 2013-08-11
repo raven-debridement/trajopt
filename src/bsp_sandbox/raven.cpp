@@ -28,7 +28,6 @@ namespace RavenBSP {
         traj_file >> cur_traj(j);
       }
       ret.push_back(cur_traj);
-      cout << cur_traj << endl;
     }
     return ret;
   }
@@ -47,10 +46,18 @@ namespace RavenBSP {
   }
 
   void initialize_viewer(OSGViewerPtr viewer) {
-    osg::Vec3d osg_eye(0, 0, 4);
-    osg::Vec3d osg_center(0, 0, 0);
-    osg::Vec3d osg_up(0, 1, 0);
+    osg::Vec3d osg_eye(0, 0, .4)// 0 0 4
+    osg::Vec3d osg_center(0, 0, 0); // 0 0 0
+    osg::Vec3d osg_up(0, 0, 0); // 0 1 0
     viewer->m_handler->setTransformation(osg_eye, osg_center, osg_up);
+    /*const osg::Matrixd camera_mat;
+    camera_mat << 0, 0, 1,// -.89,
+    			  -1, 0, 0,// -.3,
+			   	   0, -1, 0;// .4,
+				   //0,  0, 0,  1;*/
+    //osg::Vec3d eye(0,0,.4);
+    //osg::Quat quat(.5, -.5, -.5, .5);
+    //viewer->m_handler->setTransformation(eye, quat);
   }
 
   RavenBSPPlanner::RavenBSPPlanner() : BSPPlanner<RavenBSPProblemHelper>() {}
@@ -80,6 +87,9 @@ namespace RavenBSP {
     vector<double> lbs, ubs;
     rad->GetDOFLimits(lbs, ubs);
     helper->set_state_bounds(lbs, ubs);
+
+    helper->sigma_pts_scale = sigma_pts_scale;
+    helper->sigma_pts_scale_vec = sigma_pts_scale_vec;
   }
 
   RavenBSPProblemHelper::RavenBSPProblemHelper() : BSPProblemHelper<RavenBeliefFunc>() {
@@ -116,6 +126,12 @@ namespace RavenBSP {
   void RavenBSPProblemHelper::configure_problem(OptProb& prob) {
     BSPProblemHelper<RavenBeliefFunc>::configure_problem(prob);
     add_collision_term(prob);
+  }
+
+  void RavenBSPProblemHelper::initialize() {
+    BSPProblemHelper<RavenBeliefFunc>::initialize();
+    this->belief_func->sigma_pts_scale = sigma_pts_scale;
+    this->belief_func->sigma_pts_scale_vec = sigma_pts_scale_vec;
   }
 
   RavenStateFunc::RavenStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
@@ -158,7 +174,7 @@ namespace RavenBSP {
 
 using namespace RavenBSP;
 
-RavenBSPWrapper::RavenBSPWrapper() : manip_name("arm"), link_name("wam7") {
+RavenBSPWrapper::RavenBSPWrapper() : manip_name("arm"), link_name("wam7"), sigma_pts_scale(2), insertion_factor(0.1) {
 }
 
 void RavenBSPWrapper::setEnvironment(const EnvironmentBasePtr& env) {
@@ -176,17 +192,13 @@ void RavenBSPWrapper::initialize() {
 
 	planner = RavenBSPPlannerPtr(new RavenBSPPlanner());
 
-//	cerr << start << endl;
-//	cerr << start_sigma << endl;
-//	cerr << goal_trans << endl;
-//	for (int i=0;i<controls.size();i++) {
-//		cerr << controls[i] << endl;
-//	}
-
 	planner->start = start;
 	planner->start_sigma = start_sigma;
 	planner->goal_trans = goal_trans;
 	planner->T = T;
+	planner->sigma_pts_scale = 0;
+	planner->sigma_pts_scale_vec = sigma_pts_scale * StateT::Ones();
+	planner->sigma_pts_scale_vec(2) *= insertion_factor;
 	planner->controls = controls;
 	planner->robot = robot;
 	planner->rad = RADFromName(manip_name, robot);
@@ -233,6 +245,7 @@ int main(int argc, char *argv[]) {
   bool sim_plotting = false;
   bool stage_plotting = false;
   bool first_step_only = false;
+  double insertion_factor = 0.1;
 
   string data_dir = get_current_directory(argv) + "/data";
 
@@ -242,6 +255,7 @@ int main(int argc, char *argv[]) {
     config.add(new Parameter<bool>("stage_plotting", &stage_plotting, "stage_plotting"));
     config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
     config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
+    config.add(new Parameter<double>("insertion_factor", &insertion_factor, "insertion_factor"));
     CommandParser parser(config);
     parser.read(argc, argv, true);
   }
@@ -273,6 +287,8 @@ int main(int argc, char *argv[]) {
   rave_goal_trans.trans.y += .04;
   Matrix4d goal_trans = transformToMatrix(rave_goal_trans);
 
+//#define RAVEN_CREATE_OBSTACLES
+#ifdef RAVEN_CREATE_OBSTACLES
   // create box obstacle
   OpenRAVE::geometry::RaveTransform<double> box_trans;
   box_trans.identity();
@@ -287,6 +303,7 @@ int main(int argc, char *argv[]) {
   floor_trans.trans.z -= box_extents[2];
   Vector3d floor_extents(.1, .1, .0025);
   addOpenraveBox(env,"workspace_floor",floor_trans,floor_extents);
+#endif
 
   RavenBSPPlannerPtr planner(new RavenBSPPlanner());
 
@@ -295,6 +312,12 @@ int main(int argc, char *argv[]) {
   planner->start_sigma = start_sigma;
   planner->goal_trans = goal_trans;
   planner->T = T;
+
+  double sigma_scale = 2;
+  planner->sigma_pts_scale = 0;
+  planner->sigma_pts_scale_vec = sigma_scale * StateT::Ones();
+  planner->sigma_pts_scale_vec(2) *= insertion_factor;
+
   planner->controls = initial_controls;
   planner->robot = robot;
   planner->rad = RADFromName(manip_name, robot);

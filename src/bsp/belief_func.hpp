@@ -20,6 +20,7 @@ namespace BSP {
     double epsilon;
     double approx_factor;
     double sigma_pts_scale;
+    VectorXd sigma_pts_scale_vec;
     BSPProblemHelperBasePtr helper;
     StateFuncPtr f;
     ObserveFuncPtr h;
@@ -117,10 +118,18 @@ namespace BSP {
       if (sigma_pt_ind == 0) {
         return state;
       } else {
-        if (sigma_pt_ind % 2 == 1) {
-          return state + sigma_pts_scale*sqrt_sigma.col( (sigma_pt_ind-1) / 2 );
+
+        double scale;
+        if (sigma_pts_scale != 0) {
+          scale = sigma_pts_scale;
         } else {
-          return state - sigma_pts_scale*sqrt_sigma.col( (sigma_pt_ind-1) / 2 );
+          int scale_ind = (sigma_pt_ind-1) / 2; //integer division
+          scale = sigma_pts_scale_vec(scale_ind);
+        }
+        if (sigma_pt_ind % 2 == 1) {
+          return state + scale*sqrt_sigma.col( (sigma_pt_ind-1) / 2 );
+        } else {
+          return state - scale*sqrt_sigma.col( (sigma_pt_ind-1) / 2 );
         }
       }
     }
