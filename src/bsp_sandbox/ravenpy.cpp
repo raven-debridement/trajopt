@@ -98,6 +98,9 @@ public:
 	void set_goal_trans(py::object tf);
 	void set_T(int T);
 
+	void set_sigma_pts_scale(double scale);
+	void set_insertion_factor(double factor);
+
 	void set_controls(py::list list_of_vec);
 	py::list get_controls();
 
@@ -148,6 +151,12 @@ void PyRavenBSPWrapper::set_goal_trans(py::object tf) {
 }
 void PyRavenBSPWrapper::set_T(int T) {
 	wrapper->T = T;
+}
+void PyRavenBSPWrapper::set_sigma_pts_scale(double scale) {
+	wrapper->sigma_pts_scale = scale;
+}
+void PyRavenBSPWrapper::set_insertion_factor(double factor) {
+	wrapper->insertion_factor = factor;
 }
 
 void PyRavenBSPWrapper::set_manip_name(const string& manip_name) {
