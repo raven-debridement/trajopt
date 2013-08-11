@@ -174,6 +174,19 @@ namespace BSP {
 
 
     StateT simulate_executions(int nsteps, bool use_lqr=false) {
+//#define BSP_PLANNER_WRITE_TO_FILE
+#ifdef BSP_PLANNER_WRITE_TO_FILE
+      time_t now;
+      struct tm *current;
+      now = time(0);
+      current = localtime(&now);
+      stringstream ss;
+      ss << "/home/gkahn/tmp/current_position_" << current->tm_yday << "_" << current->tm_hour << "_" << current->tm_min << "_" << current->tm_sec;
+      ofstream myfile;
+      myfile.open(ss.str());
+
+      myfile << "current position" << endl << current_position << endl << endl;
+#endif
       assert (initialized);
       if (nsteps <= 0 || nsteps > helper->T) {
         return StateT::Zero(helper->state_dim);
@@ -208,6 +221,9 @@ namespace BSP {
         belief = belief_func->call(belief, controls.front(), &observe, &observe_masks, &current_state_error);//, true, is_observe_valid);
         belief_func->extract_state_and_sigma(belief, &start, &start_sigma);
         StateT prev_start = start;
+#ifdef BSP_PLANNER_WRITE_TO_FILE
+        myfile << "current position + noise" << endl << current_position;
+#endif
         custom_simulation_update(&start, &start_sigma, current_position);
         current_state_error += start - prev_start;
         total_state_error += current_state_error.array().abs().matrix();
@@ -215,6 +231,11 @@ namespace BSP {
       }
       helper->initial_controls = controls;
       helper->T = controls.size();
+
+
+#ifdef BSP_PLANNER_WRITE_TO_FILE
+      myfile.close();
+#endif
 
       return total_state_error;
     }

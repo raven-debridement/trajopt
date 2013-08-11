@@ -44,8 +44,6 @@ namespace BarrettRobotBSP {
     robot->SetDOFValues(vec(std::array<double, 4>{{1.3, 1.3, 1.3, 0.5}}), false, vec(std::array<int, 4>{{7, 8, 9, 10}}));
     robot->SetActiveDOFs(vec(std::array<int, 7>{{0, 1, 2, 3, 4, 5, 6}}));
     robot->SetActiveDOFValues(toDblVec(start));
-    cout << start << endl;
-    cout << robot->GetActiveManipulator()->GetEndEffectorTransform() << endl;
   }
 
   void initialize_viewer(OSGViewerPtr viewer) {
