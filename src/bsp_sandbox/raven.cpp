@@ -52,12 +52,12 @@ namespace RavenBSP {
 	  	         1.52000000e-01,   1.13000000e-01,   0.00000000e+00,
 	  	         0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
 	  	         0.00000000e+00,   0.00000000e+00,   0.00000000e+00};
-	    vector<double> dof_vec;
-	    dof_vec.insert(dof_vec.end(),dofs,dofs+27);
-	    robot->SetDOFValues(dof_vec,true);
-    //robot->SetDOFValues(vec(std::array<double, 4>{{1.3, 1.3, 1.3, 0.5}}), false, vec(std::array<int, 4>{{7, 8, 9, 10}}));
-    robot->SetActiveDOFs(vec(std::array<int, 6>{{15, 16, 17, 18, 19, 20}}));
-    robot->SetActiveDOFValues(toDblVec(start));
+	  vector<double> dof_vec;
+	  dof_vec.insert(dof_vec.end(),dofs,dofs+27);
+	  robot->SetDOFValues(dof_vec,true);
+	  //robot->SetDOFValues(vec(std::array<double, 4>{{1.3, 1.3, 1.3, 0.5}}), false, vec(std::array<int, 4>{{7, 8, 9, 10}}));
+	  robot->SetActiveDOFs(vec(std::array<int, 6>{{15, 16, 17, 18, 19, 20}}));
+	  robot->SetActiveDOFValues(toDblVec(start));
   }
 
   void initialize_viewer(OSGViewerPtr viewer) {
@@ -71,7 +71,7 @@ namespace RavenBSP {
 
   void RavenBSPPlanner::initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time) {
 	  //not robot-specific, but need to be tweaked
-    opt.max_iter_                   = 350;
+    opt.max_iter_                   = 100;
     opt.merit_error_coeff_          = 10;
     opt.merit_coeff_increase_ratio_ = 10;
     opt.max_merit_coeff_increases_  = 5;
@@ -82,7 +82,7 @@ namespace RavenBSP {
     opt.min_approx_improve_frac_    = -INFINITY;
     opt.improve_ratio_threshold_    = 0.25;
     opt.trust_box_size_             = 1e-1;
-    opt.cnt_tolerance_              = 1e-4;
+    opt.cnt_tolerance_              = 1e-5;
   }
 
   void RavenBSPPlanner::initialize() {
@@ -100,7 +100,7 @@ namespace RavenBSP {
 
     set_state_dim(6); //TODO: 6
     set_sigma_dof(21); //TODO: 21
-    set_observe_dim(3); //TODO: 6 + 6
+    set_observe_dim(6); //TODO: 6 + 6
     set_control_dim(6); //TODO: 6
 
     set_control_bounds( vector<double>(6, -0.3), vector<double>(6, 0.3) );
@@ -148,13 +148,16 @@ namespace RavenBSP {
 
   ObserveT RavenObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
 	  //TODO: important update
+	  /*
     ObserveT ret(observe_dim);
     Vector3d trans(0,0,1); //forward_kinematics(x);
     Vector3d beacon(-1.0, 0.0, 0.5);
     double dist = 3.0 * (trans(0) - beacon(0)) * (trans(0) - beacon(0));
     ret(0) = 1.0 / (1.0 + dist) + 0.1 * n(0);
     ret(1) = x(0) + 0.01 * n(1);
-    ret(2) = x(3) + 0.01 * n(2);
+    ret(2) = x(3) + 0.01 * n(2);*/
+	  ObserveT ret(observe_dim);
+	  ret = x + 0.01*n;
     return ret;
   }
   //TODO: observation_masks, signed distance
@@ -327,10 +330,7 @@ int gregTests(int argc, char *argv[]) {
 
 
 int main(int argc, char *argv[]) {
-  gregTests(argc, argv);
-  return 0;
-
-  int T = 26;
+  int T = 10;
   bool sim_plotting = false;
   bool stage_plotting = false;
   bool first_step_only = false;
@@ -349,6 +349,7 @@ int main(int argc, char *argv[]) {
 
   string manip_name("right_arm");
   string link_name("tool_R");
+  // note: tool_R is 1cm off in z direction
 
   RaveInitialize();
   EnvironmentBasePtr env = RaveCreateEnvironment();
@@ -361,17 +362,19 @@ int main(int argc, char *argv[]) {
   auto initial_controls = get_initial_controls(initial_trajectory);
 
   Vector6d start = initial_trajectory[0];
-  Matrix6d start_sigma = Matrix6d::Identity() * 0.22 * 0.22;
+  Vector6d end = initial_trajectory.back();
+  Matrix6d start_sigma = Matrix6d::Identity() *pow(0.00001,2);
 
-  initialize_robot(robot, start);
+  //initialize_robot(robot, start);
+  robot->SetActiveManipulator(manip_name);
 
-  Matrix4d goal_trans;
-  goal_trans <<  0,  0, 1, 0.6,
-                 0,  1, 0, 0.4,
-                -1,  0, 0, 0.6,
-                 0,  0, 0,   1;
+  robot->SetDOFValues(toDblVec(end),0,robot->GetActiveManipulator()->GetArmIndices());
+  Matrix4d goal_trans = transformToMatrix(robot->GetActiveManipulator()->GetEndEffectorTransform());
+  robot->SetDOFValues(toDblVec(start),0,robot->GetActiveManipulator()->GetArmIndices());
+
 
   RavenBSPPlannerPtr planner(new RavenBSPPlanner());
+
 
   planner->start = start;
   planner->start_sigma = start_sigma;
@@ -384,16 +387,20 @@ int main(int argc, char *argv[]) {
   planner->method = BSP::DiscontinuousBeliefSpace;
   planner->initialize();
 
-
+  vector<GraphHandlePtr> handles;
   boost::function<void(OptProb*, DblVec&)> opt_callback;
   if (stage_plotting || sim_plotting) {
     viewer = OSGViewer::GetOrCreate(env);
     initialize_viewer(viewer);
+
+    handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.05));
+    handles.push_back(viewer->PlotAxes(matrixToTransform(goal_trans),.05));
   }
   if (stage_plotting) {
     opt_callback = boost::bind(&OpenRAVEPlotterMixin<RavenBSPPlanner>::stage_plot_callback,
                                planner, planner->helper->rad, viewer, _1, _2);
   }
+
 
   while (!planner->finished()) {
     planner->solve(opt_callback, 1, 1);
@@ -401,7 +408,7 @@ int main(int argc, char *argv[]) {
     if (first_step_only) break;
     if (sim_plotting) {
       OpenRAVEPlotterMixin<RavenBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
-      viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),20);
+      handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.025));
     }
   }
 

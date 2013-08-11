@@ -217,6 +217,8 @@ struct MultiCritFilter {
 
 OptStatus BasicTrustRegionSQP::optimize() {
 
+	cout << "Inside Trajopt" << endl;
+
   vector<string> cost_names = getCostNames(prob_->getCosts());
   vector<ConstraintPtr> constraints = prob_->getConstraints();
   vector<string> cnt_names = getCntNames(constraints);

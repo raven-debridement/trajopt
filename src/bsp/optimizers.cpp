@@ -95,6 +95,11 @@ namespace BSP {
         while (trust_box_size_ >= min_trust_box_size_) {
 
           setTrustBoxConstraints(x_);
+          stringstream ss;
+          static int file_ind=0;
+          file_ind++;
+          ss << "/home/gkahn/tmp/model_" << file_ind << ".lp";
+          model_->writeToFile(ss.str());
           CvxOptStatus status = model_->optimize();
           ++results_.n_qp_solves;
           if (status != CVX_SOLVED) {

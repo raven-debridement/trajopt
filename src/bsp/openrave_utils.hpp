@@ -73,7 +73,7 @@ namespace BSP {
         }
       }
       for (int i = 0; i <= planner->helper->T; ++i) {
-        cout << "dof: " << getVec(x, planner->helper->state_vars.row(i)).transpose() << endl;
+        //cout << "dof: " << getVec(x, planner->helper->state_vars.row(i)).transpose() << endl;
         rad->SetDOFValues(toDblVec(getVec(x, planner->helper->state_vars.row(i))));
         handles->push_back(viewer->PlotKinBody(rad->GetRobot()));
         SetTransparency(handles->back(), .35);
@@ -85,6 +85,7 @@ namespace BSP {
       for (int i = 0; i < planner->simulated_positions.size(); ++i) {
         rad->SetDOFValues(toDblVec(planner->simulated_positions[i]));
         handles->push_back(viewer->PlotKinBody(rad->GetRobot()));
+        //handles->push_back(viewer->PlotAxes(rad->GetRobot()->GetActiveManipulator()->GetEndEffectorTransform(),.01));
         SetTransparency(handles->back(), .35);
       }
     }

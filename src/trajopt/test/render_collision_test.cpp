@@ -13,7 +13,6 @@ EnvironmentBasePtr env;
 OSGViewerPtr viewer;
 void PlotCollisionGeometry(const osgGA::GUIEventAdapter & ea) {
   if (handles.size() == 0) {
-
     cc->PlotCollisionGeometry(handles);
     vector<Collision> collisions;
     cc->AllVsAll(collisions);

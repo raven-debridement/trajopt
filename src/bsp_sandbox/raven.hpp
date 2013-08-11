@@ -22,8 +22,8 @@ namespace RavenBSP {
       6, // state_dim
       6, // state_noise_dim
       6, // control_dim
-      3, // observe_dim
-      3, // observe_noise_dim
+      6, // observe_dim
+      6, // observe_noise_dim
       21, // sigma_dof
       27 // belief_dim
   );

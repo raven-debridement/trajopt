@@ -312,6 +312,7 @@ namespace BSP {
       create_state_variables(*prob);
       create_control_variables(*prob);
       add_start_state_constraint(*prob);
+      add_control_cost(*prob);
       add_goal_constraint(*prob);
       add_state_constraint(*prob);
       BasicTrustRegionSQP opt(prob);
