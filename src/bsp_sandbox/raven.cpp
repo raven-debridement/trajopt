@@ -35,7 +35,10 @@ namespace RavenBSP {
   deque<Vector6d> get_initial_controls(const vector<Vector6d>& initial_trajectory) {
     deque<Vector6d> ret;
     for (int i = 0; i < (int)initial_trajectory.size() - 1; ++i) {
-      ret.push_back(initial_trajectory[i+1] - initial_trajectory[i]);
+      Vector6d vec;
+      vec << 0, 0, 0, 0, 0, 0;
+      ret.push_back(vec);
+      //ret.push_back(initial_trajectory[i+1] - initial_trajectory[i]);
     }
     return ret;
   }
@@ -113,7 +116,7 @@ namespace RavenBSP {
       //prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
-    cc->SetContactDistance(0.065);
+    cc->SetContactDistance(0.001);
   }
 
   void RavenBSPProblemHelper::configure_problem(OptProb& prob) {
@@ -214,6 +217,7 @@ bool RavenBSPWrapper::finished() {
 }
 void RavenBSPWrapper::solve() {
 	planner->solve(opt_callback, 1, 1);
+	controls = planner->controls;
 }
 void RavenBSPWrapper::simulate_execution() {
 	planner->simulate_execution();
@@ -280,7 +284,7 @@ int main(int argc, char *argv[]) {
   rave_goal_trans.trans.y += .04;
   Matrix4d goal_trans = transformToMatrix(rave_goal_trans);
 
-//#define RAVEN_CREATE_OBSTACLES
+#define RAVEN_CREATE_OBSTACLES
 #ifdef RAVEN_CREATE_OBSTACLES
   // create box obstacle
   OpenRAVE::geometry::RaveTransform<double> box_trans;
@@ -315,7 +319,7 @@ int main(int argc, char *argv[]) {
   planner->robot = robot;
   planner->rad = RADFromName(manip_name, robot);
   planner->link = planner->rad->GetRobot()->GetLink(link_name);
-  planner->method = BSP::DiscontinuousBeliefSpace;
+  planner->method = BSP::ContinuousBeliefSpace;//BSP::DiscontinuousBeliefSpace;
   planner->initialize();
 
   vector<GraphHandlePtr> handles;
@@ -339,10 +343,15 @@ int main(int argc, char *argv[]) {
   while (!planner->finished()) {
     planner->solve(opt_callback, 1, 1);
     planner->simulate_execution();
+
+    for (int i=0; i < planner->controls.size(); i++) {
+    	cout << planner->controls[i] << endl;
+    }
+
     if (first_step_only) break;
     if (sim_plotting) {
       OpenRAVEPlotterMixin<RavenBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
-      handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.025));
+      handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.015));
     }
   }
 

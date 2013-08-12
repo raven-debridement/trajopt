@@ -144,6 +144,7 @@ py::list PyRavenBSPWrapper::get_controls() {
 	for (int i=0;i<wrapper->controls.size();i++) {
 		l.append(toNdarray1(wrapper->controls[i].data(),wrapper->controls[i].size()));
 	}
+	return l;
 }
 
 void PyRavenBSPWrapper::set_goal_trans(py::object tf) {
