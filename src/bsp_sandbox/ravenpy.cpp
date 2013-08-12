@@ -198,6 +198,8 @@ BOOST_PYTHON_MODULE(cravenbsppy) {
 			.def("set_T", &PyRavenBSPWrapper::set_T)
 			.def("set_controls", &PyRavenBSPWrapper::set_controls)
 			.def("get_controls", &PyRavenBSPWrapper::get_controls)
+			.def("set_manip_name", &PyRavenBSPWrapper::set_manip_name)
+			.def("set_link_name", &PyRavenBSPWrapper::set_link_name)
 			.def("initialize", &PyRavenBSPWrapper::initialize)
 			.def("finished", &PyRavenBSPWrapper::finished)
 			.def("solve", &PyRavenBSPWrapper::solve)
