@@ -174,7 +174,7 @@ namespace BSP {
 
 
     StateT simulate_executions(int nsteps, bool use_lqr=false) {
-#define BSP_PLANNER_WRITE_TO_FILE
+//#define BSP_PLANNER_WRITE_TO_FILE
 #ifdef BSP_PLANNER_WRITE_TO_FILE
       time_t now;
       struct tm *current;

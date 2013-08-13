@@ -107,6 +107,9 @@ public:
 	void set_manip_name(const string& manip_name);
 	void set_link_name(const string& link_name);
 
+	void set_sim_plotting(bool sim_plotting);
+	void set_stage_plotting(bool stage_plotting);
+
 	void createViewer(bool sim_plotting=false, bool stage_plotting=false) {
 		OSGViewerPtr viewer = OSGViewer::GetOrCreate(wrapper->env);
 		ALWAYS_ASSERT(!!viewer);
@@ -163,8 +166,17 @@ void PyRavenBSPWrapper::set_insertion_factor(double factor) {
 void PyRavenBSPWrapper::set_manip_name(const string& manip_name) {
 	wrapper->manip_name = manip_name;
 }
+
 void PyRavenBSPWrapper::set_link_name(const string& link_name) {
 	wrapper->link_name = link_name;
+}
+
+void PyRavenBSPWrapper::set_sim_plotting(bool sim_plotting) {
+	wrapper->sim_plotting = sim_plotting;
+}
+
+void PyRavenBSPWrapper::set_stage_plotting(bool stage_plotting) {
+	wrapper->stage_plotting = stage_plotting;
 }
 
 void PyRavenBSPWrapper::initialize() {
@@ -201,6 +213,8 @@ BOOST_PYTHON_MODULE(cravenbsppy) {
 			.def("get_controls", &PyRavenBSPWrapper::get_controls)
 			.def("set_manip_name", &PyRavenBSPWrapper::set_manip_name)
 			.def("set_link_name", &PyRavenBSPWrapper::set_link_name)
+			.def("set_sim_plotting", &PyRavenBSPWrapper::set_sim_plotting)
+			.def("set_stage_plotting", &PyRavenBSPWrapper::set_stage_plotting)
 			.def("initialize", &PyRavenBSPWrapper::initialize)
 			.def("finished", &PyRavenBSPWrapper::finished)
 			.def("solve", &PyRavenBSPWrapper::solve)
