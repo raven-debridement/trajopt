@@ -98,7 +98,7 @@ struct NeedleConfig : public Configuration {
     upper[4] = 1;
     upper[5] = 1;
   }
-  virtual DblVec GetDOFValues() {
+  virtual DblVec GetDOFValues() const {
     return m_vals;
   }
   virtual int GetDOF() const {

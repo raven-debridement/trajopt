@@ -113,6 +113,7 @@ public:
   void setProblem(OptProbPtr prob);
   bool hasViolation(const DblVec& cnt_viols);
   OptStatus optimize();
+  ModelPtr getModel() { return model_; }
 protected:
   void adjustTrustRegion(double ratio);
   void setTrustBoxConstraints(const vector<double>& x, Model* model);
@@ -130,9 +131,13 @@ public:
   double merit_error_coeff_;
   double trust_box_size_;
 
+  int max_per_merit_iter_;
+  int max_merit_coeff_increases_;
+
   double min_cnt_improve_ratio;
   double min_model_merit_improve_ratio_;
   double line_search_shrink_ratio_;
+  double min_line_search_size_;
   double min_merit_improve_ratio;
   double trust_region_shrink_threshold_;
   double trust_region_expand_threshold_;

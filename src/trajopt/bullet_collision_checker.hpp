@@ -62,7 +62,7 @@ public:
   virtual void LinksVsAll(const vector<KinBody::LinkPtr>& links, vector<Collision>& collisions, short filterMask);
   virtual void LinkVsAll(const KinBody::Link& link, vector<Collision>& collisions, short filterMask);
   virtual void ContinuousCheckTrajectory(const TrajArray& traj, Configuration& rad, vector<Collision>&);
-  virtual void CastVsAll(Configuration& rad, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions);
+  virtual void CastVsAll(Configuration& rad0, Configuration& rad1, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions);
   ////
   ///////
 

@@ -804,20 +804,20 @@ void BulletCollisionChecker::CheckShapeCast(btCollisionShape* shape, const btTra
 
 }
 
-void BulletCollisionChecker::CastVsAll(Configuration& rad, const vector<KinBody::LinkPtr>& links,
+void BulletCollisionChecker::CastVsAll(Configuration& rad0, Configuration& rad1, const vector<KinBody::LinkPtr>& links,
     const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions) {
-  Configuration::SaverPtr saver = rad.Save();
-  rad.SetDOFValues(startjoints);
+  Configuration::SaverPtr saver = rad0.Save();
+  rad0.SetDOFValues(startjoints);
   int nlinks = links.size();
   vector<btTransform> tbefore(nlinks), tafter(nlinks);
   for (int i=0; i < nlinks; ++i) {
     tbefore[i] = toBt(links[i]->GetTransform());
   }
-  rad.SetDOFValues(endjoints);
+  rad1.SetDOFValues(endjoints);
   for (int i=0; i < nlinks; ++i) {
     tafter[i] = toBt(links[i]->GetTransform());
   }
-  rad.SetDOFValues(startjoints);
+  rad0.SetDOFValues(startjoints);
   UpdateBulletFromRave();
   m_world->updateAabbs();
 

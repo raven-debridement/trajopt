@@ -31,7 +31,7 @@ namespace Needle {
     }
   }
 
-  void NeedleProblemHelper::ConfigureProblem(OptProb& prob) {
+  void NeedleProblemHelper::ConfigureProblem(OptProb& prob, bool collision_as_constraint) {
     CreateVariables(prob);
     InitLocalConfigurations(robot, prob);
     InitTrajectory(prob);
@@ -41,7 +41,11 @@ namespace Needle {
     AddGoalConstraint(prob);
     AddSpeedConstraint(prob);
     AddControlConstraint(prob);
-    AddCollisionConstraint(prob);
+    //if (collision_as_constraint) {
+    //  AddCollisionConstraint(prob);
+    //} else {
+    //  AddCollisionCost(prob);
+    //}
   }
 
   void NeedleProblemHelper::InitOptimizeVariables(OptimizerT& opt) {
@@ -255,7 +259,7 @@ namespace Needle {
   void NeedleProblemHelper::AddStartConstraint(OptProb& prob) {
     VarVector vars = twistvars.row(0);
     VectorOfVectorPtr f(new Needle::PositionError(local_configs[0], start, shared_from_this()));
-    VectorXd coeffs = Vector6d::Ones();
+    Vector6d coeffs; coeffs << 1., 1., 1., 1., 1., 1.;//0., 0., 0.;// = Vector6d::Ones();
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "entry")));
   }
 
@@ -296,13 +300,53 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::AddCollisionConstraint(OptProb& prob) {
-    //Str2Dbl tag2dist_pen(collision_dist_pen), tag2coeff(collision_coeff);
-    //for (int i = 0; i < ignored_kinbody_names.size(); ++i) {
-    //  tag2coeff.insert( std::pair<string, double>(ignored_kinbody_names[i], 0.0) );
-    //}
-    //for (int i = 0; i <= T; ++i) {
-    //  prob.addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, local_configs[i], twistvars.row(i))));
-    //}
+    Str2Dbl tag2dist_pen(collision_dist_pen), tag2coeff(collision_coeff);
+    for (int i = 0; i < ignored_kinbody_names.size(); ++i) {
+      tag2coeff.insert( std::pair<string, double>(ignored_kinbody_names[i], 0.0) );
+    }
+    for (int i = 0; i < T; ++i) {
+      prob.addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, local_configs[i], local_configs[i+1], twistvars.row(i), twistvars.row(i+1))));
+      collision_constraints.push_back(prob.getConstraints().back());
+      //prob.addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, local_configs[i], twistvars.row(i))));
+      //prob.addCost(CostPtr(new CollisionTaggedCost(tag2dist_pen, tag2coeff, local_configs[i], twistvars.row(i))));
+    }
+
+    EnvironmentBasePtr env = local_configs[0]->GetEnv();
+    vector<KinBodyPtr> bodies; env->GetBodies(bodies);
+    CollisionChecker::GetOrCreate(*env)->SetContactDistance(.1);
+
+    for (int i=0; i < bodies.size(); ++i) {
+      if (bodies[i]->GetName() == "KinBodyProstate" ||
+          bodies[i]->GetName() == "KinBodyDermis" ||
+          bodies[i]->GetName() == "KinBodyEpidermis" ||
+          bodies[i]->GetName() == "KinBodyHypodermis") {
+        CollisionChecker::GetOrCreate(*env)->ExcludeCollisionPair(*bodies[i]->GetLinks()[0], *robot->GetLinks()[0]);
+      }
+    }
   }
 
+  void NeedleProblemHelper::AddCollisionCost(OptProb& prob) {
+    Str2Dbl tag2dist_pen(collision_dist_pen), tag2coeff(collision_coeff);
+    for (int i = 0; i < ignored_kinbody_names.size(); ++i) {
+      tag2coeff.insert( std::pair<string, double>(ignored_kinbody_names[i], 0.0) );
+    }
+    for (int i = 0; i < T; ++i) {
+      prob.addCost(CostPtr(new CollisionTaggedCost(tag2dist_pen, tag2coeff, local_configs[i], local_configs[i+1], twistvars.row(i), twistvars.row(i+1))));
+      collision_costs.push_back(prob.getCosts().back());
+    }
+
+    EnvironmentBasePtr env = local_configs[0]->GetEnv();
+    vector<KinBodyPtr> bodies; env->GetBodies(bodies);
+    CollisionChecker::GetOrCreate(*env)->SetContactDistance(.1);
+
+    for (int i=0; i < bodies.size(); ++i) {
+      if (bodies[i]->GetName() == "KinBodyProstate" ||
+          bodies[i]->GetName() == "KinBodyDermis" ||
+          bodies[i]->GetName() == "KinBodyEpidermis" ||
+          bodies[i]->GetName() == "KinBodyHypodermis") {
+        CollisionChecker::GetOrCreate(*env)->ExcludeCollisionPair(*bodies[i]->GetLinks()[0], *robot->GetLinks()[0]);
+      }
+    }
+
+  }
 }

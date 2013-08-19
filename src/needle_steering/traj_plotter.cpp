@@ -6,8 +6,19 @@ namespace Needle {
     viewer = OSGViewer::GetOrCreate(local_configs[0]->GetEnv());
   }
 
-  void TrajPlotter::OptimizerCallback(OptProb*, DblVec& x, NeedleProblemHelperPtr helper) {
+  void TrajPlotter::OptimizerCallback(OptProb* prob, DblVec& x, NeedleProblemHelperPtr helper) {
     vector<GraphHandlePtr> handles;
+    BOOST_FOREACH(CostPtr& cost, prob->getCosts()) {
+      if (Plotter* plotter = dynamic_cast<Plotter*>(cost.get())) {
+        plotter->Plot(x, *(helper->local_configs[0]->GetEnv()), handles);
+      }
+    }
+    vector<ConstraintPtr> constraints = prob->getConstraints();
+    BOOST_FOREACH(ConstraintPtr& cnt, constraints) {
+      if (Plotter* plotter = dynamic_cast<Plotter*>(cnt.get())) {
+        plotter->Plot(x, *(helper->local_configs[0]->GetEnv()), handles);
+      }
+    }
     vector<KinBodyPtr> bodies = local_configs[0]->GetBodies();
     MatrixXd vals = getTraj(x, vars);
     for (int i=0; i < vals.rows(); ++i) {

@@ -40,7 +40,8 @@ namespace Needle {
 
   typedef Matrix<double, 6, 1> Vector6d;
 
-  typedef LineSearchSQP OptimizerT;
+  typedef BasicTrustRegionSQP OptimizerT;
+  //typedef LineSearchSQP OptimizerT;
 
   inline double bound_inf(double result, double bound);
 
@@ -132,7 +133,7 @@ namespace Needle {
     LocalConfiguration(KinBodyPtr body);
     virtual void SetDOFValues(const DblVec& dofs);
     virtual void GetDOFLimits(DblVec& lower, DblVec& upper) const;
-    virtual DblVec GetDOFValues();
+    virtual DblVec GetDOFValues() const;
     virtual int GetDOF() const;
     virtual OpenRAVE::EnvironmentBasePtr GetEnv();
     virtual DblMatrix PositionJacobian(int link_ind, const OpenRAVE::Vector& pt) const;
@@ -211,7 +212,10 @@ namespace Needle {
     // Local configurations
     vector<LocalConfigurationPtr> local_configs;
 
-    void ConfigureProblem(OptProb& prob);
+    vector<CostPtr> collision_costs;
+    vector<ConstraintPtr> collision_constraints;
+
+    void ConfigureProblem(OptProb& prob, bool collision_as_constraint=true);
     void InitOptimizeVariables(OptimizerT& opt);
     void OptimizerCallback(OptProb*, DblVec& x);
     void ConfigureOptimizer(OptimizerT& opt);
@@ -225,6 +229,7 @@ namespace Needle {
     void AddGoalConstraint(OptProb& prob);
     void AddControlConstraint(OptProb& prob);
     void AddCollisionConstraint(OptProb& prob);
+    void AddCollisionCost(OptProb& prob);
     Matrix4d TransformPose(const Matrix4d& pose, double phi, double Delta, double radius) const;
     double GetPhi(const DblVec& x, int i) const;
     double GetDelta(const DblVec& x, int i) const;

@@ -25,7 +25,7 @@ struct TRAJOPT_API CollisionEvaluator {
     DblVec& dists, NamePairs& bodyNames);
   virtual void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad,
     const Link2Int& link2ind, const VarVector& vars, const DblVec& dofvals, vector<AffExpr>& exprs, bool isTimestep1, NamePairs& bodyNames);
-  virtual void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad, const Link2Int& link2ind,
+  virtual void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad0, Configuration& rad1, const Link2Int& link2ind,
     const VarVector& vars0, const VarVector& vars1, const DblVec& vals0, const DblVec& vals1,
     vector<AffExpr>& exprs, NamePairs& bodyNames);
   virtual ~CollisionEvaluator() {}
@@ -63,7 +63,7 @@ public:
 
 struct CastCollisionEvaluator : public CollisionEvaluator {
 public:
-  CastCollisionEvaluator(ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
+  CastCollisionEvaluator(ConfigurationPtr rad0, ConfigurationPtr rad1, const VarVector& vars0, const VarVector& vars1);
   void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, NamePairs& bodyNames);
   void CalcDists(const DblVec& x, DblVec& exprs, NamePairs& bodyNames);
   void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
@@ -73,7 +73,8 @@ public:
   // parameters:
   OR::EnvironmentBasePtr m_env;
   CollisionCheckerPtr m_cc;
-  ConfigurationPtr m_rad;
+  ConfigurationPtr m_rad0;
+  ConfigurationPtr m_rad1;
   VarVector m_vars0;
   VarVector m_vars1;
   typedef std::map<const OR::KinBody::Link*, int> Link2Int;
@@ -89,7 +90,7 @@ public:
   /* constructor for single timestep */
   CollisionCost(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars);
   /* constructor for cast cost */
-  CollisionCost(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
+  CollisionCost(double dist_pen, double coeff, ConfigurationPtr rad0, ConfigurationPtr rad1, const VarVector& vars0, const VarVector& vars1);
   virtual ConvexObjectivePtr convex(const vector<double>& x);
   virtual double value(const vector<double>&, Model*);
   void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
@@ -103,7 +104,7 @@ public:
   /* constructor for single timestep */
   CollisionConstraint(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars);
   /* constructor for cast cost */
-  CollisionConstraint(double dist_pen, double coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
+  CollisionConstraint(double dist_pen, double coeff, ConfigurationPtr rad0, ConfigurationPtr rad1, const VarVector& vars0, const VarVector& vars1);
   virtual ConvexConstraintsPtr convex(const vector<double>& x);
   virtual DblVec value(const vector<double>&, Model*);
   void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
@@ -113,26 +114,28 @@ protected:
   double m_coeff;
 };
 
-class TRAJOPT_API CollisionTaggedCost : public Cost {
+class TRAJOPT_API CollisionTaggedCost : public Cost, public Plotter {
 public:
   CollisionTaggedCost(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad, const VarVector& vars);
-  CollisionTaggedCost(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
+  CollisionTaggedCost(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad0, ConfigurationPtr rad1, const VarVector& vars0, const VarVector& vars1);
   virtual ConvexObjectivePtr convex(const vector<double>& x);
   virtual double value(const vector<double>&, Model*);
+  void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
 private:
   CollisionEvaluatorPtr m_calc;
   Str2Dbl m_tag2dist_pen;
   Str2Dbl m_tag2coeff;
 };
 
-class TRAJOPT_API CollisionTaggedConstraint : public IneqConstraint {
+class TRAJOPT_API CollisionTaggedConstraint : public IneqConstraint, public Plotter {
 public:
   /* constructor for single timestep */
   CollisionTaggedConstraint(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad, const VarVector& vars);
   /* constructor for cast cost */
-  CollisionTaggedConstraint(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad, const VarVector& vars0, const VarVector& vars1);
+  CollisionTaggedConstraint(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad0, ConfigurationPtr rad1, const VarVector& vars0, const VarVector& vars1);
   virtual ConvexConstraintsPtr convex(const vector<double>& x);
   virtual DblVec value(const vector<double>&, Model* model);
+  void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
 private:
   CollisionEvaluatorPtr m_calc;
   Str2Dbl m_tag2dist_pen;

@@ -39,8 +39,8 @@ int main(int argc, char** argv)
   double trust_expand_ratio = 1.3;//1.2;
   bool record_trust_region_history = false;
   
-  double start_vec_array[] = {0, 0, 0, 0, 0, 0};
-  double goal_vec_array[] = {0, 0.896343312427, 7.49334469032, 0, 0, 0};
+  double start_vec_array[] = {-6.60848, 12.6176, -8.06651, 2.53666, -0.868663, 1.31701};//{-12.82092, 6.80976, 0.06844, 0, 0, 0};//{0, 0, 0, 0, 0, 0};
+  double goal_vec_array[] = {-3.21932, 6.87362, -1.21877, 0, 0, 0};//{0, 0.896343312427, 7.49334469032, 0, 0, 0};
 
   double coeff_rotation = 1.;
   double coeff_speed = 1.;
@@ -83,11 +83,17 @@ int main(int argc, char** argv)
   RaveInitialize(false, verbose ? Level_Debug : Level_Info);
   EnvironmentBasePtr env = RaveCreateEnvironment();
   env->StopSimulation();
-  OSGViewerPtr viewer = OSGViewer::GetOrCreate(env);
-  assert(viewer);
+  OSGViewerPtr viewer;
+  if (plotting || plot_final_result) {
+    viewer = OSGViewer::GetOrCreate(env);
+    assert(viewer);
+  }
 
   env->Load(string(DATA_DIR) + "/prostate.env.xml");//needleprob.env.xml");
-  viewer->SetAllTransparency(env_transparency);
+
+  if (plotting || plot_final_result) {
+    viewer->SetAllTransparency(env_transparency);
+  }
   RobotBasePtr robot = GetRobot(*env);
 
   Vector6d start; for (int i = 0; i < n_dof; ++i) start[i] = start_vec[i];
@@ -96,7 +102,6 @@ int main(int argc, char** argv)
   const char *ignored_kinbody_c_strs[] = { "KinBodyProstate", "KinBodyDermis", "KinBodyEpidermis", "KinBodyHypodermis" };
   vector<string> ignored_kinbody_names(ignored_kinbody_c_strs, end(ignored_kinbody_c_strs));
 
-  OptProbPtr prob(new OptProb());
 
   NeedleProblemHelperPtr helper(new NeedleProblemHelper());
   helper->start = start;
@@ -108,8 +113,8 @@ int main(int argc, char** argv)
   helper->r_min = r_min;
   helper->n_dof = n_dof;
   helper->ignored_kinbody_names = ignored_kinbody_names;
-  helper->collision_dist_pen = 0.025;
-  helper->collision_coeff = 20;
+  helper->collision_dist_pen = 0.05;
+  helper->collision_coeff = 10;
   helper->formulation = formulation;
   helper->curvature_constraint = curvature_constraint;
   helper->speed_formulation = speed_formulation;
@@ -119,7 +124,9 @@ int main(int argc, char** argv)
   helper->use_speed_deviation_constraint = use_speed_deviation_constraint;
   helper->use_speed_deviation_cost = use_speed_deviation_cost;
   helper->robot = robot;
-  helper->ConfigureProblem(*prob);
+
+  OptProbPtr prob(new OptProb());
+  helper->ConfigureProblem(*prob, true);
 
   OptimizerT opt(prob);
   opt.max_iter_ = 500;    
@@ -131,32 +138,108 @@ int main(int argc, char** argv)
   helper->ConfigureOptimizer(opt);
 
   boost::shared_ptr<Needle::TrajPlotter> plotter;
-  plotter.reset(new Needle::TrajPlotter(helper->local_configs, helper->twistvars));
+  if (plotting || plot_final_result) {
+    plotter.reset(new Needle::TrajPlotter(helper->local_configs, helper->twistvars));
+  }
   if (plotting) {
     opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2, helper));
   }
 
-  opt.optimize();
-  
-  if (plot_final_result) plotter->PlotBothTrajectories(prob, opt, helper);
+  OptStatus status = opt.optimize();
 
-  if (opt.record_trust_region_history_) {
-    for (int i = 0; i < opt.trust_region_size_history.size(); ++i) {
-      cout << "Trust region size history for iteration #" << i << " ";
-      for (int j = 0; j < opt.trust_region_size_history[i].size(); ++j) {
-        cout << opt.trust_region_size_history[i][j] << " ";
-      }
-      cout << endl;
-    }
-    for (int i = 0; i < opt.log_trust_region_size_history.size(); ++i) {
-      cout << "Trust region logarithm size history for iteration #" << i << " ";
-      for (int j = 0; j < opt.log_trust_region_size_history[i].size(); ++j) {
-        cout << opt.log_trust_region_size_history[i][j] << " ";
-      }
-      cout << endl;
-    }
-  }
+  //DblVec x = opt.x();
+  //vector<KinBodyPtr> bodies = helper->local_configs[0]->GetBodies();
+  //MatrixXd vals = getTraj(x, helper->twistvars);
+  //for (int i=0; i < vals.rows(); ++i) {
+  //  helper->local_configs[i]->pose = helper->local_configs[i]->pose * expUp(vals.row(i));
+  //  //helper->local_configs[i]->SetDOFValues(toDblVec(Vector6d::Zero()));
+  //}
 
-  RaveDestroy();
+  //setVec(x, helper->twistvars.m_data, DblVec(helper->twistvars.size(), 0));
+
+  //double total_collision_cost = 0.0;
+  //for (int i = 0; i < helper->collision_costs.size(); ++i) {
+  //  total_collision_cost += helper->collision_costs[i]->value(x, opt.getModel().get());
+  //}
+
+  //cout << "total collision cost: " << total_collision_cost << endl;
+
+  //if (status != OPT_CONVERGED || total_collision_cost > opt.cnt_tolerance_) {
+  //  NeedleProblemHelperPtr helper2(new NeedleProblemHelper());
+  //  helper2->start = start;
+  //  helper2->goal = goal;
+  //  helper2->coeff_rotation = coeff_rotation;
+  //  helper2->coeff_rotation_regularization = coeff_rotation_regularization;
+  //  helper2->coeff_speed = coeff_speed;
+  //  helper2->T = T;
+  //  helper2->r_min = r_min;
+  //  helper2->n_dof = n_dof;
+  //  helper2->ignored_kinbody_names = ignored_kinbody_names;
+  //  helper2->collision_dist_pen = 0.05;
+  //  helper2->collision_coeff = 10;
+  //  helper2->formulation = formulation;
+  //  helper2->curvature_constraint = curvature_constraint;
+  //  helper2->speed_formulation = speed_formulation;
+  //  helper2->method = method;
+  //  helper2->curvature_formulation = curvature_formulation;
+  //  helper2->rotation_cost = rotation_cost;
+  //  helper2->use_speed_deviation_constraint = use_speed_deviation_constraint;
+  //  helper2->use_speed_deviation_cost = use_speed_deviation_cost;
+  //  helper2->robot = robot;
+  //  OptProbPtr prob2(new OptProb());
+  //  helper2->ConfigureProblem(*prob2);
+  //  OptimizerT opt2(prob2);
+  //  opt2.max_iter_ = 500;    
+  //  opt2.improve_ratio_threshold_ = improve_ratio_threshold;
+  //  opt2.trust_shrink_ratio_ = trust_shrink_ratio;
+  //  opt2.trust_expand_ratio_ = trust_expand_ratio;
+  //  opt2.record_trust_region_history_ = record_trust_region_history;
+
+  //  opt2.merit_error_coeff_ *= opt2.merit_coeff_increase_ratio_;
+  //  opt2.max_merit_coeff_increases_ -= 1;
+
+  //  helper2->ConfigureOptimizer(opt2);
+
+  //  opt2.initialize(x);
+
+  //  for (int i = 0; i < helper2->local_configs.size(); ++i) {
+  //    helper2->local_configs[i]->pose = helper->local_configs[i]->pose;
+  //  }
+
+  //  boost::shared_ptr<Needle::TrajPlotter> plotter2;
+  //  if (plotting || plot_final_result) {
+  //    plotter2.reset(new Needle::TrajPlotter(helper2->local_configs, helper2->twistvars));
+  //  }
+  //  if (plotting) {
+  //    opt2.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter2), _1, _2, helper2));
+  //  }
+  //  opt2.optimize();
+
+
+  //  cout << logDown(helper2->local_configs[0]->pose).transpose() << endl;
+  //  
+  //  if (plot_final_result) plotter->PlotBothTrajectories(prob2, opt2, helper2);
+
+  //  if (opt2.record_trust_region_history_) {
+  //    for (int i = 0; i < opt2.trust_region_size_history.size(); ++i) {
+  //      cout << "Trust region size history for iteration #" << i << " ";
+  //      for (int j = 0; j < opt2.trust_region_size_history[i].size(); ++j) {
+  //        cout << opt2.trust_region_size_history[i][j] << " ";
+  //      }
+  //      cout << endl;
+  //    }
+  //    for (int i = 0; i < opt2.log_trust_region_size_history.size(); ++i) {
+  //      cout << "Trust region logarithm size history for iteration #" << i << " ";
+  //      for (int j = 0; j < opt2.log_trust_region_size_history[i].size(); ++j) {
+  //        cout << opt2.log_trust_region_size_history[i][j] << " ";
+  //      }
+  //      cout << endl;
+  //    }
+  //  }
+  //} else {
+  //  cout << "Constraints are satisfied already in stage 1!" << endl;
+  //}
+
+  //RaveDestroy();
 
 }

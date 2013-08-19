@@ -299,7 +299,7 @@ OptStatus BasicTrustRegionSQP::optimize() {
   }
 
   for (int merit_increases=0; merit_increases < max_merit_coeff_increases_; ) { /* merit adjustment loop */
-    ++results_.n_merit_increases;
+    //++results_.n_merit_increases;
 
     for (int iter=1; ; ++iter) { /* sqp loop */
       callCallbacks(x_);
@@ -465,6 +465,13 @@ OptStatus BasicTrustRegionSQP::optimize() {
         LOG_INFO("not all constraints are satisfied. increasing penalties");
         merit_error_coeff_ *= merit_coeff_increase_ratio_;
         ++merit_increases;
+        ++results_.n_merit_increases;
+        trust_box_size_ = fmax(trust_box_size_, min_trust_box_size_ / trust_shrink_ratio_ * 1.5);
+        if (record_trust_region_history_) {
+          INC_LOG_TRUST_REGION;
+          LOG_TRUST_REGION;
+        }
+
         vector<ConvexObjectivePtr> lp_cnt_cost_models = cntsToCosts(cnt_models, 1);
         AffExpr lp_objective;
 
@@ -484,6 +491,12 @@ OptStatus BasicTrustRegionSQP::optimize() {
         DblVec lp_model_cnt_viols = evaluateModelCntViols(cnt_models, lp_model_var_vals, model_.get());
         double lp_model_total_cnt_viol = vecSum(lp_model_cnt_viols);
 
+        QuadExpr objective;
+        BOOST_FOREACH(ConvexObjectivePtr& cost, lp_cnt_cost_models) cost->removeFromModel(model_.get());
+        BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models) cost->addToModelAndObjective(model_.get(), objective);
+        BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->addToModelAndObjective(model_.get(), objective);
+        model_->setObjective(objective);
+
         DblVec old_model_cost_vals = evaluateModelCosts(cost_models, old_model_var_vals, model_.get());
         DblVec old_model_cnt_viols = evaluateModelCntViols(cnt_models, old_model_var_vals, model_.get());
         double old_model_total_cost_val = vecSum(old_model_cost_vals);
@@ -495,23 +508,21 @@ OptStatus BasicTrustRegionSQP::optimize() {
           retval = OPT_INFEASIBLE;
           goto cleanup;
         }
-        QuadExpr objective;
-        BOOST_FOREACH(ConvexObjectivePtr& cost, lp_cnt_cost_models) cost->removeFromModel(model_.get());
-        BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models) cost->addToModelAndObjective(model_.get(), objective);
-        BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->addToModelAndObjective(model_.get(), objective);
-        model_->setObjective(objective);
+        
 
         // 4.
         if (fabs(lp_model_total_cnt_viol) < 1e-6) {
           while (merit_increases < max_merit_coeff_increases_ && fabs(current_model_total_cnt_viol) > 1e-6) {
             merit_error_coeff_ *= merit_coeff_increase_ratio_;
             ++merit_increases;
+            ++results_.n_merit_increases;
             RESOLVE_QP_1();
           }
         } else {
           while (merit_increases < max_merit_coeff_increases_ && old_model_total_cnt_viol - current_model_total_cnt_viol < 0.1 * (old_model_total_cnt_viol - lp_model_total_cnt_viol)) {
             merit_error_coeff_ *= merit_coeff_increase_ratio_;
             ++merit_increases;
+            ++results_.n_merit_increases;
             RESOLVE_QP_1();
           }
         }
@@ -525,16 +536,13 @@ OptStatus BasicTrustRegionSQP::optimize() {
               <  0.1 * merit_error_coeff_ * (old_model_total_cnt_viol - lp_model_total_cnt_viol) ) {
           merit_error_coeff_ *= merit_coeff_increase_ratio_;
           ++merit_increases;
+          ++results_.n_merit_increases;
           RESOLVE_QP_1();
           model_cost_vals = evaluateModelCosts(cost_models, model_var_vals, model_.get());
           current_model_total_cost_val = vecSum(model_cost_vals);
         }
 
-        trust_box_size_ = fmax(trust_box_size_, min_trust_box_size_ / trust_shrink_ratio_ * 1.5);
-        if (record_trust_region_history_) {
-          INC_LOG_TRUST_REGION;
-          LOG_TRUST_REGION;
-        }
+        
         break;
       }
 
@@ -585,12 +593,12 @@ void LineSearchSQP::initParameters() {
   trust_expand_ratio_ = 2;
   cnt_tolerance_ = 1e-4;
   merit_coeff_increase_ratio_ = 10;
-  merit_error_coeff_ = 1;
-  trust_box_size_ = 1;
+  merit_error_coeff_ = 10;
+  trust_box_size_ = .1;
 
   min_cnt_improve_ratio = 0.1; // ep1
   min_model_merit_improve_ratio_ = 0.1; // ep2
-  line_search_shrink_ratio_ = 0.3; // tau
+  line_search_shrink_ratio_ = 0.6; // tau
   min_merit_improve_ratio = 1e-4; // eta
   trust_region_shrink_threshold_ = 0.25; // eta_1
   trust_region_expand_threshold_ = 0.75; // eta_2
@@ -807,6 +815,7 @@ OptStatus LineSearchSQP::optimize() {
 
     trust_box_size_ = max(min_trust_box_size_, min(trust_box_size_, max_trust_box_size_));
 
+    LOG_INFO("final alpha: %.4f", alpha);
     LOG_INFO("new box size: %.4f", trust_box_size_);
     LOG_INFO("new merit error: %.4f", merit_error_coeff_);
     LOG_INFO("max step: %.4f", vecAbsMax(chosen_step));
@@ -814,7 +823,12 @@ OptStatus LineSearchSQP::optimize() {
 
 
     if (vecAbsMax(chosen_step) < opt_eps && fabs(old_merit_error_coeff - merit_error_coeff_) < opt_eps) {
-      goto check_cnts;
+      if (!hasViolation(results_.cnt_viols)) {
+        goto check_cnts;
+      } else {
+        merit_error_coeff_ *= merit_coeff_increase_ratio_;
+        trust_box_size_ = .1;
+      }
     }
     
     if (hasViolation(results_.cnt_viols)) {

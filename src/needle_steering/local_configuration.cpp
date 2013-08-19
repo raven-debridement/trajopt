@@ -23,7 +23,7 @@ namespace Needle {
     upper = DblVec(6, INFINITY);
   }
 
-  DblVec LocalConfiguration::GetDOFValues() {
+  DblVec LocalConfiguration::GetDOFValues() const {
     DblVec out(6);
     OpenRAVE::Transform T = body->GetTransform();
     out[0] = T.trans.x;
@@ -46,13 +46,18 @@ namespace Needle {
 
   DblMatrix LocalConfiguration::PositionJacobian(int link_ind, const OpenRAVE::Vector& pt) const {
     MatrixXd out(3, 6);
-    out.leftCols(3) = Matrix3d::Identity();
-    assert(link_ind == 0);
-    KinBody::LinkPtr link = body->GetLinks()[link_ind];
-    OpenRAVE::Vector dr = pt - link->GetTransform().trans;
-    double matdata[9] = { 0, dr[2], -dr[1], -dr[2], 0, dr[0], dr[1], -dr[0], 0 };
-    out.rightCols(3) = Eigen::Map<MatrixXd>(matdata, 3, 3);
+    Matrix3d R = expUp(toVectorXd(this->GetDOFValues())).topLeftCorner<3, 3>();
+    out.topLeftCorner<3, 3>() = R;// * expA(pose.topLeftCorner<3, 3>();
+    out.topRightCorner<3, 3>() = Matrix3d::Zero();
     return out;
+    //MatrixXd out(3, 6);
+    //out.leftCols(3) = Matrix3d::Identity();
+    //assert(link_ind == 0);
+    //KinBody::LinkPtr link = body->GetLinks()[link_ind];
+    //OpenRAVE::Vector dr = pt - link->GetTransform().trans;
+    //double matdata[9] = { 0, dr[2], -dr[1], -dr[2], 0, dr[0], dr[1], -dr[0], 0 };
+    //out.rightCols(3) = Eigen::Map<MatrixXd>(matdata, 3, 3);
+    //return out;
   }
 
   DblMatrix LocalConfiguration::RotationJacobian(int link_ind) const {

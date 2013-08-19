@@ -527,7 +527,7 @@ void CollisionCostInfo::hatch(TrajOptProb& prob) {
   if (term_type == TT_COST) {
     if (continuous) {
       for (int i=first_step; i <= last_step-gap; ++i) {
-        prob.addCost(CostPtr(new CollisionTaggedCost(tag2dist_pen[i-first_step], tag2coeffs[i-first_step], prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+gap))));
+        prob.addCost(CostPtr(new CollisionTaggedCost(tag2dist_pen[i-first_step], tag2coeffs[i-first_step], prob.GetRAD(), prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+gap))));
         prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
       }
     }
@@ -541,7 +541,7 @@ void CollisionCostInfo::hatch(TrajOptProb& prob) {
   else { // ALMOST COPIED
     if (continuous) {
       for (int i=first_step; i < last_step; ++i) {
-        prob.addIneqConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen[i-first_step], tag2coeffs[i-first_step], prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+1))));
+        prob.addIneqConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen[i-first_step], tag2coeffs[i-first_step], prob.GetRAD(), prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+1))));
         prob.getIneqConstraints().back()->setName( (boost::format("%s_%i")%name%i).str() );
       }
     }
