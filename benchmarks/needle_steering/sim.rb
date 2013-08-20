@@ -10,14 +10,14 @@ cnt = 0
 
 r_min = 4.5
 
-File.open('new_points.txt').read.split("\n").map(&:split).each do |goal_trans_x, goal_trans_y, goal_trans_z|
+File.open('new_points_2.txt').read.split("\n").map(&:split).each do |goal_trans_x, goal_trans_y, goal_trans_z|
   cnt += 1
-  if cnt > 50
+  if cnt > 100
     break
   end
   puts "simulation No.#{cnt}"
 
-  %w[needle_steering_single_stage needle_steering_two_stages].each do |pg_name|
+  %w[needle_steering_grid needle_steering_single_stage].each do |pg_name|
 
     #dis = rand_range(5, 10)
     #theta = rand_range(Math::PI/8, Math::PI/4)
@@ -52,7 +52,8 @@ File.open('new_points.txt').read.split("\n").map(&:split).each do |goal_trans_x,
 
     curvature_formulation = 1
     
-    [1, 2].product([1, 2], [1, 2], [1, 2]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost|
+    #[1, 2].product([1, 2], [1, 2], [1, 2]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost|
+    [1].product([1], [1], [1]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost|
       exp_options = options.clone
 
       exp_options << ['--formulation=', formulation]
@@ -87,8 +88,8 @@ File.open('new_points.txt').read.split("\n").map(&:split).each do |goal_trans_x,
                      result: result,
                      command: command,
                      pg_name: pg_name,
-                     version: 19,
-                     description: "single stage vs two stage optimization with various configurations"
+                     version: 23,
+                     description: "grid vs single stage with single configuration"
 
     end
   end

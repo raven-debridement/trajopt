@@ -471,87 +471,9 @@ OptStatus BasicTrustRegionSQP::optimize() {
           INC_LOG_TRUST_REGION;
           LOG_TRUST_REGION;
         }
-
-        vector<ConvexObjectivePtr> lp_cnt_cost_models = cntsToCosts(cnt_models, 1);
-        AffExpr lp_objective;
-
-        BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models) cost->removeFromModel(model_.get());
-        BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->removeFromModel(model_.get());
-        BOOST_FOREACH(ConvexObjectivePtr& cost, lp_cnt_cost_models) cost->addToModelAndObjective(model_.get(), lp_objective);
-        model_->setObjective(lp_objective);
-        {
-          CvxOptStatus lp_status = model_->optimize();
-          ++results_.n_lp_solves;
-          CHECK_STATUS(lp_status, model_);
-        }
-
-        DblVec lp_model_var_vals = model_->getVarValues(model_->getVars());
-        DblVec lp_x(lp_model_var_vals.begin(), lp_model_var_vals.begin() + x_.size());
-
-        DblVec lp_model_cnt_viols = evaluateModelCntViols(cnt_models, lp_model_var_vals, model_.get());
-        double lp_model_total_cnt_viol = vecSum(lp_model_cnt_viols);
-
-        QuadExpr objective;
-        BOOST_FOREACH(ConvexObjectivePtr& cost, lp_cnt_cost_models) cost->removeFromModel(model_.get());
-        BOOST_FOREACH(ConvexObjectivePtr& cost, cost_models) cost->addToModelAndObjective(model_.get(), objective);
-        BOOST_FOREACH(ConvexObjectivePtr& cost, cnt_cost_models) cost->addToModelAndObjective(model_.get(), objective);
-        model_->setObjective(objective);
-
-        DblVec old_model_cost_vals = evaluateModelCosts(cost_models, old_model_var_vals, model_.get());
-        DblVec old_model_cnt_viols = evaluateModelCntViols(cnt_models, old_model_var_vals, model_.get());
-        double old_model_total_cost_val = vecSum(old_model_cost_vals);
-        double old_model_total_cnt_viol = vecSum(old_model_cnt_viols);
-        double current_model_total_cost_val = vecSum(model_cost_vals);
-        double current_model_total_cnt_viol = vecSum(model_cnt_viols);
-
-        if (fabs(old_model_total_cnt_viol - lp_model_total_cnt_viol) < 1e-6 && hasViolation(old_model_cnt_viols)) {
-          retval = OPT_INFEASIBLE;
-          goto cleanup;
-        }
-        
-
-        // 4.
-        if (fabs(lp_model_total_cnt_viol) < 1e-6) {
-          while (merit_increases < max_merit_coeff_increases_ && fabs(current_model_total_cnt_viol) > 1e-6) {
-            merit_error_coeff_ *= merit_coeff_increase_ratio_;
-            ++merit_increases;
-            ++results_.n_merit_increases;
-            RESOLVE_QP_1();
-          }
-        } else {
-          while (merit_increases < max_merit_coeff_increases_ && old_model_total_cnt_viol - current_model_total_cnt_viol < 0.1 * (old_model_total_cnt_viol - lp_model_total_cnt_viol)) {
-            merit_error_coeff_ *= merit_coeff_increase_ratio_;
-            ++merit_increases;
-            ++results_.n_merit_increases;
-            RESOLVE_QP_1();
-          }
-        }
-
-        model_cost_vals = evaluateModelCosts(cost_models, model_var_vals, model_.get());
-        current_model_total_cost_val = vecSum(model_cost_vals);
-
-        // 5.
-        while (merit_increases < max_merit_coeff_increases_ && (old_model_total_cost_val + merit_error_coeff_ * old_model_total_cnt_viol) /* old_model_merit */
-               -(current_model_total_cost_val + merit_error_coeff_ * current_model_total_cnt_viol) /* current_model_merit */
-              <  0.1 * merit_error_coeff_ * (old_model_total_cnt_viol - lp_model_total_cnt_viol) ) {
-          merit_error_coeff_ *= merit_coeff_increase_ratio_;
-          ++merit_increases;
-          ++results_.n_merit_increases;
-          RESOLVE_QP_1();
-          model_cost_vals = evaluateModelCosts(cost_models, model_var_vals, model_.get());
-          current_model_total_cost_val = vecSum(model_cost_vals);
-        }
-
-        
         break;
       }
-
     }
-
-    
-
-
-
   }
   retval = OPT_PENALTY_ITERATION_LIMIT;
   LOG_INFO("optimization couldn't satisfy all constraints");

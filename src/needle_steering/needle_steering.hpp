@@ -173,6 +173,8 @@ namespace Needle {
     int outputSize() const;
   };
 
+  struct TrajPlotter;
+
   struct NeedleProblemHelper : public boost::enable_shared_from_this<NeedleProblemHelper> {
     // Formulation flag
     enum Formulation { Form1 = 1, Form2 = 2 };
@@ -187,6 +189,12 @@ namespace Needle {
     double coeff_rotation;
     double coeff_rotation_regularization;
     double coeff_speed;
+    double coeff_orientation_error;
+    double improve_ratio_threshold;
+    double trust_shrink_ratio;
+    double trust_expand_ratio;
+    int max_merit_coeff_increases;
+    bool record_trust_region_history;
     int T;
     int n_dof;
     int formulation;
@@ -197,10 +205,15 @@ namespace Needle {
     int rotation_cost;
     bool use_speed_deviation_constraint;
     bool use_speed_deviation_cost;
+    bool plotting;
+    bool verbose;
+    bool plot_final_result;
+    double env_transparency;
     double r_min;
     vector<string> ignored_kinbody_names;
     double collision_dist_pen;
     double collision_coeff;
+    double dynamics_coeff;
     double Delta_lb;
     KinBodyPtr robot;
     // Variables
@@ -212,10 +225,15 @@ namespace Needle {
     // Local configurations
     vector<LocalConfigurationPtr> local_configs;
 
-    vector<CostPtr> collision_costs;
+    vector<ConstraintPtr> dynamics_constraints;
     vector<ConstraintPtr> collision_constraints;
+    DblVec initVec;
 
-    void ConfigureProblem(OptProb& prob, bool collision_as_constraint=true);
+    boost::shared_ptr<Needle::TrajPlotter> plotter;
+
+
+    void Initialize(int argc, char** argv);
+    void ConfigureProblem(OptProb& prob);
     void InitOptimizeVariables(OptimizerT& opt);
     void OptimizerCallback(OptProb*, DblVec& x);
     void ConfigureOptimizer(OptimizerT& opt);
@@ -236,6 +254,11 @@ namespace Needle {
     double GetCurvatureOrRadius(const DblVec& x, int i) const;
     double GetCurvature(const DblVec& x, int i) const;
     double GetRadius(const DblVec& x, int i) const;
+    bool HasDynamicsViolations(const DblVec& x, Model* model) const;
+    bool HasCollisionViolations(const DblVec& x, Model* model) const;
+    DblVec EvaluateDynamicsViolations(const DblVec& x, Model* model) const;
+    DblVec EvaluateCollisionViolations(const DblVec& x, Model* model) const;
+
     #ifdef NEEDLE_TEST
     void checkAlignment(DblVec& x);
     #endif

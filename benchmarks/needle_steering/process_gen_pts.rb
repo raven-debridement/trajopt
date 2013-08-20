@@ -1,5 +1,5 @@
 cnt = 0
-File.open('points.txt').read.split("\n").map(&:split).each do |goal_trans_x, goal_trans_y, goal_trans_z|
+File.open('points_2.txt').read.split("\n").map(&:split).each do |goal_trans_x, goal_trans_y, goal_trans_z|
   goal_rot_x = 0
   goal_rot_y = 0
   goal_rot_z = 0

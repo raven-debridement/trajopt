@@ -1,6 +1,10 @@
 #include "needle_steering.hpp"
 
 namespace Needle {
+  template<typename T, size_t N>
+  T* end(T (&ra)[N]) {
+    return ra + N;
+  }
 
   void NeedleProblemHelper::AddRotationCost(OptProb& prob) {
     switch (rotation_cost) {
@@ -31,7 +35,7 @@ namespace Needle {
     }
   }
 
-  void NeedleProblemHelper::ConfigureProblem(OptProb& prob, bool collision_as_constraint) {
+  void NeedleProblemHelper::ConfigureProblem(OptProb& prob) {
     CreateVariables(prob);
     InitLocalConfigurations(robot, prob);
     InitTrajectory(prob);
@@ -41,52 +45,49 @@ namespace Needle {
     AddGoalConstraint(prob);
     AddSpeedConstraint(prob);
     AddControlConstraint(prob);
-    //if (collision_as_constraint) {
-    //  AddCollisionConstraint(prob);
-    //} else {
-    //  AddCollisionCost(prob);
-    //}
+    AddCollisionConstraint(prob);
   }
 
   void NeedleProblemHelper::InitOptimizeVariables(OptimizerT& opt) {
-    DblVec initVec;
-    // Initialize twistvars
-    for (int i = 0; i <= T; ++i) {
-      for (int j = 0; j < n_dof; ++j) {
-        initVec.push_back(0.);
-      }
-    }
-    // Initialize phivars
-    for (int i = 0; i < T; ++i) {
-      initVec.push_back(0.);
-    }
-    switch (speed_formulation) {
-      case ConstantSpeed:
-        // Initialize Delta
-        initVec.push_back(Delta_lb);
-        break;
-      case VariableSpeed:
-        for (int i = 0; i < T; ++i) {
-          initVec.push_back(Delta_lb);
+    if (this->initVec.size() == 0) {
+      // Initialize twistvars
+      for (int i = 0; i <= T; ++i) {
+        for (int j = 0; j < n_dof; ++j) {
+          this->initVec.push_back(0.);
         }
-        break;
-      SWITCH_DEFAULT;
-    }
-    // Initialize time frame radii
-    if (curvature_constraint == BoundedRadius) {
+      }
+      // Initialize phivars
       for (int i = 0; i < T; ++i) {
-        switch (curvature_formulation) {
-          case UseCurvature:
-            initVec.push_back(1.0 / r_min);
-            break;
-          case UseRadius:
-            initVec.push_back(r_min);
-            break;
-          SWITCH_DEFAULT;
+        this->initVec.push_back(0.);
+      }
+      switch (speed_formulation) {
+        case ConstantSpeed:
+          // Initialize Delta
+          initVec.push_back(Delta_lb);
+          break;
+        case VariableSpeed:
+          for (int i = 0; i < T; ++i) {
+            this->initVec.push_back(Delta_lb);
+          }
+          break;
+        SWITCH_DEFAULT;
+      }
+      // Initialize time frame radii
+      if (curvature_constraint == BoundedRadius) {
+        for (int i = 0; i < T; ++i) {
+          switch (curvature_formulation) {
+            case UseCurvature:
+              this->initVec.push_back(1.0 / r_min);
+              break;
+            case UseRadius:
+              this->initVec.push_back(r_min);
+              break;
+            SWITCH_DEFAULT;
+          }
         }
       }
     }
-    opt.initialize(initVec);
+    opt.initialize(this->initVec);
   }
 
   Matrix4d NeedleProblemHelper::TransformPose(const Matrix4d& pose, double phi, double Delta, double curvature_or_radius) const {
@@ -203,8 +204,24 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::ConfigureOptimizer(OptimizerT& opt) {
+    opt.max_iter_ = 500;    
+    opt.improve_ratio_threshold_ = this->improve_ratio_threshold;
+    opt.trust_shrink_ratio_ = this->trust_shrink_ratio;
+    opt.trust_expand_ratio_ = this->trust_expand_ratio;
+    opt.record_trust_region_history_ = this->record_trust_region_history;
+    opt.max_merit_coeff_increases_ = this->max_merit_coeff_increases;
+    opt.merit_error_coeff_ = this->dynamics_coeff;
+
     InitOptimizeVariables(opt);
+
     opt.addCallback(boost::bind(&Needle::NeedleProblemHelper::OptimizerCallback, this, _1, _2));
+
+    if (this->plotting || this->plot_final_result) {
+      this->plotter.reset(new Needle::TrajPlotter(this->local_configs, this->twistvars));
+    }
+    if (this->plotting) {
+      opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(this->plotter), _1, _2, shared_from_this()));
+    }
   }
 
   void NeedleProblemHelper::CreateVariables(OptProb& prob) {
@@ -212,7 +229,6 @@ namespace Needle {
     AddVarArray(prob, T+1, n_dof, "twist", twistvars);
     AddVarArray(prob, T, 1, -PI, PI, "phi", phivars);
     Delta_lb = (goal.topRows(3) - start.topRows(3)).norm() / T / r_min;
-    cout << Delta_lb << endl;
     switch (speed_formulation) {
       case ConstantSpeed:
         //Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
@@ -261,6 +277,7 @@ namespace Needle {
     VectorOfVectorPtr f(new Needle::PositionError(local_configs[0], start, shared_from_this()));
     Vector6d coeffs; coeffs << 1., 1., 1., 1., 1., 1.;//0., 0., 0.;// = Vector6d::Ones();
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "entry")));
+    dynamics_constraints.push_back(prob.getConstraints().back());
   }
 
   void NeedleProblemHelper::AddGoalConstraint(OptProb& prob) {
@@ -268,6 +285,7 @@ namespace Needle {
     VectorOfVectorPtr f(new Needle::PositionError(local_configs[T], goal, shared_from_this()));
     Vector6d coeffs; coeffs << 1., 1., 1., 0., 0., 0.;
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "goal")));
+    dynamics_constraints.push_back(prob.getConstraints().back());
   }
 
   void NeedleProblemHelper::AddSpeedConstraint(OptProb& prob) {
@@ -296,19 +314,18 @@ namespace Needle {
       VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], shared_from_this()));
       VectorXd coeffs = VectorXd::Ones(boost::static_pointer_cast<Needle::ControlError>(f)->outputSize());
       prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("control%i")%i).str())));
+      dynamics_constraints.push_back(prob.getConstraints().back());
     }
   }
 
   void NeedleProblemHelper::AddCollisionConstraint(OptProb& prob) {
-    Str2Dbl tag2dist_pen(collision_dist_pen), tag2coeff(collision_coeff);
+    Str2Dbl tag2dist_pen(collision_dist_pen), tag2coeff(collision_coeff / dynamics_coeff); // the coefficient is essentially multiplied by opt.merit_error_coeff_
     for (int i = 0; i < ignored_kinbody_names.size(); ++i) {
       tag2coeff.insert( std::pair<string, double>(ignored_kinbody_names[i], 0.0) );
     }
     for (int i = 0; i < T; ++i) {
       prob.addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, local_configs[i], local_configs[i+1], twistvars.row(i), twistvars.row(i+1))));
       collision_constraints.push_back(prob.getConstraints().back());
-      //prob.addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, local_configs[i], twistvars.row(i))));
-      //prob.addCost(CostPtr(new CollisionTaggedCost(tag2dist_pen, tag2coeff, local_configs[i], twistvars.row(i))));
     }
 
     EnvironmentBasePtr env = local_configs[0]->GetEnv();
@@ -325,28 +342,124 @@ namespace Needle {
     }
   }
 
-  void NeedleProblemHelper::AddCollisionCost(OptProb& prob) {
-    Str2Dbl tag2dist_pen(collision_dist_pen), tag2coeff(collision_coeff);
-    for (int i = 0; i < ignored_kinbody_names.size(); ++i) {
-      tag2coeff.insert( std::pair<string, double>(ignored_kinbody_names[i], 0.0) );
+  DblVec NeedleProblemHelper::EvaluateDynamicsViolations(const DblVec& x, Model* model) const {
+    DblVec out(this->dynamics_constraints.size());
+    for (size_t i = 0; i < this->dynamics_constraints.size(); ++i) {
+      out[i] = this->dynamics_constraints[i]->violation(x, model);
     }
-    for (int i = 0; i < T; ++i) {
-      prob.addCost(CostPtr(new CollisionTaggedCost(tag2dist_pen, tag2coeff, local_configs[i], local_configs[i+1], twistvars.row(i), twistvars.row(i+1))));
-      collision_costs.push_back(prob.getCosts().back());
+    return out;
+  }
+
+  DblVec NeedleProblemHelper::EvaluateCollisionViolations(const DblVec& x, Model* model) const {
+    DblVec out(this->collision_constraints.size());
+    for (size_t i = 0; i < this->collision_constraints.size(); ++i) {
+      out[i] = this->collision_constraints[i]->violation(x, model);
+    }
+    return out;
+  }
+
+  bool NeedleProblemHelper::HasDynamicsViolations(const DblVec& x, Model* model) const {
+    DblVec viols = EvaluateDynamicsViolations(x, model);
+    return viols.size() > 0 && vecMax(viols) > 1e-4;
+  }
+
+  bool NeedleProblemHelper::HasCollisionViolations(const DblVec& x, Model* model) const {
+    DblVec viols = EvaluateCollisionViolations(x, model);
+    return viols.size() > 0 && vecMax(viols) > 1e-4 * (collision_coeff / dynamics_coeff);
+  }
+
+  void NeedleProblemHelper::Initialize(int argc, char** argv) {
+
+    this->plotting=false;
+    this->verbose=false;
+    this->plot_final_result=false;
+    this->env_transparency = 0.5;
+
+    this->T = 25;
+    this->r_min = 2.98119536;
+    this->n_dof = 6;
+
+    this->formulation = NeedleProblemHelper::Form1;
+    this->curvature_constraint = NeedleProblemHelper::ConstantRadius;
+    this->speed_formulation = NeedleProblemHelper::ConstantSpeed;
+    this->method = NeedleProblemHelper::Colocation;
+    this->curvature_formulation = NeedleProblemHelper::UseRadius;
+    this->rotation_cost = NeedleProblemHelper::UseRotationQuadraticCost;
+    this->use_speed_deviation_constraint = false;
+    this->use_speed_deviation_cost = false;
+
+    // parameters for the optimizer
+    this->improve_ratio_threshold = 0.1;//0.25;
+    this->trust_shrink_ratio = 0.9;//0.7;
+    this->trust_expand_ratio = 1.3;//1.2;
+    this->record_trust_region_history = false;
+    
+    double start_vec_array[] = {-6.60848, 12.6176, -8.06651, 2.53666, -0.868663, 1.31701};//{-12.82092, 6.80976, 0.06844, 0, 0, 0};//{0, 0, 0, 0, 0, 0};
+    double goal_vec_array[] = {-3.21932, 6.87362, -1.21877, 0, 0, 0};//{0, 0.896343312427, 7.49334469032, 0, 0, 0};
+
+    this->coeff_rotation = 1.;
+    this->coeff_speed = 1.;
+    this->coeff_rotation_regularization = 0.1;
+    this->coeff_orientation_error = 1;
+
+    vector<double> start_vec(start_vec_array, start_vec_array + n_dof);
+    vector<double> goal_vec(goal_vec_array, goal_vec_array + n_dof);
+    {
+      Config config;
+      config.add(new Parameter<bool>("plotting", &this->plotting, "plotting"));
+      config.add(new Parameter<bool>("plot_final_result", &this->plot_final_result, "plot_final_result"));
+      config.add(new Parameter<bool>("verbose", &this->verbose, "verbose"));
+      config.add(new Parameter<double>("env_transparency", &this->env_transparency, "env_transparency"));
+      config.add(new Parameter<int>("T", &this->T, "T"));
+      config.add(new Parameter<int>("formulation", &this->formulation, "formulation"));
+      config.add(new Parameter<int>("curvature_constraint", &this->curvature_constraint, "curvature_constraint"));
+      config.add(new Parameter<int>("method", &this->method, "method"));
+      config.add(new Parameter<int>("curvature_formulation", &this->curvature_formulation, "curvature_formulation"));
+      config.add(new Parameter<int>("speed_formulation", &this->speed_formulation, "speed_formulation"));
+      config.add(new Parameter<int>("rotation_cost", &this->rotation_cost, "rotation_cost"));
+      config.add(new Parameter<double>("coeff_rotation_regularization", &this->coeff_rotation_regularization, "coeff_rotation_regularization"));
+      config.add(new Parameter<double>("coeff_rotation", &this->coeff_rotation, "coeff_rotation"));
+      config.add(new Parameter<double>("coeff_speed", &this->coeff_speed, "coeff_speed"));
+      config.add(new Parameter<double>("coeff_orientation_error", &this->coeff_orientation_error, "coeff_orientation_error"));
+      config.add(new Parameter<double>("r_min", &this->r_min, "r_min"));
+      config.add(new Parameter<double>("improve_ratio_threshold", &this->improve_ratio_threshold, "improve_ratio_threshold"));
+      config.add(new Parameter<double>("trust_shrink_ratio", &this->trust_shrink_ratio, "trust_shrink_ratio"));
+      config.add(new Parameter<double>("trust_expand_ratio", &this->trust_expand_ratio, "trust_expand_ratio"));
+      config.add(new Parameter<bool>("use_speed_deviation_constraint", &this->use_speed_deviation_constraint, "use_speed_deviation_constraint"));
+      config.add(new Parameter<bool>("use_speed_deviation_cost", &this->use_speed_deviation_cost, "use_speed_deviation_cost"));
+      config.add(new Parameter<bool>("record_trust_region_history", &this->record_trust_region_history, "record_trust_region_history"));
+      config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
+      config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
+      CommandParser parser(config);
+      parser.read(argc, argv);
     }
 
-    EnvironmentBasePtr env = local_configs[0]->GetEnv();
-    vector<KinBodyPtr> bodies; env->GetBodies(bodies);
-    CollisionChecker::GetOrCreate(*env)->SetContactDistance(.1);
-
-    for (int i=0; i < bodies.size(); ++i) {
-      if (bodies[i]->GetName() == "KinBodyProstate" ||
-          bodies[i]->GetName() == "KinBodyDermis" ||
-          bodies[i]->GetName() == "KinBodyEpidermis" ||
-          bodies[i]->GetName() == "KinBodyHypodermis") {
-        CollisionChecker::GetOrCreate(*env)->ExcludeCollisionPair(*bodies[i]->GetLinks()[0], *robot->GetLinks()[0]);
-      }
+    RaveInitialize(false, this->verbose ? Level_Debug : Level_Info);
+    EnvironmentBasePtr env = RaveCreateEnvironment();
+    env->StopSimulation();
+    OSGViewerPtr viewer;
+    if (this->plotting || this->plot_final_result) {
+      viewer = OSGViewer::GetOrCreate(env);
+      assert(viewer);
     }
+
+    env->Load(string(DATA_DIR) + "/prostate.env.xml");
+
+    if (this->plotting || this->plot_final_result) {
+      viewer->SetAllTransparency(this->env_transparency);
+    }
+
+    RobotBasePtr robot = GetRobot(*env);
+
+    for (int i = 0; i < n_dof; ++i) this->start[i] = start_vec[i];
+    for (int i = 0; i < n_dof; ++i) this->goal[i] = goal_vec[i];
+
+    const char *ignored_kinbody_c_strs[] = { "KinBodyProstate", "KinBodyDermis", "KinBodyEpidermis", "KinBodyHypodermis" };
+    this->ignored_kinbody_names = vector<string>(ignored_kinbody_c_strs, end(ignored_kinbody_c_strs));
+
+    this->collision_dist_pen = 0.05;
+    this->collision_coeff = 10;
+    this->robot = robot;
 
   }
 }

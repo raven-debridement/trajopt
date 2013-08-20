@@ -1,7 +1,7 @@
 require_relative 'model'
 require 'csv'
 
-selectorr = Record.where(version: 19)
+selectorr = Record.where(version: 23)
 
 #selectorr.each do |record|
 #begin
@@ -30,7 +30,7 @@ selectorr.where(run_time: nil).each do |record|
 end
 
 selectorr.where(n_merit_increases: nil).each do |record|
-  record.n_merit_increases = record.result.scan(/n merit increases: (\d+)/).map{|x| x.last.to_i}.inject(:+)
+  record.n_merit_increases = record.result.scan(/n merit increases: (\d+)/).map{|x| x.last.to_i}.last#inject(:+)
   record.save!
 end
 
