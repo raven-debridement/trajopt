@@ -535,7 +535,7 @@ void BulletCollisionChecker::ContinuousCheckShape(btCollisionShape* shape, const
   if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
     for (int i=0; i < transforms.size()-1; ++i) {
       btCollisionWorld::ClosestConvexResultCallback ccc(btVector3(NAN, NAN, NAN), btVector3(NAN, NAN, NAN));
-      ccc.m_collisionFilterMask = KinBodyFilter;
+      ccc.m_collisionFilterMask = KinBodyFilter | RobotFilter;
       world->convexSweepTest(convex, transforms[i], transforms[i+1], ccc, 0);
       if (ccc.hasHit()) {
         collisions.push_back(Collision(link, getLink(ccc.m_hitCollisionObject),

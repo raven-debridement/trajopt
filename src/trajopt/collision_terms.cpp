@@ -186,10 +186,10 @@ void PlotCollisions(const std::vector<Collision>& collisions, OR::EnvironmentBas
     else if (col.distance < safe_dist) color = RaveVectorf(1,1,0,1);
     else color = RaveVectorf(0,1,0,1);
     if (col.cctype == CCType_Between) {
-      handles.push_back(env.drawarrow(col.ptB, col.ptB1, .002, RaveVectorf(0,0,0,1)));
+      handles.push_back(env.drawarrow(col.ptB, col.ptB1, .0008, RaveVectorf(0,0,0,1)));
     }
     OR::Vector ptB = (col.cctype == CCType_Between)  ? ((1-col.time)* col.ptB +col.time*col.ptB1) : col.ptB;
-    handles.push_back(env.drawarrow(col.ptA, ptB, .0025, color));
+    handles.push_back(env.drawarrow(col.ptA, ptB, .0001, color));
   }
 }
 
