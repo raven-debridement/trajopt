@@ -373,6 +373,12 @@ void BulletCollisionChecker::LinkVsAll_NoUpdate(const KinBody::Link& link, vecto
   m_world->contactTest(cow, cc);
 }
 
+bool BulletCollisionChecker::SegmentVsAll(const btVector3& pt0, const btVector3& pt1) {
+  btCollisionWorld::ClosestRayResultCallback RayCallback(pt0, pt1);
+  m_world->rayTest(pt0, pt1, RayCallback);
+  return RayCallback.hasHit();
+}
+
 
 
 void BulletCollisionChecker::AddKinBody(const OR::KinBodyPtr& body) {

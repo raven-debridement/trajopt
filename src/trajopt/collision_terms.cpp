@@ -89,7 +89,7 @@ inline size_t hash(const DblVec& x) {
 void CollisionEvaluator::GetCollisionsCached(const DblVec& x, vector<Collision>& collisions) {
   double key = hash(getDblVec(x, GetVars()));
   vector<Collision>* it = m_cache.get(key);
-  if (it != NULL) {
+  if (it != NULL and false) {
     LOG_DEBUG("using cached collision check\n");
     collisions = *it;
   }

@@ -41,6 +41,8 @@ struct OptResults {
   double total_cost;
   vector<double> cost_vals;
   DblVec cnt_viols;
+  DblVec dynamics_cnt_viols;
+  DblVec collision_cnt_viols;
   int n_func_evals, n_qp_solves, n_lp_solves;
   int n_iters;
   int n_merit_increases;
@@ -49,6 +51,8 @@ struct OptResults {
     status = INVALID;
     cost_vals.clear();
     cnt_viols.clear();
+    dynamics_cnt_viols.clear();
+    collision_cnt_viols.clear();
     n_func_evals = 0;
     n_qp_solves = 0;
     n_lp_solves = 0;
@@ -121,36 +125,11 @@ protected:
   ModelPtr model_;
 };
 
-class LineSearchSQP : public BasicTrustRegionSQP {
+class NeedleSQP : public BasicTrustRegionSQP {
 public:
-
-  double trust_shrink_ratio_;
-  double trust_expand_ratio_;
-  double cnt_tolerance_;
-  double merit_coeff_increase_ratio_;
-  double merit_error_coeff_;
-  double trust_box_size_;
-
-  int max_per_merit_iter_;
-  int max_merit_coeff_increases_;
-
-  double min_cnt_improve_ratio;
-  double min_model_merit_improve_ratio_;
-  double line_search_shrink_ratio_;
-  double min_line_search_size_;
-  double min_merit_improve_ratio;
-  double trust_region_shrink_threshold_;
-  double trust_region_expand_threshold_;
-  double min_trust_box_size_;
-  double max_trust_box_size_;
-  double opt_eps;
-
-	LineSearchSQP();
-	LineSearchSQP(OptProbPtr prob);
-  bool hasViolation(const DblVec& cnt_viols);
-  void unsetTrustBoxConstraints(Model* model);
-  void initParameters();
 	OptStatus optimize();
+  NeedleSQP() : BasicTrustRegionSQP() {};
+	NeedleSQP(OptProbPtr prob) : BasicTrustRegionSQP(prob) {};
 };
 
 DblVec evaluateCosts(vector<CostPtr>& costs, const DblVec& x, Model* model);

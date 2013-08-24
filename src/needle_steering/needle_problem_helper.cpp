@@ -44,7 +44,13 @@ namespace Needle {
     AddStartConstraint(prob);
     AddGoalConstraint(prob);
     AddSpeedConstraint(prob);
-    AddControlConstraint(prob);
+    if (control_constraints) {
+      if (this->explicit_controls) {
+        AddControlConstraint(prob);
+      } else {
+        AddPoseConstraint(prob);
+      }
+    }
     AddCollisionConstraint(prob);
   }
 
@@ -275,7 +281,7 @@ namespace Needle {
   void NeedleProblemHelper::AddStartConstraint(OptProb& prob) {
     VarVector vars = twistvars.row(0);
     VectorOfVectorPtr f(new Needle::PositionError(local_configs[0], start, shared_from_this()));
-    Vector6d coeffs; coeffs << 1., 1., 1., 1., 1., 1.;//0., 0., 0.;// = Vector6d::Ones();
+    Vector6d coeffs; coeffs << 1., 1., 1., this->coeff_orientation_error, this->coeff_orientation_error, this->coeff_orientation_error;
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "entry")));
     dynamics_constraints.push_back(prob.getConstraints().back());
   }
@@ -313,24 +319,58 @@ namespace Needle {
       }
       VectorOfVectorPtr f(new Needle::ControlError(local_configs[i], local_configs[i+1], shared_from_this()));
       VectorXd coeffs = VectorXd::Ones(boost::static_pointer_cast<Needle::ControlError>(f)->outputSize());
+      coeffs.tail<3>() *= this->coeff_orientation_error;
+      prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("control%i")%i).str())));
+      dynamics_constraints.push_back(prob.getConstraints().back());
+    }
+  }
+
+  void NeedleProblemHelper::AddPoseConstraint(OptProb& prob) {
+    for (int i = 0; i < T; ++i) {
+      VarVector vars = concat(twistvars.row(i), twistvars.row(i+1));
+      switch (speed_formulation) {
+        case ConstantSpeed:
+          vars.push_back(Deltavar);
+          break;
+        case VariableSpeed:
+          vars = concat(vars, Deltavars.row(i));
+          break;
+        SWITCH_DEFAULT;
+      }
+      if (curvature_constraint == BoundedRadius) {
+        vars = concat(vars, curvature_or_radius_vars.row(i));
+      }
+      VectorOfVectorPtr f(new Needle::PoseError(local_configs[i], local_configs[i+1], shared_from_this()));
+      VectorXd coeffs = VectorXd::Ones(6);
+      coeffs(3) = coeffs(4) = 0;
+      coeffs.tail<3>() *= this->coeff_orientation_error;
       prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, (boost::format("control%i")%i).str())));
       dynamics_constraints.push_back(prob.getConstraints().back());
     }
   }
 
   void NeedleProblemHelper::AddCollisionConstraint(OptProb& prob) {
-    Str2Dbl tag2dist_pen(collision_dist_pen), tag2coeff(collision_coeff / dynamics_coeff); // the coefficient is essentially multiplied by opt.merit_error_coeff_
+    Str2Dbl tag2dist_pen(collision_dist_pen), tag2coeff(10);//collision_coeff); // the coefficient is essentially multiplied by opt.merit_error_coeff_
+    cout << "dist pen: " << collision_dist_pen << endl;
+    cout << "collision coeff: " << 10 << endl;//collision_coeff / dynamics_coeff * 10 << endl;
     for (int i = 0; i < ignored_kinbody_names.size(); ++i) {
       tag2coeff.insert( std::pair<string, double>(ignored_kinbody_names[i], 0.0) );
     }
-    for (int i = 0; i < T; ++i) {
-      prob.addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, local_configs[i], local_configs[i+1], twistvars.row(i), twistvars.row(i+1))));
-      collision_constraints.push_back(prob.getConstraints().back());
+    if (continuous_collision) {
+      for (int i = 0; i < T; ++i) {
+        prob.addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, local_configs[i], local_configs[i+1], twistvars.row(i), twistvars.row(i+1))));
+        collision_constraints.push_back(prob.getConstraints().back());
+      }
+    } else {
+      for (int i = 0; i <= T; ++i) {
+        prob.addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, local_configs[i], twistvars.row(i))));
+        collision_constraints.push_back(prob.getConstraints().back());
+      }
     }
 
     EnvironmentBasePtr env = local_configs[0]->GetEnv();
     vector<KinBodyPtr> bodies; env->GetBodies(bodies);
-    CollisionChecker::GetOrCreate(*env)->SetContactDistance(.1);
+    CollisionChecker::GetOrCreate(*env)->SetContactDistance(collision_dist_pen + 0.05);
 
     for (int i=0; i < bodies.size(); ++i) {
       if (bodies[i]->GetName() == "KinBodyProstate" ||
@@ -365,7 +405,11 @@ namespace Needle {
 
   bool NeedleProblemHelper::HasCollisionViolations(const DblVec& x, Model* model) const {
     DblVec viols = EvaluateCollisionViolations(x, model);
-    return viols.size() > 0 && vecMax(viols) > 1e-4 * (collision_coeff / dynamics_coeff);
+    cout << "total violations: " << vecMax(viols) << endl;
+    for (int i = 0; i < x.size(); ++i) {
+      cout << x[i] << " ";
+    }cout << endl;
+    return viols.size() > 0 && vecMax(viols) > 1e-4 * (collision_coeff / dynamics_coeff * 10);
   }
 
   void NeedleProblemHelper::Initialize(int argc, char** argv) {
@@ -387,6 +431,9 @@ namespace Needle {
     this->rotation_cost = NeedleProblemHelper::UseRotationQuadraticCost;
     this->use_speed_deviation_constraint = false;
     this->use_speed_deviation_cost = false;
+    this->continuous_collision = true;
+    this->explicit_controls = true;
+    this->control_constraints = true;
 
     // parameters for the optimizer
     this->improve_ratio_threshold = 0.1;//0.25;
@@ -401,6 +448,8 @@ namespace Needle {
     this->coeff_speed = 1.;
     this->coeff_rotation_regularization = 0.1;
     this->coeff_orientation_error = 1;
+    this->collision_dist_pen = 0.05;
+    this->collision_coeff = 10;
 
     vector<double> start_vec(start_vec_array, start_vec_array + n_dof);
     vector<double> goal_vec(goal_vec_array, goal_vec_array + n_dof);
@@ -425,9 +474,13 @@ namespace Needle {
       config.add(new Parameter<double>("improve_ratio_threshold", &this->improve_ratio_threshold, "improve_ratio_threshold"));
       config.add(new Parameter<double>("trust_shrink_ratio", &this->trust_shrink_ratio, "trust_shrink_ratio"));
       config.add(new Parameter<double>("trust_expand_ratio", &this->trust_expand_ratio, "trust_expand_ratio"));
+      config.add(new Parameter<double>("collision_dist_pen", &this->collision_dist_pen, "collision_dist_pen"));
       config.add(new Parameter<bool>("use_speed_deviation_constraint", &this->use_speed_deviation_constraint, "use_speed_deviation_constraint"));
       config.add(new Parameter<bool>("use_speed_deviation_cost", &this->use_speed_deviation_cost, "use_speed_deviation_cost"));
       config.add(new Parameter<bool>("record_trust_region_history", &this->record_trust_region_history, "record_trust_region_history"));
+      config.add(new Parameter<bool>("explicit_controls", &this->explicit_controls, "explicit_controls"));
+      config.add(new Parameter<bool>("continuous_collision", &this->continuous_collision, "continuous_collision"));
+      config.add(new Parameter<bool>("control_constraints", &this->control_constraints, "control_constraints"));
       config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
       config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
       CommandParser parser(config);
@@ -457,8 +510,7 @@ namespace Needle {
     const char *ignored_kinbody_c_strs[] = { "KinBodyProstate", "KinBodyDermis", "KinBodyEpidermis", "KinBodyHypodermis" };
     this->ignored_kinbody_names = vector<string>(ignored_kinbody_c_strs, end(ignored_kinbody_c_strs));
 
-    this->collision_dist_pen = 0.05;
-    this->collision_coeff = 10;
+    
     this->robot = robot;
 
   }

@@ -65,6 +65,7 @@ public:
   virtual void CastVsAll(Configuration& rad0, Configuration& rad1, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions);
   ////
   ///////
+  virtual bool SegmentVsAll(const btVector3& pt0, const btVector3& pt1);
 
   CollisionObjectWrapper* GetCow(const KinBody::Link* link) {
     Link2Cow::iterator it = m_link2cow.find(link);

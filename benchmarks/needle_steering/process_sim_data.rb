@@ -1,7 +1,7 @@
 require_relative 'model'
 require 'csv'
 
-selectorr = Record.where(version: 23)
+selectorr = Record.where(version: 28)
 
 #selectorr.each do |record|
 #begin
@@ -75,10 +75,12 @@ rotation_cost_map = {
 }
 
 selectorr.pluck(:pg_name).uniq.each do |pg_name|
-
+  selectorr.pluck(:coeff_orientation_error).uniq.sort.each do |coeff_orientation_error|
+  #[1].each do |coeff_orientation_error|
   #[1, 2].product([1, 2], [1, 2], [1, 2]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost|
     selector = selectorr.where(
       pg_name: pg_name,
+      coeff_orientation_error: coeff_orientation_error,
       #formulation: formulation,
       #curvature_constraint: curvature_constraint,
       #speed_formulation: speed_formulation,
@@ -111,6 +113,7 @@ selectorr.pluck(:pg_name).uniq.each do |pg_name|
     #  total_cost += record.cost
     #end
     puts "program name: #{pg_name}"
+    puts "coeff orientation error: #{coeff_orientation_error}"
     #puts "formulation: #{formulation_map[formulation]}"
     #puts "curvature_constraint: #{curvature_constraint_map[curvature_constraint]}"
     #puts "speed_formulation: #{speed_formulation_map[speed_formulation]}"
@@ -122,7 +125,7 @@ selectorr.pluck(:pg_name).uniq.each do |pg_name|
     puts "average n qp solves: #{total_qp_solves.to_f / total_count}"
     puts "average cost: #{total_cost.to_f / total_count}"
     puts ""
-  #end
+  end
 end
 
 #CSV.open("results_19.csv", "w") do |csv|

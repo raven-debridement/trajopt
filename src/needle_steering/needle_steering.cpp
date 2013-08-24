@@ -22,7 +22,7 @@ int main(int argc, char** argv)
   bool has_violations = true;
   bool has_dynamics_violations = true;
 
-  bool grid_coefficient = true;
+  bool grid_coefficient = false;
 
   NeedleProblemHelperPtr helper;
   OptProbPtr prob;
@@ -31,15 +31,23 @@ int main(int argc, char** argv)
 
   double prev_trust_box_size = .1;
 
+  
+
   if (grid_coefficient) {
+    helper.reset(new NeedleProblemHelper());
+    helper->Initialize(argc, argv);
     while (has_violations && merit_coeff_increases <= max_merit_coeff_increases) {
       while (has_dynamics_violations && merit_coeff_increases <= max_merit_coeff_increases) {
-        helper.reset(new NeedleProblemHelper());
-        helper->Initialize(argc, argv);
+        
 
         helper->collision_coeff = collision_coeff;
         helper->dynamics_coeff = dynamics_coeff;
         helper->initVec = current_solution;
+        helper->dynamics_constraints.clear();
+        helper->collision_constraints.clear();
+
+        vector<LocalConfigurationPtr> local_configs = helper->local_configs;
+        helper->local_configs.clear();
         helper->max_merit_coeff_increases = 1;
 
         seq_collision_coeff.push_back(collision_coeff);
@@ -47,10 +55,15 @@ int main(int argc, char** argv)
 
         prob.reset(new OptProb());
         helper->ConfigureProblem(*prob);
+        if (!is_first_time) {
+          for (int i = 0; i < local_configs.size(); ++i) {
+            helper->local_configs[i]->pose = local_configs[i]->pose;
+          }
+        }
 
         opt = OptimizerT(prob);
         helper->ConfigureOptimizer(opt);
-        opt.trust_box_size_ = fmax(prev_trust_box_size, opt.min_trust_box_size_ / opt.trust_shrink_ratio_ * 1.5);
+        opt.trust_box_size_ = prev_trust_box_size;//fmax(prev_trust_box_size, opt.min_trust_box_size_ / opt.trust_shrink_ratio_ * 1.5);
 
         OptStatus status = opt.optimize();
         current_solution = opt.x();
@@ -89,9 +102,9 @@ int main(int argc, char** argv)
   } else {
 
     helper.reset(new NeedleProblemHelper());
-    helper->Initialize(argc, argv);
-    helper->collision_coeff = 100;
+    helper->collision_coeff = 10;
     helper->dynamics_coeff = 10;
+    helper->Initialize(argc, argv);
     helper->max_merit_coeff_increases = 10;
     prob.reset(new OptProb());
     helper->ConfigureProblem(*prob);
@@ -99,11 +112,11 @@ int main(int argc, char** argv)
     helper->ConfigureOptimizer(opt);
     OptStatus status = opt.optimize();
     current_solution = opt.x();
-    if (!helper->HasDynamicsViolations(current_solution, opt.getModel().get()) && !helper->HasCollisionViolations(current_solution, opt.getModel().get())) {
-      cout << "status: CONVERGED" << endl;
-    } else {
-      cout << "status: PENALTY_ITERATION_LIMIT" << endl;
-    }
+    //if (!helper->HasDynamicsViolations(current_solution, opt.getModel().get()) && !helper->HasCollisionViolations(current_solution, opt.getModel().get())) {
+    //  cout << "status: CONVERGED" << endl;
+    //} else {
+    //  cout << "status: PENALTY_ITERATION_LIMIT" << endl;
+    //}
   }
 
   RaveDestroy();

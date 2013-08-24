@@ -10,9 +10,12 @@
     <Geom type="cylinder">
       <radius>.03</radius>
       <height>.5</height>
-      <!--<translation>-.25</translation>-->
       <rotationaxis>1 0 0 90</rotationaxis>
     </Geom>
+    <!--<Geom type="sphere">
+      <radius>.5</radius>
+    </Geom>-->
+
     <Geom type="sphere">
       <translation>0 0 0.25</translation>
       <radius>.03</radius>

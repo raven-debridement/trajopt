@@ -126,9 +126,10 @@ int main(int argc, char *argv[]) {
 
   int exp_cnt = atoi(argv[1]);
   int npts = exp_cnt * 20;
-  double pt[npts][3];
+  double **pt = new double*[npts];
 
   for (int i = 0; i < npts; ++i) {
+    pt[i] = new double[3];
     g.generate(pt[i]);
   }
 
@@ -173,6 +174,11 @@ int main(int argc, char *argv[]) {
       }
     }
   }
+
+  for (int i = 0; i < npts; ++i) {
+    delete [] pt[i];
+  }
+  delete [] pt;
  
   return EXIT_SUCCESS;
 }

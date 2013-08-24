@@ -40,7 +40,8 @@ namespace Needle {
 
   typedef Matrix<double, 6, 1> Vector6d;
 
-  typedef BasicTrustRegionSQP OptimizerT;
+  typedef NeedleSQP OptimizerT;
+  //typedef BasicTrustRegionSQP OptimizerT;
   //typedef LineSearchSQP OptimizerT;
 
   inline double bound_inf(double result, double bound);
@@ -157,6 +158,14 @@ namespace Needle {
     VectorXd operator()(const VectorXd& a) const;
   };
 
+  struct PoseError : public VectorOfVector {
+    LocalConfigurationPtr cfg0;
+    LocalConfigurationPtr cfg1;
+    NeedleProblemHelperPtr helper;
+    PoseError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, NeedleProblemHelperPtr helper);
+    VectorXd operator()(const VectorXd& a) const;
+  };
+
   struct SpeedDeviationError : public VectorOfVector {
     NeedleProblemHelperPtr helper;
     double deviation;
@@ -208,6 +217,9 @@ namespace Needle {
     bool plotting;
     bool verbose;
     bool plot_final_result;
+    bool explicit_controls;
+    bool continuous_collision;
+    bool control_constraints;
     double env_transparency;
     double r_min;
     vector<string> ignored_kinbody_names;
@@ -246,6 +258,7 @@ namespace Needle {
     void AddStartConstraint(OptProb& prob);
     void AddGoalConstraint(OptProb& prob);
     void AddControlConstraint(OptProb& prob);
+    void AddPoseConstraint(OptProb& prob);
     void AddCollisionConstraint(OptProb& prob);
     void AddCollisionCost(OptProb& prob);
     Matrix4d TransformPose(const Matrix4d& pose, double phi, double Delta, double radius) const;
