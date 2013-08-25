@@ -59,6 +59,7 @@ int main(int argc, char** argv)
   helper->continuous_collision = true;
   helper->explicit_controls = true;
   helper->control_constraints = true;
+  helper->goal_orientation_constraint = true;
 
   // parameters for the optimizer
   helper->improve_ratio_threshold = 0.1;
@@ -69,11 +70,11 @@ int main(int argc, char** argv)
   helper->max_merit_coeff_increases = 10;
 
   vector<string> start_string_vec;
-  start_string_vec.push_back("-6.60848,12.6176,-8.06651,2.53666,-0.868663,1.31701");
-  start_string_vec.push_back("-6.60848,12.6176,-8.06651,2.53666,-0.868663,1.31701");
+  start_string_vec.push_back("0,0,0,0,0,0");
+  start_string_vec.push_back("1,2,0,0,0,0");
   vector<string> goal_string_vec;
-  goal_string_vec.push_back("-3.21932,6.87362,-1.21877,0,0,0");
-  goal_string_vec.push_back("-2.71912,8.00334,-1.12736,0,0,0");
+  goal_string_vec.push_back("1,2,7,0.78,0,0");
+  goal_string_vec.push_back("0,0,9,0.78,0,0");
   
 
   
@@ -115,6 +116,7 @@ int main(int argc, char** argv)
     config.add(new Parameter<bool>("explicit_controls", &helper->explicit_controls, "explicit_controls"));
     config.add(new Parameter<bool>("continuous_collision", &helper->continuous_collision, "continuous_collision"));
     config.add(new Parameter<bool>("control_constraints", &helper->control_constraints, "control_constraints"));
+    config.add(new Parameter<bool>("goal_orientation_constraint", &helper->goal_orientation_constraint, "goal_orientation_constraint"));
     config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
     config.add(new Parameter< vector<string> >("start", &start_string_vec, "s"));
     config.add(new Parameter< vector<string> >("goal", &goal_string_vec, "g"));
@@ -140,7 +142,7 @@ int main(int argc, char** argv)
     assert(viewer);
   }
 
-  env->Load(data_dir + "/prostate.env.xml");
+  env->Load(data_dir + "/channel.env.xml");
 
   if (plotting || plot_final_result) {
     viewer->SetAllTransparency(env_transparency);

@@ -282,7 +282,12 @@ namespace Needle {
   void NeedleProblemHelper::AddGoalConstraint(OptProb& prob, NeedleProblemInstancePtr pi) {
     VarVector vars = pi->twistvars.row(T);
     VectorOfVectorPtr f(new Needle::PositionError(pi->local_configs[T], pi->goal, shared_from_this()));
-    Vector6d coeffs; coeffs << 1., 1., 1., 0., 0., 0.;
+    Vector6d coeffs; 
+    if (goal_orientation_constraint) {
+      coeffs << 1., 1., 1., this->coeff_orientation_error, this->coeff_orientation_error, this->coeff_orientation_error;
+    } else {
+      coeffs << 1., 1., 1., 0, 0, 0;
+    }
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "goal")));
     pi->dynamics_constraints.push_back(prob.getConstraints().back());
   }

@@ -239,6 +239,7 @@ namespace Needle {
     bool explicit_controls;
     bool continuous_collision;
     bool control_constraints;
+    bool goal_orientation_constraint;
     double env_transparency;
     double r_min;
     vector<string> ignored_kinbody_names;
