@@ -184,6 +184,23 @@ namespace Needle {
 
   struct TrajPlotter;
 
+  struct NeedleProblemInstance {
+    double Delta_lb;
+    Vector6d start;
+    Vector6d goal;
+    VarArray twistvars;
+    VarArray phivars;
+    VarArray curvature_or_radius_vars;
+    VarArray Deltavars;
+    Var Deltavar;
+    vector<LocalConfigurationPtr> local_configs;
+    vector<ConstraintPtr> dynamics_constraints;
+    vector<ConstraintPtr> collision_constraints;
+    DblVec initVec;
+  };
+
+  typedef boost::shared_ptr<NeedleProblemInstance> NeedleProblemInstancePtr;
+
   struct NeedleProblemHelper : public boost::enable_shared_from_this<NeedleProblemHelper> {
     // Formulation flag
     enum Formulation { Form1 = 1, Form2 = 2 };
@@ -193,8 +210,9 @@ namespace Needle {
     enum SpeedFormulation { ConstantSpeed = 1, VariableSpeed = 2 };
     enum RotationCost { UseRotationQuadraticCost = 1, UseRotationL1Cost = 2 };
     // Config parameters
-    Vector6d start;
-    Vector6d goal;
+    vector<Vector6d> starts;
+    vector<Vector6d> goals;
+    int n_needles;
     double coeff_rotation;
     double coeff_rotation_regularization;
     double coeff_speed;
@@ -202,6 +220,7 @@ namespace Needle {
     double improve_ratio_threshold;
     double trust_shrink_ratio;
     double trust_expand_ratio;
+    double merit_error_coeff;
     int max_merit_coeff_increases;
     bool record_trust_region_history;
     int T;
@@ -225,52 +244,35 @@ namespace Needle {
     vector<string> ignored_kinbody_names;
     double collision_dist_pen;
     double collision_coeff;
-    double dynamics_coeff;
-    double Delta_lb;
     KinBodyPtr robot;
-    // Variables
-    VarArray twistvars;
-    VarArray phivars;
-    VarArray curvature_or_radius_vars;
-    VarArray Deltavars;
-    Var Deltavar;
-    // Local configurations
-    vector<LocalConfigurationPtr> local_configs;
 
-    vector<ConstraintPtr> dynamics_constraints;
-    vector<ConstraintPtr> collision_constraints;
-    DblVec initVec;
+    vector<NeedleProblemInstancePtr> pis;
 
-    boost::shared_ptr<Needle::TrajPlotter> plotter;
-
-
-    void Initialize(int argc, char** argv);
     void ConfigureProblem(OptProb& prob);
     void InitOptimizeVariables(OptimizerT& opt);
     void OptimizerCallback(OptProb*, DblVec& x);
     void ConfigureOptimizer(OptimizerT& opt);
-    void CreateVariables(OptProb& prob);
-    void InitLocalConfigurations(const KinBodyPtr robot, OptProb& prob);
-    void InitTrajectory(OptProb& prob);
-    void AddRotationCost(OptProb& prob);
-    void AddSpeedCost(OptProb& prob);
-    void AddSpeedConstraint(OptProb& prob);
-    void AddStartConstraint(OptProb& prob);
-    void AddGoalConstraint(OptProb& prob);
-    void AddControlConstraint(OptProb& prob);
-    void AddPoseConstraint(OptProb& prob);
-    void AddCollisionConstraint(OptProb& prob);
-    void AddCollisionCost(OptProb& prob);
+
+    void CreateVariables(OptProb& prob, NeedleProblemInstancePtr pi);
+    void InitLocalConfigurations(const KinBodyPtr robot, OptProb& prob, NeedleProblemInstancePtr pi);
+    void InitTrajectory(OptProb& prob, NeedleProblemInstancePtr pi);
+    void AddRotationCost(OptProb& prob, NeedleProblemInstancePtr pi);
+    void AddSpeedCost(OptProb& prob, NeedleProblemInstancePtr pi);
+    void AddSpeedConstraint(OptProb& prob, NeedleProblemInstancePtr pi);
+    void AddStartConstraint(OptProb& prob, NeedleProblemInstancePtr pi);
+    void AddGoalConstraint(OptProb& prob, NeedleProblemInstancePtr pi);
+    void AddControlConstraint(OptProb& prob, NeedleProblemInstancePtr pi);
+    void AddPoseConstraint(OptProb& prob, NeedleProblemInstancePtr pi);
+    void AddCollisionConstraint(OptProb& prob, NeedleProblemInstancePtr pi);
+    void AddCollisionCost(OptProb& prob, NeedleProblemInstancePtr pi);
+    void InitializeCollisionEnvironment();
+
     Matrix4d TransformPose(const Matrix4d& pose, double phi, double Delta, double radius) const;
-    double GetPhi(const DblVec& x, int i) const;
-    double GetDelta(const DblVec& x, int i) const;
-    double GetCurvatureOrRadius(const DblVec& x, int i) const;
-    double GetCurvature(const DblVec& x, int i) const;
-    double GetRadius(const DblVec& x, int i) const;
-    bool HasDynamicsViolations(const DblVec& x, Model* model) const;
-    bool HasCollisionViolations(const DblVec& x, Model* model) const;
-    DblVec EvaluateDynamicsViolations(const DblVec& x, Model* model) const;
-    DblVec EvaluateCollisionViolations(const DblVec& x, Model* model) const;
+    double GetPhi(const DblVec& x, int i, NeedleProblemInstancePtr pi) const;
+    double GetDelta(const DblVec& x, int i, NeedleProblemInstancePtr pi) const;
+    double GetCurvatureOrRadius(const DblVec& x, int i, NeedleProblemInstancePtr pi) const;
+    double GetCurvature(const DblVec& x, int i, NeedleProblemInstancePtr pi) const;
+    double GetRadius(const DblVec& x, int i, NeedleProblemInstancePtr pi) const;
 
     #ifdef NEEDLE_TEST
     void checkAlignment(DblVec& x);
@@ -278,12 +280,9 @@ namespace Needle {
   };
 
   struct TrajPlotter {
-    vector<LocalConfigurationPtr> local_configs;
-    VarArray vars;
     OSGViewerPtr viewer;
-    TrajPlotter(const vector<LocalConfigurationPtr>& local_configs, const VarArray& vars);
+    vector<NeedleProblemInstancePtr> pis;
+    TrajPlotter(const vector<NeedleProblemInstancePtr>& pis);
     void OptimizerCallback(OptProb*, DblVec& x, NeedleProblemHelperPtr helper);
-    KinBodyPtr GetGoalKinBody(NeedleProblemHelperPtr helper);
-    void PlotBothTrajectories(OptProbPtr prob, const OptimizerT& opt, NeedleProblemHelperPtr helper);
   };
 }

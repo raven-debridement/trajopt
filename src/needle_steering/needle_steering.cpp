@@ -1,6 +1,28 @@
 #include "needle_steering.hpp"
+#include "strtk.hpp"
+#include <stdio.h>  /* defines FILENAME_MAX */
+#ifdef WINDOWS
+  #include <direct.h>
+  #define GetCurrentDir _getcwd
+#else
+  #include <unistd.h>
+  #define GetCurrentDir getcwd
+#endif
 
 using namespace Needle;
+
+string get_current_directory() {
+  char cCurrentPath[FILENAME_MAX];
+  if (!GetCurrentDir(cCurrentPath, sizeof(cCurrentPath))) {
+    throw std::runtime_error("cannot get current path");
+  }
+  return string(cCurrentPath);
+}
+
+template<typename T, size_t N>
+T* end(T (&ra)[N]) {
+  return ra + N;
+}
 
 void printVector(VectorXd x) {
   for (int i = 0; i < x.size(); ++i) {
@@ -14,13 +36,13 @@ int main(int argc, char** argv)
 
   NeedleProblemHelperPtr helper(new NeedleProblemHelper());
 
-  double plotting = false;
-  double plot_final_result = false;
+  bool plotting = false;
+  bool verbose = false;
+  bool plot_final_result = false;
+  double env_transparency = 0.1;
+  boost::shared_ptr<Needle::TrajPlotter> plotter;
 
-  helper->plotting=false;
-  helper->verbose=false;
-  helper->plot_final_result=false;
-  helper->env_transparency = 0.5;
+  string data_dir = get_current_directory() + "/../data";
 
   helper->T = 25;
   helper->r_min = 2.98119536;
@@ -39,14 +61,22 @@ int main(int argc, char** argv)
   helper->control_constraints = true;
 
   // parameters for the optimizer
-  helper->improve_ratio_threshold = 0.1;//0.25;
-  helper->trust_shrink_ratio = 0.9;//0.7;
-  helper->trust_expand_ratio = 1.3;//1.2;
+  helper->improve_ratio_threshold = 0.1;
+  helper->trust_shrink_ratio = 0.9;
+  helper->trust_expand_ratio = 1.3;
   helper->record_trust_region_history = false;
-  
-  double start_vec_array[] = {-6.60848, 12.6176, -8.06651, 2.53666, -0.868663, 1.31701};//{-12.82092, 6.80976, 0.06844, 0, 0, 0};//{0, 0, 0, 0, 0, 0};
-  double goal_vec_array[] = {-3.21932, 6.87362, -1.21877, 0, 0, 0};//{0, 0.896343312427, 7.49334469032, 0, 0, 0};
+  helper->merit_error_coeff = 10;
+  helper->max_merit_coeff_increases = 10;
 
+  vector<string> start_string_vec;
+  start_string_vec.push_back("-6.60848,12.6176,-8.06651,2.53666,-0.868663,1.31701");
+  start_string_vec.push_back("-6.60848,12.6176,-8.06651,2.53666,-0.868663,1.31701");
+  vector<string> goal_string_vec;
+  goal_string_vec.push_back("-3.21932,6.87362,-1.21877,0,0,0");
+  goal_string_vec.push_back("-2.71912,8.00334,-1.12736,0,0,0");
+  
+
+  
   helper->coeff_rotation = 1.;
   helper->coeff_speed = 1.;
   helper->coeff_rotation_regularization = 0.1;
@@ -54,14 +84,15 @@ int main(int argc, char** argv)
   helper->collision_dist_pen = 0.05;
   helper->collision_coeff = 10;
 
-  vector<double> start_vec(start_vec_array, start_vec_array + n_dof);
-  vector<double> goal_vec(goal_vec_array, goal_vec_array + n_dof);
+  const char *ignored_kinbody_c_strs[] = { "KinBodyProstate", "KinBodyDermis", "KinBodyEpidermis", "KinBodyHypodermis" };
+  helper->ignored_kinbody_names = vector<string>(ignored_kinbody_c_strs, end(ignored_kinbody_c_strs));
+
   {
     Config config;
-    config.add(new Parameter<bool>("plotting", &helper->plotting, "plotting"));
-    config.add(new Parameter<bool>("plot_final_result", &helper->plot_final_result, "plot_final_result"));
-    config.add(new Parameter<bool>("verbose", &helper->verbose, "verbose"));
-    config.add(new Parameter<double>("env_transparency", &helper->env_transparency, "env_transparency"));
+    config.add(new Parameter<bool>("plotting", &plotting, "plotting"));
+    config.add(new Parameter<bool>("plot_final_result", &plot_final_result, "plot_final_result"));
+    config.add(new Parameter<bool>("verbose", &verbose, "verbose"));
+    config.add(new Parameter<double>("env_transparency", &env_transparency, "env_transparency"));
     config.add(new Parameter<int>("T", &helper->T, "T"));
     config.add(new Parameter<int>("formulation", &helper->formulation, "formulation"));
     config.add(new Parameter<int>("curvature_constraint", &helper->curvature_constraint, "curvature_constraint"));
@@ -84,54 +115,71 @@ int main(int argc, char** argv)
     config.add(new Parameter<bool>("explicit_controls", &helper->explicit_controls, "explicit_controls"));
     config.add(new Parameter<bool>("continuous_collision", &helper->continuous_collision, "continuous_collision"));
     config.add(new Parameter<bool>("control_constraints", &helper->control_constraints, "control_constraints"));
-    config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
-    config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
+    config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
+    config.add(new Parameter< vector<string> >("start", &start_string_vec, "s"));
+    config.add(new Parameter< vector<string> >("goal", &goal_string_vec, "g"));
     CommandParser parser(config);
     parser.read(argc, argv);
   }
 
-  RaveInitialize(false, helper->verbose ? Level_Debug : Level_Info);
+  if (start_string_vec.size() != goal_string_vec.size()) {
+    throw std::runtime_error("The number of start and goal vectors must be the same!");
+  }
+
+  if (start_string_vec.size() == 0) {
+    throw std::runtime_error("You must provide at least 1 start and 1 goal vector.");
+  }
+
+  RaveInitialize(false, verbose ? Level_Debug : Level_Info);
   EnvironmentBasePtr env = RaveCreateEnvironment();
   env->StopSimulation();
 
   OSGViewerPtr viewer;
-  if (helper->plotting || helper->plot_final_result) {
+  if (plotting || plot_final_result) {
     viewer = OSGViewer::GetOrCreate(env);
     assert(viewer);
   }
 
-  env->Load(string(DATA_DIR) + "/prostate.env.xml");
+  env->Load(data_dir + "/prostate.env.xml");
 
-  if (helper->plotting || helper->plot_final_result) {
-    viewer->SetAllTransparency(helper->env_transparency);
+  if (plotting || plot_final_result) {
+    viewer->SetAllTransparency(env_transparency);
   }
 
-  RobotBasePtr robot = GetRobot(*env);
+  helper->robot = GetRobot(*env);
 
-  for (int i = 0; i < n_dof; ++i) helper->start[i] = start_vec[i];
-  for (int i = 0; i < n_dof; ++i) helper->goal[i] = goal_vec[i];
+  helper->n_needles = start_string_vec.size();
 
-  const char *ignored_kinbody_c_strs[] = { "KinBodyProstate", "KinBodyDermis", "KinBodyEpidermis", "KinBodyHypodermis" };
-  helper->ignored_kinbody_names = vector<string>(ignored_kinbody_c_strs, end(ignored_kinbody_c_strs));
+  helper->starts.clear();
+  helper->goals.clear();
 
-  
-  helper->robot = robot;
+  for (int i = 0; i < helper->n_needles; ++i) {
+    DblVec start;
+    DblVec goal;
+    strtk::parse(start_string_vec[i], ",", start);
+    strtk::parse(goal_string_vec[i], ",", goal);
+    helper->starts.push_back(toVectorXd(start));
+    helper->goals.push_back(toVectorXd(goal));
+    cout << "start: " << toVectorXd(start).transpose() << endl;
+    cout << "goal: " << toVectorXd(goal).transpose() << endl;
+  }
 
-  OptProbPtr prob;
-  OptimizerT opt;
-
-  helper->Initialize(argc, argv);
-  helper->max_merit_coeff_increases = 10;
-  prob.reset(new OptProb());
+  OptProbPtr prob(new OptProb());
   helper->ConfigureProblem(*prob);
-  opt = OptimizerT(prob);
+
+  OptimizerT opt(prob);
   helper->ConfigureOptimizer(opt);
+
+  if (plotting || plot_final_result) {
+    plotter.reset(new Needle::TrajPlotter(helper->pis));
+  }
+  if (plotting) {
+    opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2, helper));
+  } 
+
   opt.optimize();
-  
 
   RaveDestroy();
-
-  
 
   return 0;
   
