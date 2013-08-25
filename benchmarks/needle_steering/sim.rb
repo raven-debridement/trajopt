@@ -12,7 +12,7 @@ r_min = 4.5
 
 File.open('new_points_10000.txt').read.split("\n").map(&:split).each do |goal_trans_x, goal_trans_y, goal_trans_z|
   cnt += 1
-  if cnt > 500
+  if cnt > 250
     break
   end
   puts "simulation No.#{cnt}"
@@ -52,8 +52,8 @@ File.open('new_points_10000.txt').read.split("\n").map(&:split).each do |goal_tr
 
     curvature_formulation = 1
     
-    #[1, 2].product([1, 2], [1, 2], [1, 2]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost|
-    [1].product([1], [1], [1], [0.1, 1, 10, 100, 1000]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost, coeff_orientation_error|
+    [1, 2].product([1, 2], [1, 2], [1, 2]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost|
+    #[1].product([1], [1], [1], [0.1, 1, 10, 100, 1000]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost, coeff_orientation_error|
     #[1].product([1], [1], [1], [1]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost, coeff_orientation_error|
       exp_options = options.clone
 
@@ -61,7 +61,6 @@ File.open('new_points_10000.txt').read.split("\n").map(&:split).each do |goal_tr
       exp_options << ['--curvature_constraint=', curvature_constraint]
       exp_options << ['--curvature_formulation=', curvature_formulation]
       exp_options << ['--speed_formulation=', speed_formulation]
-      exp_options << ['--coeff_orientation_error=', coeff_orientation_error]
       if speed_formulation == 2
         exp_options << ['--use_speed_deviation_cost=', 1]
       end
@@ -87,13 +86,12 @@ File.open('new_points_10000.txt').read.split("\n").map(&:split).each do |goal_tr
                      curvature_formulation: curvature_formulation,
                      speed_formulation: speed_formulation,
                      rotation_cost: rotation_cost,
-                     coeff_orientation_error: coeff_orientation_error,
                      method: 1,
                      result: result,
                      command: command,
                      pg_name: pg_name,
-                     version: 28,
-                     description: "single stage vs grid with varying coeff orientation error and with larger data set and disabled collision caching"
+                     version: 29,
+                     description: "single stage vs grid with different configurations"
 
     end
   end

@@ -237,7 +237,6 @@ namespace Needle {
     Delta_lb = (goal.topRows(3) - start.topRows(3)).norm() / T / r_min;
     switch (speed_formulation) {
       case ConstantSpeed:
-        //Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
         Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(Delta_lb),singleton<double>(INFINITY))[0];
         break;
       case VariableSpeed:
@@ -414,104 +413,7 @@ namespace Needle {
 
   void NeedleProblemHelper::Initialize(int argc, char** argv) {
 
-    this->plotting=false;
-    this->verbose=false;
-    this->plot_final_result=false;
-    this->env_transparency = 0.5;
-
-    this->T = 25;
-    this->r_min = 2.98119536;
-    this->n_dof = 6;
-
-    this->formulation = NeedleProblemHelper::Form1;
-    this->curvature_constraint = NeedleProblemHelper::ConstantRadius;
-    this->speed_formulation = NeedleProblemHelper::ConstantSpeed;
-    this->method = NeedleProblemHelper::Colocation;
-    this->curvature_formulation = NeedleProblemHelper::UseRadius;
-    this->rotation_cost = NeedleProblemHelper::UseRotationQuadraticCost;
-    this->use_speed_deviation_constraint = false;
-    this->use_speed_deviation_cost = false;
-    this->continuous_collision = true;
-    this->explicit_controls = true;
-    this->control_constraints = true;
-
-    // parameters for the optimizer
-    this->improve_ratio_threshold = 0.1;//0.25;
-    this->trust_shrink_ratio = 0.9;//0.7;
-    this->trust_expand_ratio = 1.3;//1.2;
-    this->record_trust_region_history = false;
     
-    double start_vec_array[] = {-6.60848, 12.6176, -8.06651, 2.53666, -0.868663, 1.31701};//{-12.82092, 6.80976, 0.06844, 0, 0, 0};//{0, 0, 0, 0, 0, 0};
-    double goal_vec_array[] = {-3.21932, 6.87362, -1.21877, 0, 0, 0};//{0, 0.896343312427, 7.49334469032, 0, 0, 0};
-
-    this->coeff_rotation = 1.;
-    this->coeff_speed = 1.;
-    this->coeff_rotation_regularization = 0.1;
-    this->coeff_orientation_error = 1;
-    this->collision_dist_pen = 0.05;
-    this->collision_coeff = 10;
-
-    vector<double> start_vec(start_vec_array, start_vec_array + n_dof);
-    vector<double> goal_vec(goal_vec_array, goal_vec_array + n_dof);
-    {
-      Config config;
-      config.add(new Parameter<bool>("plotting", &this->plotting, "plotting"));
-      config.add(new Parameter<bool>("plot_final_result", &this->plot_final_result, "plot_final_result"));
-      config.add(new Parameter<bool>("verbose", &this->verbose, "verbose"));
-      config.add(new Parameter<double>("env_transparency", &this->env_transparency, "env_transparency"));
-      config.add(new Parameter<int>("T", &this->T, "T"));
-      config.add(new Parameter<int>("formulation", &this->formulation, "formulation"));
-      config.add(new Parameter<int>("curvature_constraint", &this->curvature_constraint, "curvature_constraint"));
-      config.add(new Parameter<int>("method", &this->method, "method"));
-      config.add(new Parameter<int>("curvature_formulation", &this->curvature_formulation, "curvature_formulation"));
-      config.add(new Parameter<int>("speed_formulation", &this->speed_formulation, "speed_formulation"));
-      config.add(new Parameter<int>("rotation_cost", &this->rotation_cost, "rotation_cost"));
-      config.add(new Parameter<double>("coeff_rotation_regularization", &this->coeff_rotation_regularization, "coeff_rotation_regularization"));
-      config.add(new Parameter<double>("coeff_rotation", &this->coeff_rotation, "coeff_rotation"));
-      config.add(new Parameter<double>("coeff_speed", &this->coeff_speed, "coeff_speed"));
-      config.add(new Parameter<double>("coeff_orientation_error", &this->coeff_orientation_error, "coeff_orientation_error"));
-      config.add(new Parameter<double>("r_min", &this->r_min, "r_min"));
-      config.add(new Parameter<double>("improve_ratio_threshold", &this->improve_ratio_threshold, "improve_ratio_threshold"));
-      config.add(new Parameter<double>("trust_shrink_ratio", &this->trust_shrink_ratio, "trust_shrink_ratio"));
-      config.add(new Parameter<double>("trust_expand_ratio", &this->trust_expand_ratio, "trust_expand_ratio"));
-      config.add(new Parameter<double>("collision_dist_pen", &this->collision_dist_pen, "collision_dist_pen"));
-      config.add(new Parameter<bool>("use_speed_deviation_constraint", &this->use_speed_deviation_constraint, "use_speed_deviation_constraint"));
-      config.add(new Parameter<bool>("use_speed_deviation_cost", &this->use_speed_deviation_cost, "use_speed_deviation_cost"));
-      config.add(new Parameter<bool>("record_trust_region_history", &this->record_trust_region_history, "record_trust_region_history"));
-      config.add(new Parameter<bool>("explicit_controls", &this->explicit_controls, "explicit_controls"));
-      config.add(new Parameter<bool>("continuous_collision", &this->continuous_collision, "continuous_collision"));
-      config.add(new Parameter<bool>("control_constraints", &this->control_constraints, "control_constraints"));
-      config.add(new Parameter< vector<double> >("s", &start_vec, "s"));
-      config.add(new Parameter< vector<double> >("g", &goal_vec, "g"));
-      CommandParser parser(config);
-      parser.read(argc, argv);
-    }
-
-    RaveInitialize(false, this->verbose ? Level_Debug : Level_Info);
-    EnvironmentBasePtr env = RaveCreateEnvironment();
-    env->StopSimulation();
-    OSGViewerPtr viewer;
-    if (this->plotting || this->plot_final_result) {
-      viewer = OSGViewer::GetOrCreate(env);
-      assert(viewer);
-    }
-
-    env->Load(string(DATA_DIR) + "/prostate.env.xml");
-
-    if (this->plotting || this->plot_final_result) {
-      viewer->SetAllTransparency(this->env_transparency);
-    }
-
-    RobotBasePtr robot = GetRobot(*env);
-
-    for (int i = 0; i < n_dof; ++i) this->start[i] = start_vec[i];
-    for (int i = 0; i < n_dof; ++i) this->goal[i] = goal_vec[i];
-
-    const char *ignored_kinbody_c_strs[] = { "KinBodyProstate", "KinBodyDermis", "KinBodyEpidermis", "KinBodyHypodermis" };
-    this->ignored_kinbody_names = vector<string>(ignored_kinbody_c_strs, end(ignored_kinbody_c_strs));
-
-    
-    this->robot = robot;
 
   }
 }

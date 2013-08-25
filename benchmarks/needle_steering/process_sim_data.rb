@@ -1,7 +1,7 @@
 require_relative 'model'
 require 'csv'
 
-selectorr = Record.where(version: 28)
+selectorr = Record.where(version: 29)
 
 #selectorr.each do |record|
 #begin
@@ -74,100 +74,99 @@ rotation_cost_map = {
   2 => "L1 rotation cost",
 }
 
-selectorr.pluck(:pg_name).uniq.each do |pg_name|
-  selectorr.pluck(:coeff_orientation_error).uniq.sort.each do |coeff_orientation_error|
-  #[1].each do |coeff_orientation_error|
-  #[1, 2].product([1, 2], [1, 2], [1, 2]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost|
-    selector = selectorr.where(
-      pg_name: pg_name,
-      coeff_orientation_error: coeff_orientation_error,
-      #formulation: formulation,
-      #curvature_constraint: curvature_constraint,
-      #speed_formulation: speed_formulation,
-      #rotation_cost: rotation_cost
-    )
-
-    converged_count = selector.where(status: "CONVERGED").count
-    converged_run_time = selector.where(status: "CONVERGED").pluck(:run_time).inject(:+)
-    total_count = selector.count
-    total_merit_increases = selector.pluck(:n_merit_increases).inject(:+)
-    total_qp_solves = selector.pluck(:n_qp_solves).inject(:+)
-    total_cost = selector.pluck(:cost).inject(:+)
-    total_run_time = selector.pluck(:run_time).inject(:+)
-    #selector.where(:status.ne => "CONVERGED").each do |record|
-    #  #puts record.command
-    #  #puts record.result.split("\n").last(12)
-    #  #puts "STATUS: #{record.status}"
-    #end
-    #selector.each do |record|
-    #  if record.status == "CONVERGED"
-    #    converged_count += 1
-    #    converged_run_time += record.run_time
-    #  #else
-    #  #  puts record.command
-    #  #  puts record.result.split("\n").last(70)
-    #  end
-    #  total_run_time += record.run_time
-    #  total_merit_increases += record.n_merit_increases
-    #  total_qp_solves += record.n_qp_solves
-    #  total_cost += record.cost
-    #end
-    puts "program name: #{pg_name}"
-    puts "coeff orientation error: #{coeff_orientation_error}"
-    #puts "formulation: #{formulation_map[formulation]}"
-    #puts "curvature_constraint: #{curvature_constraint_map[curvature_constraint]}"
-    #puts "speed_formulation: #{speed_formulation_map[speed_formulation]}"
-    #puts "rotation_cost: #{rotation_cost_map[rotation_cost]}"
-    puts "%converged: #{converged_count.to_f / total_count}"
-    puts "average run time for converged: #{converged_run_time / converged_count}"
-    puts "average run time overall: #{total_run_time / total_count}"
-    puts "average n merit increases: #{total_merit_increases.to_f / total_count}"
-    puts "average n qp solves: #{total_qp_solves.to_f / total_count}"
-    puts "average cost: #{total_cost.to_f / total_count}"
-    puts ""
-  end
-end
-
-#CSV.open("results_19.csv", "w") do |csv|
-#  csv << %w[program_name formulation curvature_constraint speed_formulation rotation_cost converged_percentage avg_converged_run_time avg_overall_run_time avg_n_merit_increases avg_n_qp_solves avg_cost]
+#selectorr.pluck(:pg_name).uniq.each do |pg_name|
+#  #selectorr.pluck(:coeff_orientation_error).uniq.sort.each do |coeff_orientation_error|
+#  #[1].each do |coeff_orientation_error|
+#  [1, 2].product([1, 2], [1, 2], [1, 2]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost|
+#    selector = selectorr.where(
+#      pg_name: pg_name,
+#      #coeff_orientation_error: coeff_orientation_error,
+#      formulation: formulation,
+#      curvature_constraint: curvature_constraint,
+#      speed_formulation: speed_formulation,
+#      rotation_cost: rotation_cost
+#    )
 #
-#  selectorr.pluck(:pg_name).uniq.each do |pg_name|
-#
-#    [1, 2].product([1, 2], [1, 2], [1, 2]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost|
-#      selector = selectorr.where(
-#        pg_name: pg_name,
-#        formulation: formulation,
-#        curvature_constraint: curvature_constraint,
-#        speed_formulation: speed_formulation,
-#        rotation_cost: rotation_cost
-#      )
-#
-#      converged_count = selector.where(status: "CONVERGED").count
-#      converged_run_time = selector.where(status: "CONVERGED").pluck(:run_time).inject(:+)
-#      total_count = selector.count
-#      total_merit_increases = selector.pluck(:n_merit_increases).inject(:+)
-#      total_qp_solves = selector.pluck(:n_qp_solves).inject(:+)
-#      total_cost = selector.pluck(:cost).inject(:+)
-#      total_run_time = selector.pluck(:run_time).inject(:+)
-#      selector.where(:status.ne => "CONVERGED").each do |record|
-#        puts record.command
-#        #puts record.result.split("\n").last(12)
-#        puts "STATUS: #{record.status}"
-#      end
-#      #selector.each do |record|
-#      #  if record.status == "CONVERGED"
-#      #    converged_count += 1
-#      #    converged_run_time += record.run_time
-#      #  #else
-#      #  #  puts record.command
-#      #  #  puts record.result.split("\n").last(70)
-#      #  end
-#      #  total_run_time += record.run_time
-#      #  total_merit_increases += record.n_merit_increases
-#      #  total_qp_solves += record.n_qp_solves
-#      #  total_cost += record.cost
-#      #end
-#      csv << [pg_name , formulation_map[formulation] , curvature_constraint_map[curvature_constraint] , speed_formulation_map[speed_formulation] , rotation_cost_map[rotation_cost] , converged_count.to_f / total_count , converged_run_time / converged_count , total_run_time / total_count , total_merit_increases.to_f / total_count , total_qp_solves.to_f / total_count , total_cost.to_f / total_count]
-#    end
+#    converged_count = selector.where(status: "CONVERGED").count
+#    converged_run_time = selector.where(status: "CONVERGED").pluck(:run_time).inject(:+)
+#    total_count = selector.count
+#    total_merit_increases = selector.pluck(:n_merit_increases).inject(:+)
+#    total_qp_solves = selector.pluck(:n_qp_solves).inject(:+)
+#    total_cost = selector.pluck(:cost).inject(:+)
+#    total_run_time = selector.pluck(:run_time).inject(:+)
+#    #selector.where(:status.ne => "CONVERGED").each do |record|
+#    #  #puts record.command
+#    #  #puts record.result.split("\n").last(12)
+#    #  #puts "STATUS: #{record.status}"
+#    #end
+#    #selector.each do |record|
+#    #  if record.status == "CONVERGED"
+#    #    converged_count += 1
+#    #    converged_run_time += record.run_time
+#    #  #else
+#    #  #  puts record.command
+#    #  #  puts record.result.split("\n").last(70)
+#    #  end
+#    #  total_run_time += record.run_time
+#    #  total_merit_increases += record.n_merit_increases
+#    #  total_qp_solves += record.n_qp_solves
+#    #  total_cost += record.cost
+#    #end
+#    puts "program name: #{pg_name}"
+#    puts "formulation: #{formulation_map[formulation]}"
+#    puts "curvature_constraint: #{curvature_constraint_map[curvature_constraint]}"
+#    puts "speed_formulation: #{speed_formulation_map[speed_formulation]}"
+#    puts "rotation_cost: #{rotation_cost_map[rotation_cost]}"
+#    puts "%converged: #{converged_count.to_f / total_count}"
+#    puts "average run time for converged: #{converged_run_time / converged_count}"
+#    puts "average run time overall: #{total_run_time / total_count}"
+#    puts "average n merit increases: #{total_merit_increases.to_f / total_count}"
+#    puts "average n qp solves: #{total_qp_solves.to_f / total_count}"
+#    puts "average cost: #{total_cost.to_f / total_count}"
+#    puts ""
 #  end
 #end
+
+CSV.open("results_29.csv", "w") do |csv|
+  csv << %w[program_name formulation curvature_constraint speed_formulation rotation_cost converged_percentage avg_converged_run_time avg_overall_run_time avg_n_merit_increases avg_n_qp_solves avg_cost]
+
+  selectorr.pluck(:pg_name).uniq.each do |pg_name|
+
+    [1, 2].product([1, 2], [1, 2], [1, 2]).each do |formulation, curvature_constraint, speed_formulation, rotation_cost|
+      selector = selectorr.where(
+        pg_name: pg_name,
+        formulation: formulation,
+        curvature_constraint: curvature_constraint,
+        speed_formulation: speed_formulation,
+        rotation_cost: rotation_cost
+      )
+
+      converged_count = selector.where(status: "CONVERGED").count
+      converged_run_time = selector.where(status: "CONVERGED").pluck(:run_time).inject(:+)
+      total_count = selector.count
+      total_merit_increases = selector.pluck(:n_merit_increases).inject(:+)
+      total_qp_solves = selector.pluck(:n_qp_solves).inject(:+)
+      total_cost = selector.pluck(:cost).inject(:+)
+      total_run_time = selector.pluck(:run_time).inject(:+)
+      selector.where(:status.ne => "CONVERGED").each do |record|
+        puts record.command
+        #puts record.result.split("\n").last(12)
+        puts "STATUS: #{record.status}"
+      end
+      #selector.each do |record|
+      #  if record.status == "CONVERGED"
+      #    converged_count += 1
+      #    converged_run_time += record.run_time
+      #  #else
+      #  #  puts record.command
+      #  #  puts record.result.split("\n").last(70)
+      #  end
+      #  total_run_time += record.run_time
+      #  total_merit_increases += record.n_merit_increases
+      #  total_qp_solves += record.n_qp_solves
+      #  total_cost += record.cost
+      #end
+      csv << [pg_name , formulation_map[formulation] , curvature_constraint_map[curvature_constraint] , speed_formulation_map[speed_formulation] , rotation_cost_map[rotation_cost] , converged_count.to_f / total_count , converged_run_time / converged_count , total_run_time / total_count , total_merit_increases.to_f / total_count , total_qp_solves.to_f / total_count , total_cost.to_f / total_count]
+    end
+  end
+end
