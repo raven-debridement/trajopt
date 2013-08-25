@@ -10,24 +10,19 @@
 namespace trajopt {
 
 typedef std::map<const OR::KinBody::Link*, int> Link2Int;
-typedef std::vector< std::pair<string, string> > NamePairs;
-
-
-
-typedef DefaultMap<string, double> Str2Dbl;
 
 struct TRAJOPT_API CollisionEvaluator {
-  virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, NamePairs& bodyNames) = 0;
-  virtual void CalcDists(const DblVec& x, DblVec& exprs, NamePairs& bodyNames) = 0;
+  virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs) = 0;
+  virtual void CalcDists(const DblVec& x, DblVec& exprs) = 0;
   virtual void CalcCollisions(const DblVec& x, vector<Collision>& collisions) = 0;
   virtual void GetCollisionsCached(const DblVec& x, vector<Collision>&);
   virtual void CollisionsToDistances(const vector<Collision>& collisions, const Link2Int& m_link2ind,
-    DblVec& dists, NamePairs& bodyNames);
+    DblVec& dists);
   virtual void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad,
-    const Link2Int& link2ind, const VarVector& vars, const DblVec& dofvals, vector<AffExpr>& exprs, bool isTimestep1, NamePairs& bodyNames);
+    const Link2Int& link2ind, const VarVector& vars, const DblVec& dofvals, vector<AffExpr>& exprs, bool isTimestep1);
   virtual void CollisionsToDistanceExpressions(const vector<Collision>& collisions, Configuration& rad0, Configuration& rad1, const Link2Int& link2ind,
     const VarVector& vars0, const VarVector& vars1, const DblVec& vals0, const DblVec& vals1,
-    vector<AffExpr>& exprs, NamePairs& bodyNames);
+    vector<AffExpr>& exprs);
   virtual ~CollisionEvaluator() {}
   virtual VarVector GetVars()=0;
 
@@ -44,11 +39,11 @@ public:
   Do a collision check between robot and environment.
   For each contact generated, return a linearization of the signed distance function
   */
-  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, NamePairs& bodyNames); 
+  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs); 
   /**
    * Same as CalcDistExpressions, but just the distances--not the expressions
    */
-  void CalcDists(const DblVec& x, DblVec& exprs, NamePairs& bodyNames); 
+  void CalcDists(const DblVec& x, DblVec& exprs); 
   void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
   VarVector GetVars() {return m_vars;}
 
@@ -64,8 +59,8 @@ public:
 struct CastCollisionEvaluator : public CollisionEvaluator {
 public:
   CastCollisionEvaluator(ConfigurationPtr rad0, ConfigurationPtr rad1, const VarVector& vars0, const VarVector& vars1);
-  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, NamePairs& bodyNames);
-  void CalcDists(const DblVec& x, DblVec& exprs, NamePairs& bodyNames);
+  void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs);
+  void CalcDists(const DblVec& x, DblVec& exprs);
   void CalcCollisions(const DblVec& x, vector<Collision>& collisions);
   VarVector GetVars() {return concat(m_vars0, m_vars1);}
   
@@ -112,35 +107,6 @@ protected:
   CollisionEvaluatorPtr m_calc;
   double m_dist_pen;
   double m_coeff;
-};
-
-class TRAJOPT_API CollisionTaggedCost : public Cost, public Plotter {
-public:
-  CollisionTaggedCost(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad, const VarVector& vars);
-  CollisionTaggedCost(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad0, ConfigurationPtr rad1, const VarVector& vars0, const VarVector& vars1);
-  virtual ConvexObjectivePtr convex(const vector<double>& x);
-  virtual double value(const vector<double>&, Model*);
-  void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
-private:
-  CollisionEvaluatorPtr m_calc;
-  Str2Dbl m_tag2dist_pen;
-  Str2Dbl m_tag2coeff;
-};
-
-class TRAJOPT_API CollisionTaggedConstraint : public IneqConstraint, public Plotter {
-public:
-  /* constructor for single timestep */
-  CollisionTaggedConstraint(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad, const VarVector& vars);
-  /* constructor for cast cost */
-  CollisionTaggedConstraint(const Str2Dbl& tag2dist_pen, const Str2Dbl& tag2coeff, ConfigurationPtr rad0, ConfigurationPtr rad1, const VarVector& vars0, const VarVector& vars1);
-  virtual ConvexConstraintsPtr convex(const vector<double>& x);
-  virtual DblVec value(const vector<double>&, Model* model);
-  void Plot(const DblVec& x, OR::EnvironmentBase& env, std::vector<OR::GraphHandlePtr>& handles);
-private:
-  CollisionEvaluatorPtr m_calc;
-  Str2Dbl m_tag2dist_pen;
-  Str2Dbl m_tag2coeff;
-
 };
 
 }

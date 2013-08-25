@@ -348,18 +348,14 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::AddCollisionConstraint(OptProb& prob, NeedleProblemInstancePtr pi) {
-    Str2Dbl tag2dist_pen(collision_dist_pen), tag2coeff(collision_coeff);
-    for (int i = 0; i < ignored_kinbody_names.size(); ++i) {
-      tag2coeff.insert( std::pair<string, double>(ignored_kinbody_names[i], 0.0) );
-    }
     if (continuous_collision) {
       for (int i = 0; i < T; ++i) {
-        prob.addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, pi->local_configs[i], pi->local_configs[i+1], pi->twistvars.row(i), pi->twistvars.row(i+1))));
+        prob.addConstraint(ConstraintPtr(new CollisionConstraint(collision_dist_pen, collision_coeff, pi->local_configs[i], pi->local_configs[i+1], pi->twistvars.row(i), pi->twistvars.row(i+1))));
         pi->collision_constraints.push_back(prob.getConstraints().back());
       }
     } else {
       for (int i = 0; i <= T; ++i) {
-        prob.addConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen, tag2coeff, pi->local_configs[i], pi->twistvars.row(i))));
+        prob.addConstraint(ConstraintPtr(new CollisionConstraint(collision_dist_pen, collision_coeff, pi->local_configs[i], pi->twistvars.row(i))));
         pi->collision_constraints.push_back(prob.getConstraints().back());
       }
     }
@@ -371,10 +367,7 @@ namespace Needle {
     CollisionChecker::GetOrCreate(*env)->SetContactDistance(collision_dist_pen + 0.05);
 
     for (int i=0; i < bodies.size(); ++i) {
-      if (bodies[i]->GetName() == "KinBodyProstate" ||
-          bodies[i]->GetName() == "KinBodyDermis" ||
-          bodies[i]->GetName() == "KinBodyEpidermis" ||
-          bodies[i]->GetName() == "KinBodyHypodermis") {
+      if (std::find(ignored_kinbody_names.begin(), ignored_kinbody_names.end(), bodies[i]->GetName()) != ignored_kinbody_names.end()) {
         CollisionChecker::GetOrCreate(*env)->ExcludeCollisionPair(*bodies[i]->GetLinks()[0], *robot->GetLinks()[0]);
       }
     }

@@ -489,36 +489,6 @@ void CollisionCostInfo::fromJson(const Value& v) {
     PRINT_AND_THROW(boost::format("wrong size: dist_pen. expected %i got %i")%n_terms%dist_pen.size());
   }
 
-  for (int i = 0; i < n_terms; ++i) {
-    tag2coeffs[i] = Str2Dbl(coeffs[i]);
-    tag2dist_pen[i] = Str2Dbl(dist_pen[i]);
-  }
-
-  if (params.isMember("object_costs")) {
-    const Value& object_costs = params["object_costs"];
-    for (int i = 0; i < object_costs.size(); ++i) {
-      string tag_name = object_costs[i]["name"].asString();
-      DblVec cur_coeffs;
-      childFromJson(object_costs[i], cur_coeffs, "coeffs");
-      if (cur_coeffs.size() == 1) cur_coeffs = DblVec(n_terms, cur_coeffs[0]);
-      else if (cur_coeffs.size() != n_terms) {
-        PRINT_AND_THROW( boost::format("wrong size: coeffs. expected %i got %i")%n_terms%cur_coeffs.size() );
-      }
-      for (int j = 0; j < n_terms; ++j) {
-        tag2coeffs[j].insert( std::pair<string, double>(tag_name, cur_coeffs[j]) );
-      }
-      DblVec cur_dist_pen;
-      childFromJson(object_costs[i], cur_dist_pen, "dist_pen");
-      if (cur_dist_pen.size() == 1) cur_dist_pen = DblVec(n_terms, cur_dist_pen[0]);
-      else if (cur_dist_pen.size() != n_terms) {
-        PRINT_AND_THROW( boost::format("wrong size: dist_pen. expected %i got %i")%n_terms%cur_dist_pen.size() );
-      }
-      for (int j = 0; j < n_terms; ++j) {
-        tag2dist_pen[j].insert( std::pair<string, double>(tag_name, cur_dist_pen[j]) );
-      }
-    }
-  }
-  
   const char* all_fields[] = {"continuous", "first_step", "last_step", "gap", "coeffs", "dist_pen", "object_costs"};
   ensure_only_members(params, all_fields, sizeof(all_fields)/sizeof(char*));  
   
@@ -527,13 +497,13 @@ void CollisionCostInfo::hatch(TrajOptProb& prob) {
   if (term_type == TT_COST) {
     if (continuous) {
       for (int i=first_step; i <= last_step-gap; ++i) {
-        prob.addCost(CostPtr(new CollisionTaggedCost(tag2dist_pen[i-first_step], tag2coeffs[i-first_step], prob.GetRAD(), prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+gap))));
+        prob.addCost(CostPtr(new CollisionCost(dist_pen[i-first_step], coeffs[i-first_step], prob.GetRAD(), prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+gap))));
         prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
       }
     }
     else {
       for (int i=first_step; i <= last_step; ++i) {
-        prob.addCost(CostPtr(new CollisionTaggedCost(tag2dist_pen[i-first_step], tag2coeffs[i-first_step], prob.GetRAD(), prob.GetVarRow(i))));
+        prob.addCost(CostPtr(new CollisionCost(dist_pen[i-first_step], coeffs[i-first_step], prob.GetRAD(), prob.GetVarRow(i))));
         prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
       }
     }
@@ -541,13 +511,13 @@ void CollisionCostInfo::hatch(TrajOptProb& prob) {
   else { // ALMOST COPIED
     if (continuous) {
       for (int i=first_step; i < last_step; ++i) {
-        prob.addIneqConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen[i-first_step], tag2coeffs[i-first_step], prob.GetRAD(), prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+1))));
+        prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(dist_pen[i-first_step], coeffs[i-first_step], prob.GetRAD(), prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+1))));
         prob.getIneqConstraints().back()->setName( (boost::format("%s_%i")%name%i).str() );
       }
     }
     else {
       for (int i=first_step; i <= last_step; ++i) {
-        prob.addIneqConstraint(ConstraintPtr(new CollisionTaggedConstraint(tag2dist_pen[i-first_step], tag2coeffs[i-first_step], prob.GetRAD(), prob.GetVarRow(i))));
+        prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(dist_pen[i-first_step], coeffs[i-first_step], prob.GetRAD(), prob.GetVarRow(i))));
         prob.getIneqConstraints().back()->setName( (boost::format("%s_%i")%name%i).str() );
       }
     }
@@ -556,13 +526,8 @@ void CollisionCostInfo::hatch(TrajOptProb& prob) {
   CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
   double max_dist_pen = 0;
   for (int i=first_step; i < last_step; ++i) {
-    if (tag2dist_pen[i-first_step].default_value > max_dist_pen) {
-      max_dist_pen = tag2dist_pen[i-first_step].default_value;
-    }
-    for (Str2Dbl::iterator it = tag2dist_pen[i-first_step].begin(); it != tag2dist_pen[i-first_step].end(); ++it) {
-      if (it->second > max_dist_pen) {
-        max_dist_pen = it->second;
-      }
+    if (dist_pen[i] > max_dist_pen) {
+      max_dist_pen = dist_pen[i];
     }
   }
   cc->SetContactDistance(max_dist_pen + .04);
