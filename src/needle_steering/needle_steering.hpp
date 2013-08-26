@@ -245,9 +245,10 @@ namespace Needle {
     vector<string> ignored_kinbody_names;
     double collision_dist_pen;
     double collision_coeff;
-    KinBodyPtr robot;
+    vector<KinBodyPtr> robots;
 
     vector<NeedleProblemInstancePtr> pis;
+    vector<ConstraintPtr> self_collision_constraints;
 
     void ConfigureProblem(OptProb& prob);
     void InitOptimizeVariables(OptimizerT& opt);
@@ -265,7 +266,8 @@ namespace Needle {
     void AddControlConstraint(OptProb& prob, NeedleProblemInstancePtr pi);
     void AddPoseConstraint(OptProb& prob, NeedleProblemInstancePtr pi);
     void AddCollisionConstraint(OptProb& prob, NeedleProblemInstancePtr pi);
-    void AddCollisionCost(OptProb& prob, NeedleProblemInstancePtr pi);
+    void AddSelfCollisionConstraint(OptProb& prob, NeedleProblemInstancePtr piA, NeedleProblemInstancePtr piB);
+    //void AddCollisionCost(OptProb& prob, NeedleProblemInstancePtr pi);
     void InitializeCollisionEnvironment();
 
     Matrix4d TransformPose(const Matrix4d& pose, double phi, double Delta, double radius) const;

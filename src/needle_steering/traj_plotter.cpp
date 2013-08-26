@@ -19,8 +19,8 @@ namespace Needle {
     //    plotter->Plot(x, *(helper->local_configs[0]->GetEnv()), handles);
     //  }
     //}
-    vector<KinBodyPtr> bodies = pis[0]->local_configs[0]->GetBodies();
     for (int k = 0; k < pis.size(); ++k) {
+      vector<KinBodyPtr> bodies = pis[k]->local_configs[0]->GetBodies();
       MatrixXd vals = getTraj(x, pis[k]->twistvars);
       for (int i=0; i < vals.rows(); ++i) {
         pis[k]->local_configs[i]->SetDOFValues(toDblVec(vals.row(i)));

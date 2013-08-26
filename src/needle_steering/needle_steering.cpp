@@ -148,9 +148,12 @@ int main(int argc, char** argv)
     viewer->SetAllTransparency(env_transparency);
   }
 
-  helper->robot = GetRobot(*env);
-
   helper->n_needles = start_string_vec.size();
+
+  for (int i = 0; i < helper->n_needles; ++i) {
+    helper->robots.push_back(env->ReadRobotURI(RobotBasePtr(), data_dir + "/needlebot.xml"));
+    env->Add(helper->robots.back(), true);
+  }
 
   helper->starts.clear();
   helper->goals.clear();

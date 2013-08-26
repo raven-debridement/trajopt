@@ -38,6 +38,8 @@ public:
 typedef CollisionObjectWrapper COW;
 typedef boost::shared_ptr<CollisionObjectWrapper> COWPtr;
 
+struct CastHullShape;
+
 class TRAJOPT_API BulletCollisionChecker : public CollisionChecker {
 public:
   BulletCollisionChecker(OR::EnvironmentBaseConstPtr env);
@@ -63,6 +65,10 @@ public:
   virtual void LinkVsAll(const KinBody::Link& link, vector<Collision>& collisions, short filterMask);
   virtual void ContinuousCheckTrajectory(const TrajArray& traj, Configuration& rad, vector<Collision>&);
   virtual void CastVsAll(Configuration& rad0, Configuration& rad1, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions);
+  virtual void CastVsCast(Configuration& rad00, Configuration& rad01, Configuration& rad10, Configuration& rad11, const vector<KinBody::LinkPtr>& links0, const vector<KinBody::LinkPtr>& links1, const DblVec& startjoints0, const DblVec& endjoints0, const DblVec& startjoints1, const DblVec& endjoints1, vector<Collision>& collisions);
+
+
+
   ////
   ///////
   virtual bool SegmentVsAll(const btVector3& pt0, const btVector3& pt1);
@@ -84,6 +90,10 @@ public:
   void UpdateAllowedCollisionMatrix();
   void CheckShapeCast(btCollisionShape* shape, const btTransform& tf0, const btTransform& tf1,
       CollisionObjectWrapper* cow, btCollisionWorld* world, vector<Collision>& collisions);
+  void CheckShapeCastVsCast(
+    KinBody::LinkPtr link0, const btTransform& tf00, const btTransform& tf01,
+    KinBody::LinkPtr link1, const btTransform& tf10, const btTransform& tf11,
+    vector<Collision>& collisions);
 
 protected:
   btCollisionWorld* m_world;
@@ -103,6 +113,7 @@ protected:
     OpenRAVE::EnvironmentBase& env, vector<OpenRAVE::GraphHandlePtr>& handles) const;
   void ContinuousCheckShape(btCollisionShape* shape, const vector<btTransform>& transforms,
     KinBody::Link* link, btCollisionWorld* world, vector<Collision>& collisions) const;
+  void CastVsCastGJKDistance(CastHullShape* shape0, const btTransform& tf0, CastHullShape* shape1, const btTransform& tf1, vector<Collision>& collisions);
 
 };
 
@@ -221,6 +232,6 @@ struct CastCollisionCollector : public CollisionCollector {
   virtual btScalar addSingleResult(btManifoldPoint& cp,
       const btCollisionObjectWrapper* colObj0Wrap,int partId0,int index0,
       const btCollisionObjectWrapper* colObj1Wrap,int partId1,int index1);
-  virtual void GetAverageSupport(const btConvexShape* shape, const btVector3& localNormal, float& outsupport, btVector3& outpt) const;
+  //virtual void GetAverageSupport(const btConvexShape* shape, const btVector3& localNormal, float& outsupport, btVector3& outpt) const;
 };
 }
