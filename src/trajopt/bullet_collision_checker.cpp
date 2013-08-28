@@ -455,9 +455,9 @@ void BulletCollisionChecker::AddCastHullShape(Configuration& rad0, Configuration
       //cow->manage(boost::shared_ptr<btCollisionShape>(cow->getCollisionShape()));
       //assert(m_link2cow[links[i].get()] != NULL);
       //CollisionObjectWrapper* cow = m_link2cow[links[i].get()];
-      AddCastHullShape(cow->getCollisionShape(), tbefore[i], tafter[i], cow.get(), m_world);
       m_managed_cows.push_back(cow);
       m_managed_cows.push_back(cd->cows[i]);//CowPtr(GetCow(links[i].get())));
+      AddCastHullShape(cow->getCollisionShape(), tbefore[i], tafter[i], cow.get(), m_world);
     }
   }
   cout << "finished adding one cast hull shape" << endl;
@@ -478,6 +478,7 @@ void BulletCollisionChecker::AddCastHullShape(btCollisionShape* shape, const btT
     world->addCollisionObject(obj.get(), KinBodyFilter);
     obj->setContactProcessingThreshold(m_contactDistance);
     m_managed_cows.push_back(obj);
+    cout << "finished adding shape" << endl;
   } else if (btCompoundShape* compound = dynamic_cast<btCompoundShape*>(shape)) {
     for (int i = 0; i < compound->getNumChildShapes(); ++i) {
       AddCastHullShape(compound->getChildShape(i), tf0*compound->getChildTransform(i), tf1*compound->getChildTransform(i), cow, world);
