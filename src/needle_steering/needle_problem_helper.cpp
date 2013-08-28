@@ -1,7 +1,11 @@
 #include "needle_steering.hpp"
 
 namespace Needle {
-  
+  template<typename T, size_t N>
+  T* end(T (&ra)[N]) {
+    return ra + N;
+  } 
+
   void NeedleProblemHelper::AddRotationCost(OptProb& prob, NeedleProblemInstancePtr pi) {
     switch (rotation_cost) {
       case UseRotationQuadraticCost: {
@@ -403,6 +407,111 @@ namespace Needle {
           CollisionChecker::GetOrCreate(*env)->ExcludeCollisionPair(*bodies[i]->GetLinks()[0], *robots[k]->GetLinks()[0]);
         }
       }
+    }
+  }
+
+  void NeedleProblemHelper::InitParameters() {
+    this->T = 25;
+    this->r_min = 2.98119536;
+    this->n_dof = 6;
+
+    this->formulation = NeedleProblemHelper::Form1;
+    this->curvature_constraint = NeedleProblemHelper::ConstantRadius;
+    this->speed_formulation = NeedleProblemHelper::ConstantSpeed;
+    this->method = NeedleProblemHelper::Colocation;
+    this->curvature_formulation = NeedleProblemHelper::UseRadius;
+    this->rotation_cost = NeedleProblemHelper::UseRotationQuadraticCost;
+    this->use_speed_deviation_constraint = false;
+    this->use_speed_deviation_cost = false;
+    this->continuous_collision = true;
+    this->explicit_controls = true;
+    this->control_constraints = true;
+    this->goal_orientation_constraint = true;
+
+    // parameters for the optimizer
+    this->improve_ratio_threshold = 0.1;
+    this->trust_shrink_ratio = 0.9;
+    this->trust_expand_ratio = 1.3;
+    this->record_trust_region_history = false;
+    this->merit_error_coeff = 10;
+    this->max_merit_coeff_increases = 10;
+
+    this->coeff_rotation = 1.;
+    this->coeff_speed = 1.;
+    this->coeff_rotation_regularization = 0.1;
+    this->coeff_orientation_error = 1;
+    this->collision_dist_pen = 0.05;
+    this->collision_coeff = 10;
+
+    const char *ignored_kinbody_c_strs[] = { "KinBodyProstate", "KinBodyDermis", "KinBodyEpidermis", "KinBodyHypodermis" };
+    this->ignored_kinbody_names = vector<string>(ignored_kinbody_c_strs, end(ignored_kinbody_c_strs));
+  }
+
+  void NeedleProblemHelper::InitParametersFromConsole(int argc, char** argv) {
+    Clear();
+    InitParameters();
+    Config config;
+    config.add(new Parameter<int>("T", &this->T, "T"));
+    config.add(new Parameter<int>("formulation", &this->formulation, "formulation"));
+    config.add(new Parameter<int>("curvature_constraint", &this->curvature_constraint, "curvature_constraint"));
+    config.add(new Parameter<int>("method", &this->method, "method"));
+    config.add(new Parameter<int>("curvature_formulation", &this->curvature_formulation, "curvature_formulation"));
+    config.add(new Parameter<int>("speed_formulation", &this->speed_formulation, "speed_formulation"));
+    config.add(new Parameter<int>("rotation_cost", &this->rotation_cost, "rotation_cost"));
+    config.add(new Parameter<double>("coeff_rotation_regularization", &this->coeff_rotation_regularization, "coeff_rotation_regularization"));
+    config.add(new Parameter<double>("coeff_rotation", &this->coeff_rotation, "coeff_rotation"));
+    config.add(new Parameter<double>("coeff_speed", &this->coeff_speed, "coeff_speed"));
+    config.add(new Parameter<double>("coeff_orientation_error", &this->coeff_orientation_error, "coeff_orientation_error"));
+    config.add(new Parameter<double>("r_min", &this->r_min, "r_min"));
+    config.add(new Parameter<double>("improve_ratio_threshold", &this->improve_ratio_threshold, "improve_ratio_threshold"));
+    config.add(new Parameter<double>("trust_shrink_ratio", &this->trust_shrink_ratio, "trust_shrink_ratio"));
+    config.add(new Parameter<double>("trust_expand_ratio", &this->trust_expand_ratio, "trust_expand_ratio"));
+    config.add(new Parameter<double>("collision_dist_pen", &this->collision_dist_pen, "collision_dist_pen"));
+    config.add(new Parameter<double>("merit_error_coeff", &this->merit_error_coeff, "merit_error_coeff"));
+    config.add(new Parameter<bool>("use_speed_deviation_constraint", &this->use_speed_deviation_constraint, "use_speed_deviation_constraint"));
+    config.add(new Parameter<bool>("use_speed_deviation_cost", &this->use_speed_deviation_cost, "use_speed_deviation_cost"));
+    config.add(new Parameter<bool>("record_trust_region_history", &this->record_trust_region_history, "record_trust_region_history"));
+    config.add(new Parameter<bool>("explicit_controls", &this->explicit_controls, "explicit_controls"));
+    config.add(new Parameter<bool>("continuous_collision", &this->continuous_collision, "continuous_collision"));
+    config.add(new Parameter<bool>("control_constraints", &this->control_constraints, "control_constraints"));
+    config.add(new Parameter<bool>("goal_orientation_constraint", &this->goal_orientation_constraint, "goal_orientation_constraint"));
+    
+    CommandParser parser(config);
+    parser.read(argc, argv);
+  }
+
+  void NeedleProblemHelper::Clear() {
+    starts.clear();
+    goals.clear();
+    if (n_needles > 0) {
+      EnvironmentBasePtr env = pis[0]->local_configs[0]->GetEnv();
+      for (int i = 0; i < n_needles; ++i) {
+        env->Remove(robots[i]);
+      }
+      robots.clear();
+      self_collision_constraints.clear();
+      pis.clear();
+      n_needles = 0;
+    }
+  }
+
+  void NeedleProblemHelper::AddNeedlesToBullet(OptimizerT& opt) {
+    for (int i = 0; i < n_needles; ++i) {
+      AddNeedleToBullet(pis[i], opt);
+    }
+  }
+
+  void NeedleProblemHelper::AddNeedleToBullet(NeedleProblemInstancePtr pi, OptimizerT& opt) {
+    
+    EnvironmentBasePtr env = pi->local_configs[0]->GetEnv();
+    DblVec x = opt.x();
+    MatrixXd twistvals = getTraj(x, pi->twistvars);
+    boost::shared_ptr<BulletCollisionChecker> cc = boost::dynamic_pointer_cast<BulletCollisionChecker>(CollisionChecker::GetOrCreate(*env));
+    for (int i = 0; i < T; ++i) {
+      vector<KinBody::LinkPtr> links;
+      vector<int> inds;
+      pi->local_configs[i]->GetAffectedLinks(links, true, inds);
+      cc->AddCastHullShape(*pi->local_configs[i], *pi->local_configs[i+1], links, toDblVec(twistvals.row(i)), toDblVec(twistvals.row(i+1)));
     }
   }
 }

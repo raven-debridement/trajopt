@@ -5,6 +5,7 @@
 #include "sco/modeling.hpp"
 #include "osgviewer/osgviewer.hpp"
 #include "trajopt/collision_checker.hpp"
+#include "trajopt/bullet_collision_checker.hpp"
 #include "trajopt/collision_terms.hpp"
 #include "trajopt/common.hpp"
 #include "trajopt/plot_callback.hpp"
@@ -255,6 +256,10 @@ namespace Needle {
     void OptimizerCallback(OptProb*, DblVec& x);
     void ConfigureOptimizer(OptimizerT& opt);
 
+    void InitParameters();
+    void InitParametersFromConsole(int argc, char** argv);
+    void Clear();
+
     void CreateVariables(OptProb& prob, NeedleProblemInstancePtr pi);
     void InitLocalConfigurations(const KinBodyPtr robot, OptProb& prob, NeedleProblemInstancePtr pi);
     void InitTrajectory(OptProb& prob, NeedleProblemInstancePtr pi);
@@ -276,6 +281,9 @@ namespace Needle {
     double GetCurvatureOrRadius(const DblVec& x, int i, NeedleProblemInstancePtr pi) const;
     double GetCurvature(const DblVec& x, int i, NeedleProblemInstancePtr pi) const;
     double GetRadius(const DblVec& x, int i, NeedleProblemInstancePtr pi) const;
+
+    void AddNeedlesToBullet(OptimizerT& prob);
+    void AddNeedleToBullet(NeedleProblemInstancePtr pi, OptimizerT& prob);
 
     #ifdef NEEDLE_TEST
     void checkAlignment(DblVec& x);

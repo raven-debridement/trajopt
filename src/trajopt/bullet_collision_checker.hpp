@@ -82,6 +82,8 @@ public:
   void UpdateBulletFromRave();
   void AddKinBody(const OR::KinBodyPtr& body);
   void RemoveKinBody(const OR::KinBodyPtr& body);
+  void AddCastHullShape(Configuration& rad0, Configuration& rad1, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec endjoints);
+  void AddCastHullShape(btCollisionShape* shape, const btTransform& tf0, const btTransform& tf1, CollisionObjectWrapper* cow, btCollisionWorld* world);
   void AddAndRemoveBodies(const vector<OR::KinBodyPtr>& curVec, const vector<OR::KinBodyPtr>& prevVec, vector<KinBodyPtr>& addedBodies);
   bool CanCollide(const CollisionObjectWrapper* cow0, const CollisionObjectWrapper* cow1) {
     return m_allowedCollisionMatrix(cow0->m_index, cow1->m_index);
@@ -106,6 +108,7 @@ protected:
   vector<KinBodyPtr> m_prevbodies;
   typedef std::pair<const KinBody::Link*, const KinBody::Link*> LinkPair;
   set< LinkPair > m_excludedPairs;
+  vector<COWPtr> m_managed_cows;
   Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> m_allowedCollisionMatrix;
   btCollisionShape* createShapePrimitive(OR::KinBody::Link::GeometryPtr geom, bool useTrimesh, CollisionObjectWrapper* cow) const;
   COWPtr CollisionObjectFromLink(OR::KinBody::LinkPtr link, bool useTrimesh) const;
@@ -114,6 +117,10 @@ protected:
   void ContinuousCheckShape(btCollisionShape* shape, const vector<btTransform>& transforms,
     KinBody::Link* link, btCollisionWorld* world, vector<Collision>& collisions) const;
   void CastVsCastGJKDistance(CastHullShape* shape0, const btTransform& tf0, CastHullShape* shape1, const btTransform& tf1, vector<Collision>& collisions);
+
+
+
+
 
 };
 

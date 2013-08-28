@@ -1,4 +1,4 @@
-<Robot name="boxbot">
+<Robot name="needlebot">
 <KinBody>
   <Body name="needlelink" type="dynamic">
     <Translation>0 0 0</Translation>

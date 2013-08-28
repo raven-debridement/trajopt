@@ -423,12 +423,73 @@ void BulletCollisionChecker::RemoveKinBody(const OR::KinBodyPtr& body) {
     if (cow) {
       m_world->removeCollisionObject(cow);
       m_link2cow.erase(link.get());      
+      cout << cow->getCollisionShape() << endl;
+      cout << cow->getCollisionShape()->getShapeType() << endl;
     }
+    
   }
   trajopt::RemoveUserData(*body, "bt");
 }
 
 
+void BulletCollisionChecker::AddCastHullShape(Configuration& rad0, Configuration& rad1, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec endjoints) {
+  // Almost copied from CastVsAll
+  cout << "adding one cast hull shape" << endl;
+  Configuration::SaverPtr saver = rad0.Save();
+  rad0.SetDOFValues(startjoints);
+  int nlinks = links.size();
+  vector<btTransform> tbefore(nlinks), tafter(nlinks);
+  for (int i=0; i < nlinks; ++i) {
+    tbefore[i] = toBt(links[i]->GetTransform());
+  }
+  rad1.SetDOFValues(endjoints);
+  for (int i=0; i < nlinks; ++i) {
+    tafter[i] = toBt(links[i]->GetTransform());
+  }
+  rad0.SetDOFValues(startjoints);
+  bool useTrimesh = trajopt::GetUserData(*links[0]->GetParent(), "bt_use_trimesh");
+  CDPtr cd = boost::static_pointer_cast<KinBodyCollisionData>(trajopt::GetUserData(*links[0]->GetParent(), "bt"));
+  for (int i=0; i < nlinks; ++i) {
+    if (links[i]->GetGeometries().size() > 0) {
+      COWPtr cow = CollisionObjectFromLink(links[i], useTrimesh); 
+      //cow->manage(boost::shared_ptr<btCollisionShape>(cow->getCollisionShape()));
+      //assert(m_link2cow[links[i].get()] != NULL);
+      //CollisionObjectWrapper* cow = m_link2cow[links[i].get()];
+      AddCastHullShape(cow->getCollisionShape(), tbefore[i], tafter[i], cow.get(), m_world);
+      m_managed_cows.push_back(cow);
+      m_managed_cows.push_back(cd->cows[i]);//CowPtr(GetCow(links[i].get())));
+    }
+  }
+  cout << "finished adding one cast hull shape" << endl;
+}
+
+void BulletCollisionChecker::AddCastHullShape(btCollisionShape* shape, const btTransform& tf0, const btTransform& tf1,
+    CollisionObjectWrapper* cow, btCollisionWorld* world) {
+  if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
+    cout << "Shape type converted to convex: " << shape->getShapeType() << endl;
+    boost::shared_ptr<btConvexShape> convex_ptr(convex);
+    boost::shared_ptr<CastHullShape> shape(new CastHullShape(convex_ptr.get(), tf0.inverseTimes(tf1)));
+    COWPtr obj(new CollisionObjectWrapper(cow->m_link));
+    obj->setCollisionShape(shape.get());
+    obj->setWorldTransform(tf0);
+    obj->m_index = cow->m_index;
+    obj->manage(shape);
+    obj->manage(convex);
+    world->addCollisionObject(obj.get(), KinBodyFilter);
+    obj->setContactProcessingThreshold(m_contactDistance);
+    m_managed_cows.push_back(obj);
+  } else if (btCompoundShape* compound = dynamic_cast<btCompoundShape*>(shape)) {
+    for (int i = 0; i < compound->getNumChildShapes(); ++i) {
+      AddCastHullShape(compound->getChildShape(i), tf0*compound->getChildTransform(i), tf1*compound->getChildTransform(i), cow, world);
+    }
+  } else {
+    cout << "Shape type: " << shape->getShapeType() << endl;
+    cout << shape << endl;
+    cout << dynamic_cast<btCylinderShape*>(shape) << endl;
+    cout << dynamic_cast<btConvexShape*>(shape) << endl;
+    throw std::runtime_error("I can only add cast hull of convex shapes and compound shapes made of convex shapes");
+  }
+}
 
 void BulletCollisionChecker::AddAndRemoveBodies(const vector<KinBodyPtr>& curVec, const vector<KinBodyPtr>& prevVec, vector<KinBodyPtr>& toAdd) {
   vector<KinBodyPtr> toRemove;
@@ -945,6 +1006,10 @@ void BulletCollisionChecker::CastVsCastGJKDistance(CastHullShape* shape0, const 
         collision.timeB = l0c/(l0c + l1c); 
       }
     }
+
+    cout << "timeA: " << collision.timeA << endl;
+    cout << "timeB: " << collision.timeB << endl;
+    cout << "dist: " << collision.distance << endl;
 
     collisions.push_back(collision);
   }
