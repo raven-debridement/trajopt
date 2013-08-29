@@ -102,41 +102,41 @@ int main(int argc, char** argv) {
   }
 
 
-  vector<KinBodyPtr> robots;
+  //vector<KinBodyPtr> robots;
 
-  vector<VectorXd> sol;
+  //vector<VectorXd> sol;
 
-  for (int i = 0; i < n_needles; ++i) {
-    // one needle at a time
-    helper->InitParametersFromConsole(argc, argv);
-    helper->n_needles = 1;
-    helper->starts.push_back(starts[i]);
-    helper->goals.push_back(goals[i]);
-    helper->robots.push_back(env->ReadRobotURI(RobotBasePtr(), data_dir + "/needlebot.xml"));
-    env->Add(helper->robots.back(), true);
-    OptProbPtr prob(new OptProb());
-    helper->ConfigureProblem(*prob);
-    OptimizerT opt(prob);
-    helper->ConfigureOptimizer(opt);
-    if (plotting || plot_final_result) {
-      plotter.reset(new Needle::TrajPlotter(helper->pis));
-    }
-    if (plotting) {
-      opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2, helper));
-    } 
-    opt.optimize();
-    for (int j = 0; j < helper->robots.size(); ++j) {
-      robots.push_back(helper->robots[j]);
-    }
+  //for (int i = 0; i < n_needles; ++i) {
+  //  // one needle at a time
+  //  helper->InitParametersFromConsole(argc, argv);
+  //  helper->n_needles = 1;
+  //  helper->starts.push_back(starts[i]);
+  //  helper->goals.push_back(goals[i]);
+  //  helper->robots.push_back(env->ReadRobotURI(RobotBasePtr(), data_dir + "/needlebot.xml"));
+  //  env->Add(helper->robots.back(), true);
+  //  OptProbPtr prob(new OptProb());
+  //  helper->ConfigureProblem(*prob);
+  //  OptimizerT opt(prob);
+  //  helper->ConfigureOptimizer(opt);
+  //  if (plotting || plot_final_result) {
+  //    plotter.reset(new Needle::TrajPlotter(helper->pis));
+  //  }
+  //  if (plotting) {
+  //    opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2, helper));
+  //  } 
+  //  opt.optimize();
+  //  for (int j = 0; j < helper->robots.size(); ++j) {
+  //    robots.push_back(helper->robots[j]);
+  //  }
 
-    sol.push_back(helper->GetSolutions(opt).front());
-    
-    cout << "adding needles" << endl;
-    helper->AddNeedlesToBullet(opt);
-    cout << "finished adding needles" << endl;
-  }
+  //  sol.push_back(helper->GetSolutions(opt).front());
+  //  
+  //  cout << "adding needles" << endl;
+  //  helper->AddNeedlesToBullet(opt);
+  //  cout << "finished adding needles" << endl;
+  //}
 
-  trajopt::SetUserData(*env, "trajopt_cc", OpenRAVE::UserDataPtr());
+  //trajopt::SetUserData(*env, "trajopt_cc", OpenRAVE::UserDataPtr());
   helper->InitParametersFromConsole(argc, argv);
   helper->n_needles = n_needles;
   helper->starts = starts;
@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
   helper->ConfigureProblem(*prob);
   OptimizerT opt(prob);
   helper->ConfigureOptimizer(opt);
-  helper->SetSolutions(sol, opt);
+  //helper->SetSolutions(sol, opt);
 
   if (plotting || plot_final_result) {
     plotter.reset(new Needle::TrajPlotter(helper->pis));
