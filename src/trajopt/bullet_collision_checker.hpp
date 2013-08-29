@@ -26,10 +26,12 @@ public:
   vector<boost::shared_ptr<void> > m_data;
   KinBody::Link* m_link;
   int m_index; // index into collision matrix
+  bool m_dynamic;
   template<class T>
   void manage(T* t) { // manage memory of this object
     m_data.push_back(boost::shared_ptr<T>(t));
   }
+  bool isDynamic() { return m_dynamic; }
   template<class T>
   void manage(boost::shared_ptr<T> t) {
     m_data.push_back(t);

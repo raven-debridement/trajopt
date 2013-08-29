@@ -118,7 +118,12 @@ int main(int argc, char** argv) {
     helper->ConfigureProblem(*prob);
     OptimizerT opt(prob);
     helper->ConfigureOptimizer(opt);
-    
+    if (plotting || plot_final_result) {
+      plotter.reset(new Needle::TrajPlotter(helper->pis));
+    }
+    if (plotting) {
+      opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2, helper));
+    } 
     opt.optimize();
     for (int j = 0; j < helper->robots.size(); ++j) {
       robots.push_back(helper->robots[j]);

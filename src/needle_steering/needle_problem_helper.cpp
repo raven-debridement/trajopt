@@ -487,6 +487,7 @@ namespace Needle {
       EnvironmentBasePtr env = pis[0]->local_configs[0]->GetEnv();
       for (int i = 0; i < n_needles; ++i) {
         env->Remove(robots[i]);
+        trajopt::RemoveUserData(*robots[i], "bt");
       }
       robots.clear();
       self_collision_constraints.clear();

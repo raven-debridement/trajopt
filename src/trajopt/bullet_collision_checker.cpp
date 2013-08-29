@@ -278,7 +278,20 @@ void BulletCollisionChecker::RenderCollisionShape(btCollisionShape* shape, const
   }
 
   default:
-    LOG_INFO("not rendering shape of type %i", shape->getShapeType());
+    if (shape->getShapeType() <= CUSTOM_CONVEX_SHAPE_TYPE) {
+      btConvexShape* convex = dynamic_cast<btConvexShape*>(shape);
+      btShapeHull* hull = new btShapeHull(convex);
+      hull->buildHull(convex->getMargin());
+      int num_triangles = hull->numTriangles();
+      const unsigned int* indices = hull->getIndexPointer();
+      const btVector3* vertices = hull->getVertexPointer();
+      btVector3 tf_vertices[hull->numVertices()];
+      for (int i=0; i<hull->numVertices(); i++) tf_vertices[i] = tf * vertices[i];
+
+      handles.push_back(env.drawtrimesh((float*)tf_vertices, 16, (int*) indices, num_triangles, OR::RaveVector<float>(1,1,1,1)));
+    } else {
+      LOG_INFO("not rendering shape of type %i", shape->getShapeType());
+    }
     break;
   }
 }
@@ -454,6 +467,7 @@ void BulletCollisionChecker::AddCastHullShape(Configuration& rad0, Configuration
   for (int i = 0; i < nlinks; ++i) {
     if (links[i]->GetGeometries().size() > 0) {
       COWPtr cow = CollisionObjectFromLink(links[i], useTrimesh); 
+      cow->m_dynamic = false;
       //cow->manage(boost::shared_ptr<btCollisionShape>(cow->getCollisionShape()));
       //assert(m_link2cow[links[i].get()] != NULL);
       //CollisionObjectWrapper* cow = m_link2cow[links[i].get()];
@@ -466,14 +480,14 @@ void BulletCollisionChecker::AddCastHullShape(Configuration& rad0, Configuration
 void BulletCollisionChecker::AddCastHullShape(btCollisionShape* shape, const btTransform& tf0, const btTransform& tf1,
     CollisionObjectWrapper* cow, btCollisionWorld* world) {
   if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
-    boost::shared_ptr<btConvexShape> convex_ptr(convex);
-    boost::shared_ptr<CastHullShape> shape(new CastHullShape(convex_ptr.get(), tf0.inverseTimes(tf1)));
+    //boost::shared_ptr<btConvexShape> convex_ptr(convex);
+    boost::shared_ptr<CastHullShape> shape(new CastHullShape(convex, tf0.inverseTimes(tf1)));
     COWPtr obj(new CollisionObjectWrapper(cow->m_link));
     obj->setCollisionShape(shape.get());
     obj->setWorldTransform(tf0);
     obj->m_index = cow->m_index;
     obj->manage(shape);
-    obj->manage(convex_ptr);
+    //obj->manage(convex_ptr);
     world->addCollisionObject(obj.get(), KinBodyFilter);
     cout << "adding cast hull shape: " << obj.get() << endl;
     obj->setContactProcessingThreshold(m_contactDistance);
@@ -491,7 +505,7 @@ void BulletCollisionChecker::AddAndRemoveBodies(const vector<KinBodyPtr>& curVec
   vector<KinBodyPtr> toRemove;
   SetDifferences(curVec, prevVec, toAdd, toRemove);
   BOOST_FOREACH(const KinBodyPtr& body, toAdd) {
-    assert(!trajopt::GetUserData(*body, "bt"));
+    //assert(!trajopt::GetUserData(*body, "bt"));
     AddKinBody(body);
   }
   BOOST_FOREACH(const KinBodyPtr& body, toRemove) {
@@ -547,7 +561,9 @@ void BulletCollisionChecker::UpdateBulletFromRave() {
   LOG_DEBUG("%i objects in bullet world", objs.size());
   for (int i=0; i < objs.size(); ++i) {
     CollisionObjectWrapper* cow = static_cast<CollisionObjectWrapper*>(objs[i]);
-    cow->setWorldTransform(toBt(cow->m_link->GetTransform()));
+    if (cow->isDynamic()) {
+      cow->setWorldTransform(toBt(cow->m_link->GetTransform()));
+    }
   }
 
 }

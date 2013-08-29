@@ -19,6 +19,9 @@ namespace Needle {
     //    plotter->Plot(x, *(helper->local_configs[0]->GetEnv()), handles);
     //  }
     //}
+    //CollisionChecker::GetOrCreate(
+    EnvironmentBasePtr env = helper->pis[0]->local_configs[0]->GetEnv();
+    CollisionChecker::GetOrCreate(*env)->PlotCollisionGeometry(handles);//SetContactDistance(collision_dist_pen + 0.05);
     for (int k = 0; k < pis.size(); ++k) {
       vector<KinBodyPtr> bodies = pis[k]->local_configs[0]->GetBodies();
       MatrixXd vals = getTraj(x, pis[k]->twistvars);
