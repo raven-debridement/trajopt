@@ -16,6 +16,7 @@ subject to the following restrictions:
 
 #include "btCollisionObject.h"
 #include "LinearMath/btSerializer.h"
+#include <iostream>
 
 btCollisionObject::btCollisionObject()
 	:	m_anisotropicFriction(1.f,1.f,1.f),
@@ -45,6 +46,7 @@ btCollisionObject::btCollisionObject()
 
 btCollisionObject::~btCollisionObject()
 {
+  //std::cout << "destructor called" << std::endl;
 }
 
 void btCollisionObject::setActivationState(int newState) const

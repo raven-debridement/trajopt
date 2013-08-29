@@ -12,5 +12,5 @@ include_directories(
   #${RBDL_INCLUDE_DIRS}
 )
 
-add_executable(needle_steering needle_steering.cpp constraints.cpp costs.cpp local_configuration.cpp needle_problem_helper.cpp traj_plotter.cpp utils.cpp ../trajopt/bullet_unity.cpp)
+add_executable(needle_steering needle_steering.cpp constraints.cpp costs.cpp local_configuration.cpp needle_problem_helper.cpp traj_plotter.cpp utils.cpp ../trajopt/bullet_unity.cpp needle_problem_instance.cpp)
 target_link_libraries(needle_steering trajopt)

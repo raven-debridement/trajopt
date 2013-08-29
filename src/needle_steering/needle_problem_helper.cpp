@@ -477,7 +477,7 @@ namespace Needle {
     config.add(new Parameter<bool>("goal_orientation_constraint", &this->goal_orientation_constraint, "goal_orientation_constraint"));
     
     CommandParser parser(config);
-    parser.read(argc, argv);
+    parser.read(argc, argv, true);
   }
 
   void NeedleProblemHelper::Clear() {
@@ -512,6 +512,21 @@ namespace Needle {
       vector<int> inds;
       pi->local_configs[i]->GetAffectedLinks(links, true, inds);
       cc->AddCastHullShape(*pi->local_configs[i], *pi->local_configs[i+1], links, toDblVec(twistvals.row(i)), toDblVec(twistvals.row(i+1)));
+    }
+  }
+
+  vector<VectorXd> NeedleProblemHelper::GetSolutions(OptimizerT& opt) {
+    vector<VectorXd> ret;
+    for (int i = 0; i < n_needles; ++i) {
+      ret.push_back(pis[i]->GetSolution(opt));
+    }
+    return ret;
+  }
+
+  void NeedleProblemHelper::SetSolutions(const vector<VectorXd>& sol, OptimizerT& opt) {
+    assert (sol.size() == n_needles);
+    for (int i = 0; i < n_needles; ++i) {
+      pis[i]->SetSolution(sol[i], opt);
     }
   }
 }

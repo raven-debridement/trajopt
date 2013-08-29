@@ -19,7 +19,6 @@ subject to the following restrictions:
 #include "LinearMath/btTransform.h"
 #include "LinearMath/btVector3.h"
 #include "LinearMath/btMatrix3x3.h"
-#include <iostream>
 #include "BulletCollision/BroadphaseCollision/btBroadphaseProxy.h" //for the shape types
 class btSerializer;
 
@@ -41,7 +40,6 @@ public:
 
 	virtual ~btCollisionShape()
 	{
-    std::cout << "destructor called" << std::endl;
 	}
 
 	///getAabb returns the axis aligned bounding box in the coordinate frame of the given transform t.

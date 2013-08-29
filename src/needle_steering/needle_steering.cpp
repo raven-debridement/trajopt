@@ -46,10 +46,10 @@ int main(int argc, char** argv) {
     config.add(new Parameter<bool>("verbose", &verbose, "verbose"));
     config.add(new Parameter<double>("env_transparency", &env_transparency, "env_transparency"));
     config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
-    config.add(new Parameter< vector<string> >("start", &start_string_vec, "s"));
-    config.add(new Parameter< vector<string> >("goal", &goal_string_vec, "g"));
+    config.add(new Parameter< vector<string> >("start_vec", &start_string_vec, "s"));
+    config.add(new Parameter< vector<string> >("goal_vec", &goal_string_vec, "g"));
     CommandParser parser(config);
-    parser.read(argc, argv);
+    parser.read(argc, argv, true);
   }
 
   if (start_string_vec.size() != goal_string_vec.size()) {
@@ -104,6 +104,8 @@ int main(int argc, char** argv) {
 
   vector<KinBodyPtr> robots;
 
+  vector<VectorXd> sol;
+
   for (int i = 0; i < n_needles; ++i) {
     // one needle at a time
     helper->InitParametersFromConsole(argc, argv);
@@ -116,19 +118,43 @@ int main(int argc, char** argv) {
     helper->ConfigureProblem(*prob);
     OptimizerT opt(prob);
     helper->ConfigureOptimizer(opt);
-    if (plotting || plot_final_result) {
-      plotter.reset(new Needle::TrajPlotter(helper->pis));
-    }
-    if (plotting) {
-      opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2, helper));
-    }
+    
     opt.optimize();
     for (int j = 0; j < helper->robots.size(); ++j) {
       robots.push_back(helper->robots[j]);
     }
+
+    sol.push_back(helper->GetSolutions(opt).front());
+    
+    cout << "adding needles" << endl;
     helper->AddNeedlesToBullet(opt);
+    cout << "finished adding needles" << endl;
   }
 
+  trajopt::SetUserData(*env, "trajopt_cc", OpenRAVE::UserDataPtr());
+  helper->InitParametersFromConsole(argc, argv);
+  helper->n_needles = n_needles;
+  helper->starts = starts;
+  helper->goals = goals;
+  for (int i = 0; i < n_needles; ++i) {
+    helper->robots.push_back(env->ReadRobotURI(RobotBasePtr(), data_dir + "/needlebot.xml"));
+    env->Add(helper->robots.back(), true);
+  }
+
+  OptProbPtr prob(new OptProb());
+  helper->ConfigureProblem(*prob);
+  OptimizerT opt(prob);
+  helper->ConfigureOptimizer(opt);
+  helper->SetSolutions(sol, opt);
+
+  if (plotting || plot_final_result) {
+    plotter.reset(new Needle::TrajPlotter(helper->pis));
+  }
+  if (plotting) {
+    opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(plotter), _1, _2, helper));
+  }
+
+  opt.optimize();
   RaveDestroy();
 
   return 0;

@@ -198,6 +198,9 @@ namespace Needle {
     vector<ConstraintPtr> dynamics_constraints;
     vector<ConstraintPtr> collision_constraints;
     DblVec initVec;
+
+    VectorXd GetSolution(OptimizerT& opt);
+    void SetSolution(const VectorXd& sol, OptimizerT& opt);
   };
 
   typedef boost::shared_ptr<NeedleProblemInstance> NeedleProblemInstancePtr;
@@ -281,6 +284,9 @@ namespace Needle {
     double GetCurvatureOrRadius(const DblVec& x, int i, NeedleProblemInstancePtr pi) const;
     double GetCurvature(const DblVec& x, int i, NeedleProblemInstancePtr pi) const;
     double GetRadius(const DblVec& x, int i, NeedleProblemInstancePtr pi) const;
+
+    vector<VectorXd> GetSolutions(OptimizerT& opt);
+    void SetSolutions(const vector<VectorXd>& sol, OptimizerT& opt);
 
     void AddNeedlesToBullet(OptimizerT& prob);
     void AddNeedleToBullet(NeedleProblemInstancePtr pi, OptimizerT& prob);
