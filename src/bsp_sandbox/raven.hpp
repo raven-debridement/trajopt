@@ -41,7 +41,7 @@ namespace RavenBSP {
   class RavenStateFunc : public StateFunc<StateT, ControlT, StateNoiseT> {
   public:
     typedef boost::shared_ptr<RavenStateFunc> Ptr;
-    RavenBSPProblemHelperPtr barrett_robot_helper;
+    RavenBSPProblemHelperPtr problem_helper;
 
     RavenStateFunc();
     RavenStateFunc(BSPProblemHelperBasePtr helper);
@@ -51,7 +51,7 @@ namespace RavenBSP {
   class RavenObserveFunc : public ObserveFunc<StateT, ObserveT, ObserveNoiseT> {
   public:
     typedef boost::shared_ptr<RavenObserveFunc> Ptr;
-    RavenBSPProblemHelperPtr barrett_robot_helper;
+    RavenBSPProblemHelperPtr problem_helper;
     RavenObserveFunc();
     RavenObserveFunc(BSPProblemHelperBasePtr helper);
     ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
@@ -60,7 +60,7 @@ namespace RavenBSP {
   class RavenBeliefFunc : public EkfBeliefFunc<RavenStateFunc, RavenObserveFunc, BeliefT> {
   public:
     typedef boost::shared_ptr<RavenBeliefFunc> Ptr;
-    RavenBSPProblemHelperPtr barrett_robot_helper;
+    RavenBSPProblemHelperPtr problem_helper;
     RavenBeliefFunc();
     RavenBeliefFunc(BSPProblemHelperBasePtr helper, StateFuncPtr f, ObserveFuncPtr h);
   };
@@ -77,10 +77,9 @@ namespace RavenBSP {
     RobotBasePtr robot;
     RobotAndDOFPtr rad;
     KinBody::LinkPtr link;
-    Matrix4d goal_trans;
+    Matrix4d goal_pose;
 
-    double sigma_pts_scale;
-    RavenBSP::StateT sigma_pts_scale_vec;
+    Matrix4d camera_pose;
   };
 
   class RavenBSPPlanner : public BSPPlanner<RavenBSPProblemHelper> {
@@ -90,11 +89,13 @@ namespace RavenBSP {
     void initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time=true);
     RobotBasePtr robot;
     RobotAndDOFPtr rad;
-    Matrix4d goal_trans;
+    Matrix4d goal_pose;
     KinBody::LinkPtr link;
 
     double sigma_pts_scale;
     RavenBSP::StateT sigma_pts_scale_vec;
+
+    Matrix4d camera_pose;
   };
 
   typedef boost::shared_ptr<RavenBSPPlanner> RavenBSPPlannerPtr;
@@ -116,14 +117,15 @@ namespace RavenBSP {
   	RavenBSP::StateT start;
   	RavenBSP::VarianceT start_sigma;
   	deque<RavenBSP::ControlT> controls;
-  	Matrix4d goal_trans;
+  	Matrix4d goal_pose;
   	int T;
 
-    double sigma_pts_scale;
     double insertion_factor;
 
   	string manip_name;
   	string link_name;
+
+    Matrix4d camera_pose;
 
   	RavenBSPWrapper();
 

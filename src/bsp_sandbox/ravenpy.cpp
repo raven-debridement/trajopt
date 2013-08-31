@@ -95,10 +95,9 @@ public:
 
 	void set_start(py::object vec);
 	void set_start_sigma(py::object mat);
-	void set_goal_trans(py::object tf);
+	void set_goal_pose(py::object tf);
 	void set_T(int T);
 
-	void set_sigma_pts_scale(double scale);
 	void set_insertion_factor(double factor);
 
 	void set_controls(py::list list_of_vec);
@@ -150,14 +149,11 @@ py::list PyRavenBSPWrapper::get_controls() {
 	return l;
 }
 
-void PyRavenBSPWrapper::set_goal_trans(py::object tf) {
-	wrapper->goal_trans = toEigen<Matrix4d>(tf);
+void PyRavenBSPWrapper::set_goal_pose(py::object tf) {
+	wrapper->goal_pose = toEigen<Matrix4d>(tf);
 }
 void PyRavenBSPWrapper::set_T(int T) {
 	wrapper->T = T;
-}
-void PyRavenBSPWrapper::set_sigma_pts_scale(double scale) {
-	wrapper->sigma_pts_scale = scale;
 }
 void PyRavenBSPWrapper::set_insertion_factor(double factor) {
 	wrapper->insertion_factor = factor;
@@ -207,7 +203,7 @@ BOOST_PYTHON_MODULE(cravenbsppy) {
 	py::class_< PyRavenBSPWrapper >("RavenBSPWrapper", py::init<py::object>())
 			.def("set_start", &PyRavenBSPWrapper::set_start)
 			.def("set_start_sigma", &PyRavenBSPWrapper::set_start_sigma)
-			.def("set_goal_trans", &PyRavenBSPWrapper::set_goal_trans)
+			.def("set_goal_pose", &PyRavenBSPWrapper::set_goal_pose)
 			.def("set_T", &PyRavenBSPWrapper::set_T)
 			.def("set_controls", &PyRavenBSPWrapper::set_controls)
 			.def("get_controls", &PyRavenBSPWrapper::get_controls)
