@@ -31,13 +31,17 @@ int main(int argc, char** argv) {
 
   string data_dir = get_current_directory() + "/../data";
 
+  //string env_file_path = data_dir + "/channel.env.xml";
+  string env_file_path = data_dir + "/prostate.env.xml";
+  string robot_file_path = data_dir + "/needlebot.xml";
+
 
   vector<string> start_string_vec;
-  start_string_vec.push_back("0,0,0,0,0,0");
-  start_string_vec.push_back("1,2,0,0,0,0");
+  start_string_vec.push_back("-6.60848,12.6176,-8.06651,2.53666,-0.868663,1.31701");
+  //start_string_vec.push_back("1,2,0,0,0,0");
   vector<string> goal_string_vec;
-  goal_string_vec.push_back("1,2,7,0.78,0,0");
-  goal_string_vec.push_back("0,0,9,0.78,0,0");
+  goal_string_vec.push_back("-2.71912,8.00334,-1.12736,0,0,0");
+  //goal_string_vec.push_back("0,0,9,0.78,0,0");
 
   {
     Config config;
@@ -70,7 +74,7 @@ int main(int argc, char** argv) {
     assert(viewer);
   }
 
-  env->Load(data_dir + "/channel.env.xml");
+  env->Load(env_file_path);
 
   if (plotting || plot_final_result) {
     viewer->SetAllTransparency(env_transparency);
@@ -142,7 +146,7 @@ int main(int argc, char** argv) {
   helper->starts = starts;
   helper->goals = goals;
   for (int i = 0; i < n_needles; ++i) {
-    helper->robots.push_back(env->ReadRobotURI(RobotBasePtr(), data_dir + "/needlebot.xml"));
+    helper->robots.push_back(env->ReadRobotURI(RobotBasePtr(), robot_file_path));
     env->Add(helper->robots.back(), true);
   }
 

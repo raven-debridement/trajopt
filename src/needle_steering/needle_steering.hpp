@@ -41,8 +41,8 @@ namespace Needle {
 
   typedef Matrix<double, 6, 1> Vector6d;
 
-  typedef NeedleSQP OptimizerT;
-  //typedef BasicTrustRegionSQP OptimizerT;
+  //typedef NeedleSQP OptimizerT;
+  typedef BasicTrustRegionSQP OptimizerT;
   //typedef LineSearchSQP OptimizerT;
 
   inline double bound_inf(double result, double bound);

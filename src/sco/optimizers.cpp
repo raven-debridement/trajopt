@@ -740,8 +740,9 @@ OptStatus NeedleSQP::optimize() {
           ++merit_increases;
           ++results_.n_merit_increases;
           collision_merit_error_coeff_ *= merit_coeff_increase_ratio_;
-          dynamics_merit_error_coeff_ *= merit_coeff_increase_ratio_;
-          cout << "increasing both" << endl;
+          //dynamics_merit_error_coeff_ *= merit_coeff_increase_ratio_;
+          //cout << "increasing both" << endl;
+          cout << "increasing just collision" << endl;
           trust_box_size_ = fmax(trust_box_size_, min_trust_box_size_ / trust_shrink_ratio_ * 1.5);
 
         } else {
