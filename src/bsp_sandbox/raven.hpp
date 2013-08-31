@@ -19,17 +19,17 @@ namespace RavenBSP {
 
   // This will generate a bunch of types like StateT, ControlT, etc.
   BSP_TYPEDEFS(
-      6, // state_dim
-      6, // state_noise_dim
-      6, // control_dim
-      6, // observe_dim
-      6, // observe_noise_dim
-      21, // sigma_dof
-      27 // belief_dim
+      12, // state_dim
+      12, // state_noise_dim
+      12, // control_dim
+      12, // observe_dim
+      12, // observe_noise_dim
+      78, // sigma_dof
+      90 // belief_dim
   );
 
-  typedef Matrix<double, 6, 1> Vector6d;
-  typedef Matrix<double, 6, 6> Matrix6d;
+  typedef Matrix<double, 12, 1> Vector12d;
+  typedef Matrix<double, 12, 12> Matrix12d;
 
   // state: { {robot_dofs} }
   // control: { {d_robot_dofs} }
@@ -76,11 +76,10 @@ namespace RavenBSP {
 
     RobotBasePtr robot;
     RobotAndDOFPtr rad;
-    KinBody::LinkPtr link;
-    Matrix4d goal_trans;
-
-    double sigma_pts_scale;
-    RavenBSP::StateT sigma_pts_scale_vec;
+    KinBody::LinkPtr link_L;
+    KinBody::LinkPtr link_R;
+    Matrix4d goal_trans_L;
+    Matrix4d goal_trans_R;
   };
 
   class RavenBSPPlanner : public BSPPlanner<RavenBSPProblemHelper> {
@@ -90,11 +89,10 @@ namespace RavenBSP {
     void initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time=true);
     RobotBasePtr robot;
     RobotAndDOFPtr rad;
-    Matrix4d goal_trans;
-    KinBody::LinkPtr link;
-
-    double sigma_pts_scale;
-    RavenBSP::StateT sigma_pts_scale_vec;
+    Matrix4d goal_trans_L;
+    Matrix4d goal_trans_R;
+    KinBody::LinkPtr link_L;
+    KinBody::LinkPtr link_R;
   };
 
   typedef boost::shared_ptr<RavenBSPPlanner> RavenBSPPlannerPtr;
@@ -116,14 +114,16 @@ namespace RavenBSP {
   	RavenBSP::StateT start;
   	RavenBSP::VarianceT start_sigma;
   	deque<RavenBSP::ControlT> controls;
-  	Matrix4d goal_trans;
+    Matrix4d goal_trans_L;
+    Matrix4d goal_trans_R;
   	int T;
 
-    double sigma_pts_scale;
-    double insertion_factor;
+  	double insertion_factor;
 
-  	string manip_name;
-  	string link_name;
+    string manip_name_L;
+  	string link_name_L;
+  	string manip_name_R;
+	string link_name_R;
 
   	RavenBSPWrapper();
 

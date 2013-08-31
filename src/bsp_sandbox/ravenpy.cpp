@@ -95,17 +95,16 @@ public:
 
 	void set_start(py::object vec);
 	void set_start_sigma(py::object mat);
-	void set_goal_trans(py::object tf);
+	void set_goal_trans(py::object tf_L, py::object tf_R);
 	void set_T(int T);
 
-	void set_sigma_pts_scale(double scale);
 	void set_insertion_factor(double factor);
 
 	void set_controls(py::list list_of_vec);
 	py::list get_controls();
 
-	void set_manip_name(const string& manip_name);
-	void set_link_name(const string& link_name);
+	void set_manip_name(const string& manip_name_L, const string& manip_name_R);
+	void set_link_name(const string& link_name_L, const string& link_name_R);
 
 	void set_sim_plotting(bool sim_plotting);
 	void set_stage_plotting(bool stage_plotting);
@@ -150,25 +149,25 @@ py::list PyRavenBSPWrapper::get_controls() {
 	return l;
 }
 
-void PyRavenBSPWrapper::set_goal_trans(py::object tf) {
-	wrapper->goal_trans = toEigen<Matrix4d>(tf);
+void PyRavenBSPWrapper::set_goal_trans(py::object tf_L, py::object tf_R) {
+	wrapper->goal_trans_L = toEigen<Matrix4d>(tf_L);
+	wrapper->goal_trans_R = toEigen<Matrix4d>(tf_R);
 }
 void PyRavenBSPWrapper::set_T(int T) {
 	wrapper->T = T;
-}
-void PyRavenBSPWrapper::set_sigma_pts_scale(double scale) {
-	wrapper->sigma_pts_scale = scale;
 }
 void PyRavenBSPWrapper::set_insertion_factor(double factor) {
 	wrapper->insertion_factor = factor;
 }
 
-void PyRavenBSPWrapper::set_manip_name(const string& manip_name) {
-	wrapper->manip_name = manip_name;
+void PyRavenBSPWrapper::set_manip_name(const string& manip_name_L, const string& manip_name_R) {
+	wrapper->manip_name_L = manip_name_L;
+	wrapper->manip_name_R = manip_name_R;
 }
 
-void PyRavenBSPWrapper::set_link_name(const string& link_name) {
-	wrapper->link_name = link_name;
+void PyRavenBSPWrapper::set_link_name(const string& link_name_L, const string& link_name_R) {
+	wrapper->link_name_L = link_name_L;
+	wrapper->link_name_L = link_name_R;
 }
 
 void PyRavenBSPWrapper::set_sim_plotting(bool sim_plotting) {

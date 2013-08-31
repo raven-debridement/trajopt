@@ -2,6 +2,7 @@
 #include "raven.hpp"
 #include "raven_forward_kinematics.hpp"
 #include "sco/sco_fwd.hpp"
+#include <array>
 
 using namespace std;
 using namespace OpenRAVE;
@@ -14,8 +15,8 @@ namespace RavenBSP {
     return vector<T>(arr.begin(), arr.end());
   }
 
-  vector<Vector6d> get_initial_trajectory(const string& data_dir, int T) {
-    vector<Vector6d> ret;
+  vector<Vector12d> get_initial_trajectory(const string& data_dir, int T) {
+    vector<Vector12d> ret;
     ifstream traj_file(data_dir + "/raven_traj.txt", ifstream::in);
     if (!traj_file.is_open()) {
       cout << "error while loading initial trajectory!" << endl;
@@ -23,7 +24,7 @@ namespace RavenBSP {
       exit(1);
     }
     for (int i = 0; i <= T; ++i) {
-      Vector6d cur_traj;
+      Vector12d cur_traj;
       for (int j = 0; j < 6; ++j) {
         traj_file >> cur_traj(j);
       }
@@ -32,10 +33,10 @@ namespace RavenBSP {
     return ret;
   }
 
-  deque<Vector6d> get_initial_controls(const vector<Vector6d>& initial_trajectory) {
-    deque<Vector6d> ret;
+  deque<Vector12d> get_initial_controls(const vector<Vector12d>& initial_trajectory) {
+    deque<Vector12d> ret;
     for (int i = 0; i < (int)initial_trajectory.size() - 1; ++i) {
-      Vector6d vec;
+      Vector12d vec;
       vec << 0, 0, 0, 0, 0, 0;
       ret.push_back(vec);
       //ret.push_back(initial_trajectory[i+1] - initial_trajectory[i]);
@@ -43,9 +44,15 @@ namespace RavenBSP {
     return ret;
   }
 
-  void initialize_robot(RobotBasePtr robot, std::string manip_name, const Vector6d& start) {
-	  robot->SetActiveManipulator(manip_name);
-	  robot->SetDOFValues(toDblVec(start),0,robot->GetActiveManipulator()->GetArmIndices());
+  void initialize_robot(RobotBasePtr robot, const Vector12d& start) {
+	  Matrix<int, 12, 1> indv;
+	  indv << 2,  3,  4,  5,  6,  7, 15, 16, 17, 18, 19, 20;
+	  std::vector<int> inds;
+	  for (int i=0;i<12;i++) {
+		  inds.push_back(indv(i));
+	  }
+	  robot->SetActiveDOFs(inds);
+	  robot->SetActiveDOFValues(toDblVec(start));
   }
 
   void initialize_viewer(OSGViewerPtr viewer) {
@@ -78,22 +85,21 @@ namespace RavenBSP {
     BSPPlanner<RavenBSPProblemHelper>::initialize();
     helper->robot = robot;
     helper->rad = rad;
-    helper->link = link;
-    helper->goal_trans = goal_trans;
+    helper->link_L = link_L;
+    helper->link_R = link_R;
+    helper->goal_trans_L = goal_trans_L;
+    helper->goal_trans_R = goal_trans_R;
     vector<double> lbs, ubs;
     rad->GetDOFLimits(lbs, ubs);
     helper->set_state_bounds(lbs, ubs);
-
-    helper->sigma_pts_scale = sigma_pts_scale;
-    helper->sigma_pts_scale_vec = sigma_pts_scale_vec;
   }
 
   RavenBSPProblemHelper::RavenBSPProblemHelper() : BSPProblemHelper<RavenBeliefFunc>() {
 
-    set_state_dim(6); //TODO: 6
-    set_sigma_dof(21); //TODO: 21
-    set_observe_dim(6); //TODO: 6 + 6
-    set_control_dim(6); //TODO: 6
+    set_state_dim(12); //TODO: 6
+    set_sigma_dof(78); //TODO: 21
+    set_observe_dim(12); //TODO: 6 + 6
+    set_control_dim(12); //TODO: 6
 
     set_control_bounds( vector<double>(6, -0.3), vector<double>(6, 0.3) );
 
@@ -104,15 +110,21 @@ namespace RavenBSP {
 
   void RavenBSPProblemHelper::add_goal_constraint(OptProb& prob) {
     VectorXd coeffs(6); coeffs << 1, 1, 1, 1, 1, 1;
-    VectorOfVectorPtr f(new CartPoseErrCalculator(matrixToTransform(goal_trans), rad, link));
-    prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, state_vars.row(T), coeffs, EQ, "goal")));
+    {
+    	VectorOfVectorPtr f(new CartPoseErrCalculator(matrixToTransform(goal_trans_L), rad, link_L));
+    	prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, state_vars.row(T), coeffs, EQ, "goal_L")));
+    }
+    {
+    	VectorOfVectorPtr f(new CartPoseErrCalculator(matrixToTransform(goal_trans_R), rad, link_R));
+    	prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, state_vars.row(T), coeffs, EQ, "goal_R")));
+    }
   }
 
   void RavenBSPProblemHelper::add_collision_term(OptProb& prob) {
     for (int i = 0; i <= T; ++i) {
     //for (int i = 0; i < T; ++i) {
       //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<RavenBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
-      prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_func, link)));
+      prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_func, link_L)));
       //prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
@@ -126,8 +138,6 @@ namespace RavenBSP {
 
   void RavenBSPProblemHelper::initialize() {
     BSPProblemHelper<RavenBeliefFunc>::initialize();
-    this->belief_func->sigma_pts_scale = sigma_pts_scale;
-    this->belief_func->sigma_pts_scale_vec = sigma_pts_scale_vec;
   }
 
   RavenStateFunc::RavenStateFunc() : StateFunc<StateT, ControlT, StateNoiseT>() {}
@@ -170,7 +180,7 @@ namespace RavenBSP {
 
 using namespace RavenBSP;
 
-RavenBSPWrapper::RavenBSPWrapper() : manip_name("arm"), link_name("wam7"), sigma_pts_scale(2), insertion_factor(0.1) {
+RavenBSPWrapper::RavenBSPWrapper() : manip_name_L("left_arm"), manip_name_R("right_arm"), link_name_L("tool_L"), link_name_R("tool_R"), insertion_factor(0.1) {
 }
 
 void RavenBSPWrapper::setEnvironment(const EnvironmentBasePtr& env) {
@@ -190,15 +200,14 @@ void RavenBSPWrapper::initialize() {
 
 	planner->start = start;
 	planner->start_sigma = start_sigma;
-	planner->goal_trans = goal_trans;
+	planner->goal_trans_R = goal_trans_L;
+	planner->goal_trans_R = goal_trans_R;
 	planner->T = T;
-	planner->sigma_pts_scale = 0;
-	planner->sigma_pts_scale_vec = sigma_pts_scale * StateT::Ones();
-	planner->sigma_pts_scale_vec(2) *= insertion_factor;
 	planner->controls = controls;
 	planner->robot = robot;
-	planner->rad = RADFromName(manip_name, robot);
-	planner->link = planner->rad->GetRobot()->GetLink(link_name);
+	planner->rad = RADFromName("active", robot);
+	planner->link_L = planner->rad->GetRobot()->GetLink(link_name_L);
+	planner->link_R = planner->rad->GetRobot()->GetLink(link_name_R);
 	planner->method = BSP::DiscontinuousBeliefSpace;
 	planner->initialize();
 
@@ -257,9 +266,10 @@ int main(int argc, char *argv[]) {
     parser.read(argc, argv, true);
   }
 
-  string manip_name("right_arm");
-  string link_name("tool_R");
-  // note: tool_R is 1cm off in z direction
+  string manip_name_R("right_arm");
+  string link_name_R("tool_R");
+  string manip_name_L("left_arm");
+  string link_name_L("tool_L");
 
   RaveInitialize();
   EnvironmentBasePtr env = RaveCreateEnvironment();
@@ -268,23 +278,66 @@ int main(int argc, char *argv[]) {
   OSGViewerPtr viewer;
   RobotBasePtr robot = GetRobot(*env);
 
-  auto initial_trajectory = get_initial_trajectory(data_dir, T);
+  Vector12d startJoints;
+  startJoints <<
+		  0.35669398307800293,
+		  1.9775397777557373,
+		  -0.14986588060855865,
+		  0.6145784854888916,
+		  -0.14158375561237335,
+		  0.0,
+		  0.7972189784049988,
+		  2.0593690872192383,
+		  -0.14696653187274933,
+		  -3.0865819454193115,
+		  0.6097292304039001,
+		  0.0;
+
+  Vector12d endJoints;
+  endJoints <<
+		  0.7972189784049988,
+		  2.0593690872192383,
+		  -0.14696653187274933,
+		  -3.0865819454193115,
+		  0.6097292304039001,
+		  0.0,
+		  0.35669398307800293,
+		  1.9775397777557373,
+		  -0.14986588060855865,
+		  0.6145784854888916,
+		  -0.14158375561237335,
+		  0.0;
+
+  vector<Vector12d> initial_trajectory;
+  for (int i=0;i< T;i++) {
+	  float factor = ((float) i)/T;
+	  Vector12d value = startJoints + factor * (endJoints-startJoints);
+	  initial_trajectory.push_back(value);
+  }
+
   auto initial_controls = get_initial_controls(initial_trajectory);
 
-  Vector6d start = initial_trajectory[0];
-  Vector6d end = initial_trajectory.back();
-  Matrix6d start_sigma = Matrix6d::Identity() *pow(0.00001,2);
+  Vector12d start = initial_trajectory[0];
+  Vector12d end = initial_trajectory.back();
+  Matrix12d start_sigma = Matrix12d::Identity() *pow(0.00001,2);
+  start_sigma(2,2) *= insertion_factor;
 
-  initialize_robot(robot, manip_name, start);
+  initialize_robot(robot, start);
 
-  OpenRAVE::geometry::RaveTransform<double> rave_start_trans = robot->GetActiveManipulator()->GetEndEffectorTransform();
+  robot->SetActiveManipulator(manip_name_L);
+  OpenRAVE::geometry::RaveTransform<double> rave_start_trans_L = robot->GetActiveManipulator()->GetEndEffectorTransform();
+
+  robot->SetActiveManipulator(manip_name_R);
+  OpenRAVE::geometry::RaveTransform<double> rave_start_trans_R = robot->GetActiveManipulator()->GetEndEffectorTransform();
 
   // set end EE transform
-  OpenRAVE::geometry::RaveTransform<double> rave_goal_trans(rave_start_trans);
-  rave_goal_trans.trans.y += .04;
-  Matrix4d goal_trans = transformToMatrix(rave_goal_trans);
+  OpenRAVE::geometry::RaveTransform<double> rave_goal_trans_L(rave_start_trans_R);
+  Matrix4d goal_trans_L = transformToMatrix(rave_goal_trans_L);
 
-#define RAVEN_CREATE_OBSTACLES
+  OpenRAVE::geometry::RaveTransform<double> rave_goal_trans_R(rave_start_trans_L);
+  Matrix4d goal_trans_R = transformToMatrix(rave_goal_trans_R);
+
+//#define RAVEN_CREATE_OBSTACLES
 #ifdef RAVEN_CREATE_OBSTACLES
   // create box obstacle
   OpenRAVE::geometry::RaveTransform<double> box_trans;
@@ -307,18 +360,15 @@ int main(int argc, char *argv[]) {
 
   planner->start = start;
   planner->start_sigma = start_sigma;
-  planner->goal_trans = goal_trans;
+  planner->goal_trans_L = goal_trans_L;
+  planner->goal_trans_R = goal_trans_R;
   planner->T = T;
-
-  double sigma_scale = 2;
-  planner->sigma_pts_scale = 0;
-  planner->sigma_pts_scale_vec = sigma_scale * StateT::Ones();
-  planner->sigma_pts_scale_vec(2) *= insertion_factor;
 
   planner->controls = initial_controls;
   planner->robot = robot;
-  planner->rad = RADFromName(manip_name, robot);
-  planner->link = planner->rad->GetRobot()->GetLink(link_name);
+  planner->rad = RADFromName("active", robot);
+  planner->link_L = planner->rad->GetRobot()->GetLink(link_name_L);
+  planner->link_R = planner->rad->GetRobot()->GetLink(link_name_R);
   planner->method = BSP::ContinuousBeliefSpace;//BSP::DiscontinuousBeliefSpace;
   planner->initialize();
 
@@ -328,8 +378,13 @@ int main(int argc, char *argv[]) {
     viewer = OSGViewer::GetOrCreate(env);
     initialize_viewer(viewer);
 
+    robot->SetActiveManipulator(manip_name_L);
     handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.05));
-    handles.push_back(viewer->PlotAxes(matrixToTransform(goal_trans),.05));
+    handles.push_back(viewer->PlotAxes(matrixToTransform(goal_trans_L),.05));
+
+//    robot->SetActiveManipulator(manip_name_R);
+//	handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.05));
+//    handles.push_back(viewer->PlotAxes(matrixToTransform(goal_trans_R),.05));
 
     cout << "Initial setup. Press p to continue to BSP" << endl;
     viewer->Idle();
