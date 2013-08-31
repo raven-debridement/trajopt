@@ -436,7 +436,6 @@ void BulletCollisionChecker::RemoveKinBody(const OR::KinBodyPtr& body) {
     CollisionObjectWrapper* cow = GetCow(link.get());
     if (cow) {
       m_world->removeCollisionObject(cow);
-      cout << "removing object: " << cow << endl;
       m_link2cow.erase(link.get());      
     }
     
@@ -489,7 +488,6 @@ void BulletCollisionChecker::AddCastHullShape(btCollisionShape* shape, const btT
     obj->manage(shape);
     //obj->manage(convex_ptr);
     world->addCollisionObject(obj.get(), KinBodyFilter);
-    cout << "adding cast hull shape: " << obj.get() << endl;
     obj->setContactProcessingThreshold(m_contactDistance);
     m_managed_cows.push_back(obj);
   } else if (btCompoundShape* compound = dynamic_cast<btCompoundShape*>(shape)) {

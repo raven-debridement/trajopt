@@ -70,7 +70,6 @@ namespace Needle {
 
   void NeedleProblemHelper::InitOptimizeVariables(OptimizerT& opt) {
     DblVec initVec;
-    cout << "n needles: " << n_needles << endl;
     for (int k = 0; k < n_needles; ++k) {
       NeedleProblemInstancePtr pi = pis[k];
       if (pi->initVec.size() == 0) {
@@ -116,11 +115,6 @@ namespace Needle {
         }
       }
     }
-    cout << "init vector: " << endl;
-    for (int i = 0; i < initVec.size(); ++i) {
-      cout << initVec[i] << " ";
-    }
-    cout << endl;
     opt.initialize(initVec);
   }
 
@@ -382,12 +376,6 @@ namespace Needle {
       for (int i = 0; i < T; ++i) {
         for (int j = 0; j < T; ++j) {
           prob.addConstraint(ConstraintPtr(new CollisionConstraint(collision_dist_pen, collision_coeff, piA->local_configs[i], piA->local_configs[i+1], piB->local_configs[j], piB->local_configs[j+1], piA->twistvars.row(i), piA->twistvars.row(i+1), piB->twistvars.row(j), piB->twistvars.row(j+1))));
-          if (i == 0 && j == 0) {
-            cout << "piA local config 0: " << endl << piA->local_configs[i]->pose << endl;
-            cout << "piA local config 1: " << endl << piA->local_configs[i+1]->pose << endl;
-            cout << "piB local config 0: " << endl << piB->local_configs[j]->pose << endl;
-            cout << "piB local config 1: " << endl << piB->local_configs[j+1]->pose << endl;
-          }
           self_collision_constraints.push_back(prob.getConstraints().back());
         }
       }
@@ -404,7 +392,11 @@ namespace Needle {
     for (int k = 0; k < n_needles; ++k) {
       for (int i=0; i < bodies.size(); ++i) {
         if (std::find(ignored_kinbody_names.begin(), ignored_kinbody_names.end(), bodies[i]->GetName()) != ignored_kinbody_names.end()) {
-          CollisionChecker::GetOrCreate(*env)->ExcludeCollisionPair(*bodies[i]->GetLinks()[0], *robots[k]->GetLinks()[0]);
+          BOOST_FOREACH(const KinBody::LinkPtr& robot_link, robots[k]->GetLinks()) {
+            BOOST_FOREACH(const KinBody::LinkPtr& body_link, bodies[i]->GetLinks()) {
+              CollisionChecker::GetOrCreate(*env)->ExcludeCollisionPair(*body_link, *robot_link);//*bodies[i]->GetLinks()[0], *robots[k]->GetLinks()[0]);
+            }
+          }
         }
       }
     }
