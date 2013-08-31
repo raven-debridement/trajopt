@@ -37,7 +37,7 @@ namespace RavenBSP {
     deque<Vector12d> ret;
     for (int i = 0; i < (int)initial_trajectory.size() - 1; ++i) {
       Vector12d vec;
-      vec << 0, 0, 0, 0, 0, 0;
+      vec << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
       ret.push_back(vec);
       //ret.push_back(initial_trajectory[i+1] - initial_trajectory[i]);
     }
@@ -101,7 +101,7 @@ namespace RavenBSP {
     set_observe_dim(12); //TODO: 6 + 6
     set_control_dim(12); //TODO: 6
 
-    set_control_bounds( vector<double>(6, -0.3), vector<double>(6, 0.3) );
+    set_control_bounds( vector<double>(12, -0.3), vector<double>(12, 0.3) );
 
     set_variance_cost(VarianceT::Identity(state_dim, state_dim) * sqrt(10));
     set_final_variance_cost(VarianceT::Identity(state_dim, state_dim) * sqrt(10));

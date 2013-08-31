@@ -348,7 +348,7 @@ namespace BSP {
       }
       StateCostT S = C;
       for (int i = T - 1; i >= 0; --i) {
-        (*feedback_matrices)[i] = -(B[i+1].transpose()*S*B[i+1] + D).inverse() * B[i+1].transpose()*S*A[i+1];
+        (*feedback_matrices)[i] = -((ControlCostT) (B[i+1].transpose()*S*B[i+1] + D).inverse()) * B[i+1].transpose()*S*A[i+1];
         S = C + A[i+1].transpose()*S*A[i+1] + A[i+1].transpose()*S*B[i+1]*(*feedback_matrices)[i];
       }
     }
