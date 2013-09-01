@@ -43,3 +43,4 @@ callgrind.*
 .*.swm
 .*.swp
 .*.swn
+benchmarks/needle_steering/scaleobj/scaleobj

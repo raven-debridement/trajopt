@@ -27,6 +27,37 @@ namespace Needle {
     return ret;
   }
 
+  VectorXd NeedleProblemInstance::GetSolutionWithoutFirstTimestep(const VectorXd& sol, int T) {
+    VectorXd ret;
+    int offset = 0;
+    offset += 6;
+    for (int i = 1; i < local_configs.size(); ++i) {
+      ret = concat(ret, sol.middleRows(offset, 6));
+      offset += 6;
+    }
+    if (twistvars.size()) {
+      ret = concat(ret, sol.middleRows(offset + 1, twistvars.size() - 1));
+      offset += twistvars.size();
+    }
+    if (phivars.size()) {
+      ret = concat(ret, sol.middleRows(offset + 1, phivars.size() - 1));
+      offset += phivars.size();
+    }
+    if (curvature_or_radius_vars.size()) {
+      ret = concat(ret, sol.middleRows(offset + 1, curvature_or_radius_vars.size() - 1));
+      offset += curvature_or_radius_vars.size();
+    }
+    if (Deltavars.size()) {
+      ret = concat(ret, sol.middleRows(offset + 1, Deltavars.size() - 1));
+      offset += Deltavars.size();
+    }
+    if (Deltavar.var_rep) {
+      ret = concat(ret, sol.middleRows(offset, 1));
+      offset += 1;
+    } 
+    return ret;
+  }
+
   void NeedleProblemInstance::SetSolution(const VectorXd& sol, OptimizerT& opt) {
     int offset = 0;
     DblVec& x = opt.x();

@@ -40,6 +40,7 @@ namespace Needle {
       NeedleProblemInstancePtr pi(new NeedleProblemInstance());
       pi->start = starts[i];
       pi->goal = goals[i];
+      pi->T = Ts[i];
       CreateVariables(prob, pi);
       InitLocalConfigurations(this->robots[i], prob, pi);
       InitTrajectory(prob, pi);
@@ -74,13 +75,13 @@ namespace Needle {
       NeedleProblemInstancePtr pi = pis[k];
       if (pi->initVec.size() == 0) {
         // Initialize twistvars
-        for (int i = 0; i <= T; ++i) {
+        for (int i = 0; i <= pi->T; ++i) {
           for (int j = 0; j < n_dof; ++j) {
             pi->initVec.push_back(0.);
           }
         }
         // Initialize phivars
-        for (int i = 0; i < T; ++i) {
+        for (int i = 0; i < pi->T; ++i) {
           pi->initVec.push_back(0.);
         }
         switch (speed_formulation) {
@@ -89,7 +90,7 @@ namespace Needle {
             pi->initVec.push_back(pi->Delta_lb);
             break;
           case VariableSpeed:
-            for (int i = 0; i < T; ++i) {
+            for (int i = 0; i < pi->T; ++i) {
               pi->initVec.push_back(pi->Delta_lb);
             }
             break;
@@ -97,7 +98,7 @@ namespace Needle {
         }
         // Initialize time frame radii
         if (curvature_constraint == BoundedRadius) {
-          for (int i = 0; i < T; ++i) {
+          for (int i = 0; i < pi->T; ++i) {
             switch (curvature_formulation) {
               case UseCurvature:
                 pi->initVec.push_back(1.0 / r_min);
@@ -206,7 +207,7 @@ namespace Needle {
         // execute the control input to set local configuration poses
         for (int i = 0; i < n_needles; ++i) {
           pis[i]->local_configs[0]->pose = expUp(pis[i]->start);
-          for (int j = 0; j < T; ++j) {
+          for (int j = 0; j < pis[i]->T; ++j) {
             double phi = GetPhi(x, j, pis[i]);
             double Delta = GetDelta(x, j, pis[i]);
             double curvature_or_radius = GetCurvatureOrRadius(x, j, pis[i]);
@@ -236,16 +237,16 @@ namespace Needle {
 
   void NeedleProblemHelper::CreateVariables(OptProb& prob, NeedleProblemInstancePtr pi) {
     // Time frame varies from 0 to T instead of from 0 to T-1
-    AddVarArray(prob, T+1, n_dof, "twist", pi->twistvars);
-    AddVarArray(prob, T, 1, -PI, PI, "phi", pi->phivars);
-    pi->Delta_lb = (pi->goal.topRows(3) - pi->start.topRows(3)).norm() / T / r_min;
+    AddVarArray(prob, pi->T+1, n_dof, "twist", pi->twistvars);
+    AddVarArray(prob, pi->T, 1, -PI, PI, "phi", pi->phivars);
+    pi->Delta_lb = (pi->goal.topRows(3) - pi->start.topRows(3)).norm() / pi->T / r_min;
     switch (speed_formulation) {
       case ConstantSpeed:
         pi->Deltavar = prob.createVariables(singleton<string>("Delta"), singleton<double>(pi->Delta_lb),singleton<double>(INFINITY))[0];
         break;
       case VariableSpeed:
         //AddVarArray(prob, T, 1, Delta_lb * 0.5, INFINITY, "speed", Deltavars); // TODO should we have a resonable upper bound for this?
-        AddVarArray(prob, T, 1, pi->Delta_lb*0.5, INFINITY, "speed", pi->Deltavars); // TODO should we have a resonable upper bound for this?
+        AddVarArray(prob, pi->T, 1, pi->Delta_lb*0.5, INFINITY, "speed", pi->Deltavars); // TODO should we have a resonable upper bound for this?
         //AddVarArray(prob, T, 1, Delta_lb*2, INFINITY, "speed", Deltavars); // TODO should we have a resonable upper bound for this?
         break;
       SWITCH_DEFAULT;
@@ -255,10 +256,10 @@ namespace Needle {
     if (curvature_constraint == BoundedRadius) {
       switch (curvature_formulation) {
         case UseCurvature:
-          AddVarArray(prob, T, 1, 0.01, 1. / r_min, "curvature", pi->curvature_or_radius_vars);
+          AddVarArray(prob, pi->T, 1, 0.01, 1. / r_min, "curvature", pi->curvature_or_radius_vars);
           break;
         case UseRadius:
-          AddVarArray(prob, T, 1, r_min, 100.0, "radius", pi->curvature_or_radius_vars);
+          AddVarArray(prob, pi->T, 1, r_min, 100.0, "radius", pi->curvature_or_radius_vars);
           break;
         SWITCH_DEFAULT;
       }
@@ -266,17 +267,17 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::InitLocalConfigurations(const KinBodyPtr robot, OptProb& prob, NeedleProblemInstancePtr pi) {
-    for (int i = 0; i <= T; ++i) {
+    for (int i = 0; i <= pi->T; ++i) {
       pi->local_configs.push_back(LocalConfigurationPtr(new LocalConfiguration(robot)));
     }
   }
 
   void NeedleProblemHelper::InitTrajectory(OptProb& prob, NeedleProblemInstancePtr pi) {
-    MatrixXd initTraj(T+1, n_dof);
+    MatrixXd initTraj(pi->T+1, n_dof);
     for (int idof = 0; idof < n_dof; ++idof) {
-      initTraj.col(idof) = VectorXd::LinSpaced(T+1, pi->start[idof], pi->goal[idof]);
+      initTraj.col(idof) = VectorXd::LinSpaced(pi->T+1, pi->start[idof], pi->goal[idof]);
     }
-    for (int i = 0; i <= T; ++i) {
+    for (int i = 0; i <= pi->T; ++i) {
       pi->local_configs[i]->pose = expUp(initTraj.row(i));
     }
   }
@@ -290,8 +291,8 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::AddGoalConstraint(OptProb& prob, NeedleProblemInstancePtr pi) {
-    VarVector vars = pi->twistvars.row(T);
-    VectorOfVectorPtr f(new Needle::PositionError(pi->local_configs[T], pi->goal, shared_from_this()));
+    VarVector vars = pi->twistvars.row(pi->T);
+    VectorOfVectorPtr f(new Needle::PositionError(pi->local_configs[pi->T], pi->goal, shared_from_this()));
     Vector6d coeffs; 
     if (goal_orientation_constraint) {
       coeffs << 1., 1., 1., this->coeff_orientation_error, this->coeff_orientation_error, this->coeff_orientation_error;
@@ -311,7 +312,7 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::AddControlConstraint(OptProb& prob, NeedleProblemInstancePtr pi) {
-    for (int i = 0; i < T; ++i) {
+    for (int i = 0; i < pi->T; ++i) {
       VarVector vars = concat(concat(pi->twistvars.row(i), pi->twistvars.row(i+1)), pi->phivars.row(i));
       switch (speed_formulation) {
         case ConstantSpeed:
@@ -334,7 +335,7 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::AddPoseConstraint(OptProb& prob, NeedleProblemInstancePtr pi) {
-    for (int i = 0; i < T; ++i) {
+    for (int i = 0; i < pi->T; ++i) {
       VarVector vars = concat(pi->twistvars.row(i), pi->twistvars.row(i+1));
       switch (speed_formulation) {
         case ConstantSpeed:
@@ -359,12 +360,12 @@ namespace Needle {
 
   void NeedleProblemHelper::AddCollisionConstraint(OptProb& prob, NeedleProblemInstancePtr pi) {
     if (continuous_collision) {
-      for (int i = 0; i < T; ++i) {
+      for (int i = 0; i < pi->T; ++i) {
         prob.addConstraint(ConstraintPtr(new CollisionConstraint(collision_dist_pen, collision_coeff, pi->local_configs[i], pi->local_configs[i+1], pi->twistvars.row(i), pi->twistvars.row(i+1))));
         pi->collision_constraints.push_back(prob.getConstraints().back());
       }
     } else {
-      for (int i = 0; i <= T; ++i) {
+      for (int i = 0; i <= pi->T; ++i) {
         prob.addConstraint(ConstraintPtr(new CollisionConstraint(collision_dist_pen, collision_coeff, pi->local_configs[i], pi->twistvars.row(i))));
         pi->collision_constraints.push_back(prob.getConstraints().back());
       }
@@ -373,8 +374,8 @@ namespace Needle {
 
   void NeedleProblemHelper::AddSelfCollisionConstraint(OptProb& prob, NeedleProblemInstancePtr piA, NeedleProblemInstancePtr piB) {
     if (continuous_collision) {
-      for (int i = 0; i < T; ++i) {
-        for (int j = 0; j < T; ++j) {
+      for (int i = 0; i < piA->T; ++i) {
+        for (int j = 0; j < piB->T; ++j) {
           prob.addConstraint(ConstraintPtr(new CollisionConstraint(collision_dist_pen, collision_coeff, piA->local_configs[i], piA->local_configs[i+1], piB->local_configs[j], piB->local_configs[j+1], piA->twistvars.row(i), piA->twistvars.row(i+1), piB->twistvars.row(j), piB->twistvars.row(j+1))));
           self_collision_constraints.push_back(prob.getConstraints().back());
         }
@@ -403,7 +404,6 @@ namespace Needle {
   }
 
   void NeedleProblemHelper::InitParameters() {
-    this->T = 25;
     this->r_min = 2.98119536;
     this->n_dof = 6;
 
@@ -443,7 +443,7 @@ namespace Needle {
     Clear();
     InitParameters();
     Config config;
-    config.add(new Parameter<int>("T", &this->T, "T"));
+    //config.add(new Parameter<int>("T", &this->T, "T"));
     config.add(new Parameter<int>("formulation", &this->formulation, "formulation"));
     config.add(new Parameter<int>("curvature_constraint", &this->curvature_constraint, "curvature_constraint"));
     config.add(new Parameter<int>("method", &this->method, "method"));
@@ -500,7 +500,7 @@ namespace Needle {
     DblVec x = opt.x();
     MatrixXd twistvals = getTraj(x, pi->twistvars);
     boost::shared_ptr<BulletCollisionChecker> cc = boost::dynamic_pointer_cast<BulletCollisionChecker>(CollisionChecker::GetOrCreate(*env));
-    for (int i = 0; i < T; ++i) {
+    for (int i = 0; i < pi->T; ++i) {
       vector<KinBody::LinkPtr> links;
       vector<int> inds;
       pi->local_configs[i]->GetAffectedLinks(links, true, inds);
@@ -521,5 +521,17 @@ namespace Needle {
     for (int i = 0; i < n_needles; ++i) {
       pis[i]->SetSolution(sol[i], opt);
     }
+  }
+
+  vector<VectorXd> NeedleProblemHelper::GetSolutionsWithoutFirstTimestep(const vector<VectorXd>& sol) {
+    vector<VectorXd> ret;
+    assert (sol.size() == n_needles);
+    if (this->Ts.front() > 1) {
+      ret.push_back(pis.front()->GetSolutionWithoutFirstTimestep(sol.front()));
+    }
+    for (int i = 1; i < n_needles; ++i) {
+      ret.push_back(sol[i]);
+    }
+    return ret;
   }
 }

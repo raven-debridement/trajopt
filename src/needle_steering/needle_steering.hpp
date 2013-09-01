@@ -21,6 +21,18 @@
 #include <ctime>
 #include <openrave-core.h>
 #include <openrave/openrave.h>
+#include "strtk.hpp"
+
+#include <stdio.h>  /* defines FILENAME_MAX */
+#ifdef WINDOWS
+  #include <direct.h>
+  #define GetCurrentDir _getcwd
+#else
+  #include <unistd.h>
+  #define GetCurrentDir getcwd
+#endif
+
+
 
 //#define NEEDLE_TEST
 //#define USE_CURVATURE
@@ -46,6 +58,14 @@ namespace Needle {
   //typedef LineSearchSQP OptimizerT;
 
   inline double bound_inf(double result, double bound);
+
+  inline string get_current_directory() {
+    char cCurrentPath[FILENAME_MAX];
+    if (!GetCurrentDir(cCurrentPath, sizeof(cCurrentPath))) {
+      throw std::runtime_error("cannot get current path");
+    }
+    return string(cCurrentPath);
+  }
 
   void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<double>& lbs, const vector<double>& ubs, const vector<string>& name_prefix, const vector<VarArray*>& newvars);
   void AddVarArrays(OptProb& prob, int rows, const vector<int>& cols, const vector<string>& name_prefix, const vector<VarArray*>& newvars);
@@ -198,6 +218,7 @@ namespace Needle {
     vector<ConstraintPtr> dynamics_constraints;
     vector<ConstraintPtr> collision_constraints;
     DblVec initVec;
+    int T;
 
     VectorXd GetSolution(OptimizerT& opt);
     void SetSolution(const VectorXd& sol, OptimizerT& opt);
@@ -227,7 +248,7 @@ namespace Needle {
     double merit_error_coeff;
     int max_merit_coeff_increases;
     bool record_trust_region_history;
-    int T;
+    vector<int> Ts;
     int n_dof;
     int formulation;
     int curvature_constraint;
@@ -294,6 +315,25 @@ namespace Needle {
     #ifdef NEEDLE_TEST
     void checkAlignment(DblVec& x);
     #endif
+  };
+
+  struct NeedleProblemPlanner {
+    int argc;
+    char **argv;
+    int n_needles;
+    vector<int> Ts;
+    NeedleProblemHelperPtr helper;
+    vector<Vector6d> starts;
+    vector<Vector6d> goals;
+
+    NeedleProblemPlanner(int argc, char **argv);
+    ~NeedleProblemPlanner();
+    //vector<VectorXd> Solve(const vector<VectorXd>& initial = vector<VectorXd>() );
+    //vector<VectorXd> GetSolutionWithoutFirstTimestep(const vector<VectorXd>& sol);
+    DblVec Solve(const DblVec& x);
+    vector<Vector6d> SimulateExecution(const DblVec& x);//const vector<VectorXd>& sol);
+    DblVec InitializeSolutionWithoutFirstTimestepAndSolve(const DblVec& x);
+    bool Finished() const;
   };
 
   struct TrajPlotter {
