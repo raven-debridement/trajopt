@@ -95,8 +95,10 @@ public:
 
 	void set_start(py::object vec);
 	void set_start_sigma(py::object mat);
-	void set_goal_pose(py::object tf);
+	void set_goal_pose(py::object pose);
 	void set_T(int T);
+
+	void set_camera_pose(py::object pose);
 
 	void set_insertion_factor(double factor);
 
@@ -149,11 +151,14 @@ py::list PyRavenBSPWrapper::get_controls() {
 	return l;
 }
 
-void PyRavenBSPWrapper::set_goal_pose(py::object tf) {
-	wrapper->goal_pose = toEigen<Matrix4d>(tf);
+void PyRavenBSPWrapper::set_goal_pose(py::object pose) {
+	wrapper->goal_pose = toEigen<Matrix4d>(pose);
 }
 void PyRavenBSPWrapper::set_T(int T) {
 	wrapper->T = T;
+}
+void PyRavenBSPWrapper::set_camera_pose(py::object pose) {
+	wrapper->camera_pose = toEigen<Matrix4d>(pose);
 }
 void PyRavenBSPWrapper::set_insertion_factor(double factor) {
 	wrapper->insertion_factor = factor;

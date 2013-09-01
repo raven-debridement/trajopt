@@ -22,8 +22,8 @@ namespace RavenBSP {
       6, // state_dim
       6, // state_noise_dim
       6, // control_dim
-      6, // observe_dim
-      6, // observe_noise_dim
+      12, // observe_dim
+      12, // observe_noise_dim
       21, // sigma_dof
       27 // belief_dim
   );
@@ -54,7 +54,8 @@ namespace RavenBSP {
     RavenBSPProblemHelperPtr problem_helper;
     RavenObserveFunc();
     RavenObserveFunc(BSPProblemHelperBasePtr helper);
-    ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
+    virtual ObserveT operator()(const StateT& x, const ObserveNoiseT& n) const;
+//    virtual ObserveT observation_masks(const StateT& x, double approx_factor=-1) const;
   };
 
   class RavenBeliefFunc : public EkfBeliefFunc<RavenStateFunc, RavenObserveFunc, BeliefT> {
@@ -79,6 +80,8 @@ namespace RavenBSP {
     KinBody::LinkPtr link;
     Matrix4d goal_pose;
 
+    double insertion_factor;
+
     Matrix4d camera_pose;
   };
 
@@ -92,8 +95,7 @@ namespace RavenBSP {
     Matrix4d goal_pose;
     KinBody::LinkPtr link;
 
-    double sigma_pts_scale;
-    RavenBSP::StateT sigma_pts_scale_vec;
+    double insertion_factor;
 
     Matrix4d camera_pose;
   };

@@ -2,6 +2,7 @@
 #include "raven.hpp"
 #include "raven_forward_kinematics.hpp"
 #include "sco/sco_fwd.hpp"
+#include "tb_angles.h"
 
 using namespace std;
 using namespace OpenRAVE;
@@ -80,6 +81,7 @@ void RavenBSPPlanner::initialize() {
 	helper->rad = rad;
 	helper->link = link;
 	helper->goal_pose = goal_pose;
+	helper->insertion_factor = insertion_factor;
 	vector<double> lbs, ubs;
 	rad->GetDOFLimits(lbs, ubs);
 	helper->set_state_bounds(lbs, ubs);
@@ -132,7 +134,9 @@ RavenStateFunc::RavenStateFunc(BSPProblemHelperBasePtr helper) :
                             		StateFunc<StateT, ControlT, StateNoiseT>(helper), problem_helper(boost::static_pointer_cast<RavenBSPProblemHelper>(helper)) {}
 
 StateT RavenStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-	return x + u + 0.01 * m;
+	StateNoiseT adj_noise = 0.01 * m;
+	adj_noise(2) *= problem_helper->insertion_factor;
+	return x + u + adj_noise;
 }
 
 RavenObserveFunc::RavenObserveFunc() : ObserveFunc<StateT, ObserveT, ObserveNoiseT>() {}
@@ -141,24 +145,48 @@ RavenObserveFunc::RavenObserveFunc(BSPProblemHelperBasePtr helper) :
             		  ObserveFunc<StateT, ObserveT, ObserveNoiseT>(helper), problem_helper(boost::static_pointer_cast<RavenBSPProblemHelper>(helper)) {}
 
 ObserveT RavenObserveFunc::operator()(const StateT& x, const ObserveNoiseT& n) const {
-	Matrix4d tool_pose = forward_kinematics(x,GREEN_ARM_ID);
-	Vector3d tool_z = tool_pose.topLeftCorner<3,3>() * Vector3d(0,0,1);
-	Vector3d camera_z = problem_helper->camera_pose.topLeftCorner<3,3>() * Vector3d(0,0,1);
-	double angle = acos(tool_z.dot(camera_z));
-	//TODO: important update
-	/*
-    ObserveT ret(observe_dim);
-    Vector3d trans(0,0,1); //forward_kinematics(x);
-    Vector3d beacon(-1.0, 0.0, 0.5);
-    double dist = 3.0 * (trans(0) - beacon(0)) * (trans(0) - beacon(0));
-    ret(0) = 1.0 / (1.0 + dist) + 0.1 * n(0);
-    ret(1) = x(0) + 0.01 * n(1);
-    ret(2) = x(3) + 0.01 * n(2);*/
+	btTransform tool_pose_bt = forward_kinematics(x,GREEN_ARM_ID);
+	tfx::tb_angles tool_rot(tool_pose_bt);
+	Matrix4d tool_pose = btToMat(tool_pose_bt);
 	ObserveT ret(observe_dim);
-	ret = x + 0.01*n;
+	//TODO: scale insertion noise separately
+	ret.head<6>() = x + 0.01*n.head<6>();
+	ret(2) = x(2) + problem_helper->insertion_factor * 0.01 * n(2);
+	//TODO: scale position noise according to position relative to camera
+	for (int i=0;i<3;i++) {
+		ret(6+i) = tool_pose(0+i,3) + 0.01 * n(6+i);
+	}
+	//TODO: more sensible rotation noise? angle-axis?
+	ret(9) = tool_rot.yaw_rad + 0.01 * n(9);
+	ret(10) = tool_rot.pitch_rad + 0.01 * n(10);
+	ret(11) = tool_rot.roll_rad + 0.01 * n(11);
 	return ret;
 }
-//TODO: observation_masks, signed distance
+
+//ObserveT RavenObserveFunc::observation_masks(const StateT& x, double approx_factor) const {
+//	btTransform tool_pose_bt = forward_kinematics(x,GREEN_ARM_ID);
+//	tfx::tb_angles tool_rot(tool_pose_bt);
+//	Matrix4d tool_pose = btToMat(tool_pose_bt);
+//	Vector3d tool_z = tool_pose.topLeftCorner<3,3>() * Vector3d(0,0,1);
+//	Vector3d camera_z = problem_helper->camera_pose.topLeftCorner<3,3>() * Vector3d(0,0,1);
+//	double angle = acos(tool_z.dot(camera_z));
+//
+//	ObserveT ret(observe_dim);
+//	ret.head<6>() = VectorXd::Ones(6); //joints always visible thru encoders
+//	ret.segment<3>(6) = VectorXd::Ones(3); //position always assumed to be visible
+//
+//	double max_angle = 30 DEG2RAD;
+//	if (approx_factor < 0) {
+//		if (angle < max_angle) {
+//			ret.segment<3>(9) = VectorXd::Ones(3);
+//		} else {
+//			ret.segment<3>(9) = VectorXd::Zero(3);
+//		}
+//	} else {
+//		double dist = angle - max_angle;
+//		ret.segment<3>(9) = VectorXd::Ones(3) * (1 - sigmoid(approx_factor * dist));
+//	}
+//}
 
 RavenBeliefFunc::RavenBeliefFunc() : EkfBeliefFunc<RavenStateFunc, RavenObserveFunc, BeliefT>() {}
 
@@ -192,6 +220,7 @@ void RavenBSPWrapper::initialize() {
 	planner->start_sigma = start_sigma;
 	planner->goal_pose = goal_pose;
 	planner->T = T;
+	planner->insertion_factor = insertion_factor;
 	planner->controls = controls;
 	planner->robot = robot;
 	planner->rad = RADFromName(manip_name, robot);
@@ -241,7 +270,7 @@ int main(int argc, char *argv[]) {
 	bool first_step_only = false;
 	double insertion_factor = 0.1;
 
-	string data_dir = get_current_directory(argv) + "/data";
+	string data_dir = get_current_directory(argv) + "/../../ravenbsp/data";
 
 	{
 		Config config;
@@ -271,6 +300,7 @@ int main(int argc, char *argv[]) {
 	Vector6d start = initial_trajectory[0];
 	Vector6d end = initial_trajectory.back();
 	Matrix6d start_sigma = Matrix6d::Identity() *pow(0.00001,2);
+	start_sigma(2) *= insertion_factor;
 
 	initialize_robot(robot, manip_name, start);
 
@@ -306,6 +336,8 @@ int main(int argc, char *argv[]) {
 	planner->start_sigma = start_sigma;
 	planner->goal_pose = goal_pose;
 	planner->T = T;
+
+	planner->insertion_factor = insertion_factor;
 
 	planner->controls = initial_controls;
 	planner->robot = robot;

@@ -134,13 +134,11 @@ const btTransform Tg(btMatrix3x3::getIdentity(),btVector3(0.01,0,0));
 #define Tw2y(armId,ths,the,thr,d,thp,thy) btTransform(actual_world_to_ik_world(armId) * Tw2b * Zs(ths) * Xu * Ze(the) * Xf * Zr(thr) * Zi(d) * Xip * Zp(thp) * Xpy * Zy(thy))
 
 inline btTransform actual_world_to_ik_world(int armId) {
+	btTransform world_to_zero_link(btQuaternion(0.0, 0.0, 0.7071067811865476, 0.7071067811865475),btVector3(0.211, -0.25071, 0.235));
 	if (armId == GOLD_ARM_ID) {
-		return btTransform(btMatrix3x3(0,1,0, -1,0,0, 0,0,1));
+		return world_to_zero_link * btTransform(btMatrix3x3(0,1,0, -1,0,0, 0,0,1));
 	} else {
-		//printf("GREEN ARM KINEMATICS NOT IMPLEMENTED\n");
-		//return btTransform(btMatrix3x3(0,-1,0,1,0,0, 0,0,1),btVector3(-.2, 0, 0));-0.14858,0.002,0
-		return btTransform(btMatrix3x3(0,-1,0,1,0,0, 0,0,1),btVector3(-0.14858,0.002,0));
-		//return btTransform(btMatrix3x3(0,1,0, -1,0,0, 0,0,1)) * GREEN_ARM_BASE_POSE;
+		return world_to_zero_link * btTransform(btMatrix3x3(0,-1,0,1,0,0, 0,0,1),btVector3(-0.14858,0.002,0));
 	}
 }
 
@@ -203,7 +201,7 @@ inline btTransform ik_world_to_actual_world(int armId) {
 #define CABLE_COUPLING_71 ( TRANSMISSION_PULLEY_RADIUS_SMALL  / CAPSTAN_TOOL_RADIUS * FINAL_RATIO_7 )
 
 namespace RavenBSP {
-Matrix4d forward_kinematics(const StateT& state, int armId) {
+btTransform forward_kinematics(const StateT& state, int armId) {
 	int offset = 0; //armId == GOLD_ARM_ID ? 0 : 6;
 	btTransform tool = actual_world_to_ik_world(armId)
 	  							* Tw2b
@@ -219,12 +217,16 @@ Matrix4d forward_kinematics(const StateT& state, int armId) {
 	* Zy(THY_TO_IK(armId,(float)state(5+offset)))
 	* Tg;
 
+	return tool;
+}
+
+Matrix4d btToMat(const btTransform& T) {
 	Matrix4d mat = Matrix4d::Identity();
 	for (int i = 0; i < 3; i++) {
 		for (int j = 0; j < 3; j++) {
-			mat(i,j) = tool.getBasis()[i][j];
+			mat(i,j) = T.getBasis()[i][j];
 		}
-		mat(i,3) = tool.getOrigin()[i];
+		mat(i,3) = T.getOrigin()[i];
 	}
 	return mat;
 }
