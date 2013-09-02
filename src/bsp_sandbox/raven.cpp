@@ -37,9 +37,9 @@ namespace RavenBSP {
     deque<Vector12d> ret;
     for (int i = 0; i < (int)initial_trajectory.size() - 1; ++i) {
       Vector12d vec;
-      vec << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+      //vec << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
       ret.push_back(vec);
-      //ret.push_back(initial_trajectory[i+1] - initial_trajectory[i]);
+      ret.push_back(initial_trajectory[i+1] - initial_trajectory[i]);
     }
     return ret;
   }
@@ -121,14 +121,35 @@ namespace RavenBSP {
   }
 
   void RavenBSPProblemHelper::add_collision_term(OptProb& prob) {
-    for (int i = 0; i <= T; ++i) {
-    //for (int i = 0; i < T; ++i) {
-      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<RavenBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
-      prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_func, link_L)));
-      //prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
-    }
-    BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
-    cc->SetContactDistance(0.001);
+//	  //discrete State space:
+//	  for (int i = 0; i <= T; ++i) {
+//		  prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.001, 1, rad, state_vars.row(i))));
+//	  }
+//	  CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*(rad->GetEnv()));
+//
+//	  //cont. State space:
+//	  for (int i = 0; i < T; ++i) {
+//		  prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.001, 1, rad, state_vars.row(i), state_vars.row(i+1))));
+//	  }
+//	  CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*(rad->GetEnv()));
+//
+//	  //discrete bsp
+//	  for (int i = 0; i <= T; ++i) {
+//		  //for (int i = 0; i < T; ++i) {
+//		  prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_func, link)));
+//	  }
+//	  BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
+
+	  //cont. bsp
+	  for (int i = 0; i < T; ++i) {
+		  prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link_R)));
+		  prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link_L)));
+	  }
+	  BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
+
+	  cc->ExcludeCollisionPair(*(robot->GetLink("grasper1_R")),*(robot->GetLink("grasper2_R")));
+	  cc->ExcludeCollisionPair(*(robot->GetLink("grasper1_L")),*(robot->GetLink("grasper2_L")));
+	  cc->SetContactDistance(0.001);
   }
 
   void RavenBSPProblemHelper::configure_problem(OptProb& prob) {
@@ -146,7 +167,9 @@ namespace RavenBSP {
                             StateFunc<StateT, ControlT, StateNoiseT>(helper), barrett_robot_helper(boost::static_pointer_cast<RavenBSPProblemHelper>(helper)) {}
 
   StateT RavenStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    return x + u + 0.01 * m;
+	  // StateNoiseT adj_noise = 0.01 * m;
+	  // adj_noise(2) *= .01;
+	  return x + u + 0.01 * m;
   }
 
   RavenObserveFunc::RavenObserveFunc() : ObserveFunc<StateT, ObserveT, ObserveNoiseT>() {}
@@ -208,7 +231,7 @@ void RavenBSPWrapper::initialize() {
 	planner->rad = RADFromName("active", robot);
 	planner->link_L = planner->rad->GetRobot()->GetLink(link_name_L);
 	planner->link_R = planner->rad->GetRobot()->GetLink(link_name_R);
-	planner->method = BSP::DiscontinuousBeliefSpace;
+	planner->method = BSP::ContinuousBeliefSpace;
 	planner->initialize();
 
 
@@ -247,11 +270,22 @@ void RavenBSPWrapper::run() {
 
 
 int main(int argc, char *argv[]) {
-  int T = 10;
+  int T = 50;
   bool sim_plotting = false;
   bool stage_plotting = false;
   bool first_step_only = false;
   double insertion_factor = 0.1;
+
+  double box_x = 0.005;
+  double box_y = .005;
+  double box_z = .005;
+
+  double box_trans_x = 0.0;
+  double box_trans_y = 0.0;
+  double box_trans_z = 0.0;
+
+  bool add_box = false;
+  bool add_floor = false;
 
   string data_dir = get_current_directory(argv) + "/data";
 
@@ -262,6 +296,15 @@ int main(int argc, char *argv[]) {
     config.add(new Parameter<bool>("first_step_only", &first_step_only, "first_step_only"));
     config.add(new Parameter<string>("data_dir", &data_dir, "data_dir"));
     config.add(new Parameter<double>("insertion_factor", &insertion_factor, "insertion_factor"));
+    config.add(new Parameter<int>("T", &T, "T"));
+    config.add(new Parameter<double>("box_x", &box_x, "box_x"));
+    config.add(new Parameter<double>("box_y", &box_y, "box_y"));
+    config.add(new Parameter<double>("box_z", &box_z, "box_z"));
+    config.add(new Parameter<double>("box_trans_x", &box_trans_x, "box_trans_x"));
+    config.add(new Parameter<double>("box_trans_y", &box_trans_y, "box_trans_y"));
+    config.add(new Parameter<double>("box_trans_z", &box_trans_z, "box_trans_z"));
+    config.add(new Parameter<bool>("add_box", &add_box, "add_box"));
+    config.add(new Parameter<bool>("add_floor", &add_floor, "add_floor"));
     CommandParser parser(config);
     parser.read(argc, argv, true);
   }
@@ -277,6 +320,7 @@ int main(int argc, char *argv[]) {
   env->Load(data_dir + "/raven.env.xml");
   OSGViewerPtr viewer;
   RobotBasePtr robot = GetRobot(*env);
+
 
   Vector12d startJoints;
   startJoints <<
@@ -308,6 +352,7 @@ int main(int argc, char *argv[]) {
 		  -0.14158375561237335,
 		  0.0;
 
+
   vector<Vector12d> initial_trajectory;
   for (int i=0;i< T;i++) {
 	  float factor = ((float) i)/T;
@@ -337,22 +382,27 @@ int main(int argc, char *argv[]) {
   OpenRAVE::geometry::RaveTransform<double> rave_goal_trans_R(rave_start_trans_L);
   Matrix4d goal_trans_R = transformToMatrix(rave_goal_trans_R);
 
-//#define RAVEN_CREATE_OBSTACLES
+#define RAVEN_CREATE_OBSTACLES
 #ifdef RAVEN_CREATE_OBSTACLES
   // create box obstacle
   OpenRAVE::geometry::RaveTransform<double> box_trans;
   box_trans.identity();
-  box_trans.trans.x = (rave_start_trans.trans.x + rave_goal_trans.trans.x) / 2;
-  box_trans.trans.y = (rave_start_trans.trans.y + rave_goal_trans.trans.y) / 2;
-  box_trans.trans.z = (rave_start_trans.trans.z + rave_goal_trans.trans.z) / 2;
-  Vector3d box_extents(.01,.0025,.02);
-  addOpenraveBox(env,"obstacle_box",box_trans,box_extents);
+  box_trans.trans.x = ((rave_start_trans_R.trans.x + rave_goal_trans_R.trans.x) / 2) + box_trans_x;
+  box_trans.trans.y = ((rave_start_trans_R.trans.y + rave_goal_trans_R.trans.y) / 2) + box_trans_y;
+  box_trans.trans.z = ((rave_start_trans_R.trans.z + rave_goal_trans_R.trans.z) / 2) + box_trans_z;
+  Vector3d box_extents(box_x,box_y,box_z);//Vector3d box_extents(.01,.0025,.015);
+  if (add_box) {
+	  addOpenraveBox(env,"obstacle_box",box_trans,box_extents);
+  }
 
   // create workspace floor
   OpenRAVE::geometry::RaveTransform<double> floor_trans(box_trans);
-  floor_trans.trans.z -= box_extents[2];
+  floor_trans.trans.z -= box_extents[2] + box_z/2.0 - .0025;
   Vector3d floor_extents(.1, .1, .0025);
-  addOpenraveBox(env,"workspace_floor",floor_trans,floor_extents);
+
+  if (add_floor) {
+	  addOpenraveBox(env,"workspace_floor",floor_trans,floor_extents);
+  }
 #endif
 
   RavenBSPPlannerPtr planner(new RavenBSPPlanner());
@@ -369,8 +419,17 @@ int main(int argc, char *argv[]) {
   planner->rad = RADFromName("active", robot);
   planner->link_L = planner->rad->GetRobot()->GetLink(link_name_L);
   planner->link_R = planner->rad->GetRobot()->GetLink(link_name_R);
-  planner->method = BSP::ContinuousBeliefSpace;//BSP::DiscontinuousBeliefSpace;
+  planner->method = BSP::ContinuousBeliefSpace;
   planner->initialize();
+
+  // so not in self-collision. might not need anymore
+  int index = robot->GetJointIndex("grasper_joint_1_R");
+  cout << index << endl;
+  std::vector<int> indices;
+  indices.push_back(index);
+  std::vector<double> values;
+  values.push_back(.5);
+  robot->SetDOFValues(values,0,indices);
 
   vector<GraphHandlePtr> handles;
   boost::function<void(OptProb*, DblVec&)> opt_callback;
@@ -378,9 +437,9 @@ int main(int argc, char *argv[]) {
     viewer = OSGViewer::GetOrCreate(env);
     initialize_viewer(viewer);
 
-    robot->SetActiveManipulator(manip_name_L);
-    handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.05));
-    handles.push_back(viewer->PlotAxes(matrixToTransform(goal_trans_L),.05));
+    //robot->SetActiveManipulator(manip_name_L);
+    //handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.05));
+    //handles.push_back(viewer->PlotAxes(matrixToTransform(goal_trans_L),.05));
 
 //    robot->SetActiveManipulator(manip_name_R);
 //	handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.05));
@@ -406,8 +465,27 @@ int main(int argc, char *argv[]) {
     if (first_step_only) break;
     if (sim_plotting) {
       OpenRAVEPlotterMixin<RavenBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
-      handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.015));
+      //handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.015));
     }
+  }
+
+  robot->SetActiveDOFValues(toDblVec(startJoints));
+  deque<ControlT> controls = planner->controls;
+  std::vector<double> currentJoints;
+  robot->GetActiveDOFValues(currentJoints);
+  viewer = OSGViewer::GetOrCreate(env);
+  initialize_viewer(viewer);
+  for(int i=0; i < controls.size(); i++) {
+	  ControlT control = controls[i];
+	  cout << "control " << i << ": " << control << endl;
+	  cout << "currentJoints: ";
+	  for(int j=0; j < control.size(); j++) {
+		  currentJoints[j] += control[j];
+		  cout << currentJoints[j] << " ";
+	  }
+	  cout << endl;
+	  robot->SetActiveDOFValues(currentJoints);
+	  viewer->Idle();
   }
 
   RaveDestroy();

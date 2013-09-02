@@ -42,7 +42,17 @@ bool CollisionPairIgnorer::CanCollide(const KinBody::Link& link1, const KinBody:
 void CollisionChecker::IgnoreZeroStateSelfCollisions(OpenRAVE::KinBodyPtr body) {
   LOG_DEBUG("IgnoreZeroStateSelfCollisions for %s", body->GetName().c_str());
   KinBody::KinBodyStateSaver saver(body);
-  body->SetDOFValues(DblVec(body->GetDOF(), 0));
+  //body->SetDOFValues(DblVec(body->GetDOF(), 0));
+
+  std::vector<double> startJoints;//(.512, 1.6, -.2, .116, .088, 0, .512, 1.6, -.2, .116, .088, 0);
+  std::vector<int> activeIndices;//(2,  3,  4,  5,  6,  7, 15, 16, 17, 18, 19, 20);
+  int aI[12] = {2,  3,  4,  5,  6,  7, 15, 16, 17, 18, 19, 20};
+  std::vector<int> vI(aI,aI+12);
+  double sJ[12] = {.512, 1.6, -.2, .116, .088, 0, .512, 1.6, -.2, .116, .088, 0};
+  std::vector<double> vJ(sJ,sJ+12);
+
+  body->SetDOFValues(vJ,0,vI);
+
   body->SetTransform(Transform(Vector(1,0,0,0), (Vector(0,0,10))));
 
 
