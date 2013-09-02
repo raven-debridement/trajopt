@@ -111,11 +111,13 @@ namespace RavenBSP {
   void RavenBSPProblemHelper::add_collision_term(OptProb& prob) {
     for (int i = 0; i <= T; ++i) {
     //for (int i = 0; i < T; ++i) {
-      //prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<RavenBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_func, link)));
-      prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_func, link)));
+      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_func, link)));
+      //prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_func, link)));
       //prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
     }
     BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
+
+    cc->ExcludeCollisionPair(*(robot->GetLink("grasper1_R")),*(robot->GetLink("grasper2_R")));
     cc->SetContactDistance(0.001);
   }
 
@@ -136,7 +138,9 @@ namespace RavenBSP {
                             StateFunc<StateT, ControlT, StateNoiseT>(helper), barrett_robot_helper(boost::static_pointer_cast<RavenBSPProblemHelper>(helper)) {}
 
   StateT RavenStateFunc::operator()(const StateT& x, const ControlT& u, const StateNoiseT& m) const {
-    return x + u + 0.01 * m;
+	  StateNoiseT adj_noise = 0.01 * m;
+	  	//adj_noise(2) *= 0.01;
+	  	return x + u + adj_noise;
   }
 
   RavenObserveFunc::RavenObserveFunc() : ObserveFunc<StateT, ObserveT, ObserveNoiseT>() {}
@@ -238,7 +242,7 @@ void RavenBSPWrapper::run() {
 
 
 int main(int argc, char *argv[]) {
-  int T = 10;
+  int T = 50;
   bool sim_plotting = false;
   bool stage_plotting = false;
   bool first_step_only = false;
@@ -291,15 +295,16 @@ int main(int argc, char *argv[]) {
   box_trans.identity();
   box_trans.trans.x = (rave_start_trans.trans.x + rave_goal_trans.trans.x) / 2;
   box_trans.trans.y = (rave_start_trans.trans.y + rave_goal_trans.trans.y) / 2;
+  box_trans.trans.x += .01;
   box_trans.trans.z = (rave_start_trans.trans.z + rave_goal_trans.trans.z) / 2;
-  Vector3d box_extents(.01,.0025,.02);
+  Vector3d box_extents(.01,.0025,.015);
   addOpenraveBox(env,"obstacle_box",box_trans,box_extents);
 
   // create workspace floor
-  OpenRAVE::geometry::RaveTransform<double> floor_trans(box_trans);
+  /*OpenRAVE::geometry::RaveTransform<double> floor_trans(box_trans);
   floor_trans.trans.z -= box_extents[2];
   Vector3d floor_extents(.1, .1, .0025);
-  addOpenraveBox(env,"workspace_floor",floor_trans,floor_extents);
+  addOpenraveBox(env,"workspace_floor",floor_trans,floor_extents);*/
 #endif
 
   RavenBSPPlannerPtr planner(new RavenBSPPlanner());
@@ -322,14 +327,23 @@ int main(int argc, char *argv[]) {
   planner->method = BSP::ContinuousBeliefSpace;//BSP::DiscontinuousBeliefSpace;
   planner->initialize();
 
+  int index = robot->GetJointIndex("grasper_joint_1_R");
+  cout << index << endl;
+  std::vector<int> indices;
+  indices.push_back(index);
+  std::vector<double> values;
+  values.push_back(.5);
+  robot->SetDOFValues(values,0,indices);
+
+
   vector<GraphHandlePtr> handles;
   boost::function<void(OptProb*, DblVec&)> opt_callback;
   if (stage_plotting || sim_plotting) {
     viewer = OSGViewer::GetOrCreate(env);
     initialize_viewer(viewer);
 
-    handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.05));
-    handles.push_back(viewer->PlotAxes(matrixToTransform(goal_trans),.05));
+    //handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.05));
+    //handles.push_back(viewer->PlotAxes(matrixToTransform(goal_trans),.05));
 
     cout << "Initial setup. Press p to continue to BSP" << endl;
     viewer->Idle();
@@ -351,7 +365,7 @@ int main(int argc, char *argv[]) {
     if (first_step_only) break;
     if (sim_plotting) {
       OpenRAVEPlotterMixin<RavenBSPPlanner>::sim_plot_callback(planner, planner->rad, viewer);
-      handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.015));
+      //handles.push_back(viewer->PlotAxes(robot->GetActiveManipulator()->GetEndEffectorTransform(),.015));
     }
   }
 

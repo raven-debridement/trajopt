@@ -17,7 +17,7 @@ namespace BSP {
           handles.push_back(env.drawarrow(col.ptB, col.ptB1, .0008, RaveVectorf(0,0,0,1)));
         }
         OR::Vector ptB = (col.cctype == CCType_Between)  ? ((1-col.time)* col.ptB +col.time*col.ptB1) : col.ptB;
-        handles.push_back(env.drawarrow(col.ptA, ptB, .001, color));
+        handles.push_back(env.drawarrow(col.ptA, ptB, .0008, color));
       }
     }
     void Plot(const DblVec& x,

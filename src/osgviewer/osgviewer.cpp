@@ -687,9 +687,9 @@ GraphHandlePtr OSGViewer::PlotAxes(const OpenRAVE::Transform& T, float size) {
   osg::Matrix m = asOsgMatrix(T);
   osg::Group* group = new osg::Group;
   osg::Vec3 o = toOsgVec3(T.trans);
-  osg::Vec3 x = o + Vec3(m(0,0), m(1,0), m(2,0))*size;
-  osg::Vec3 y = o + Vec3(m(0,1), m(1,1), m(2,1))*size;
-  osg::Vec3 z = o + Vec3(m(0,2), m(1,2), m(2,2))*size;
+  osg::Vec3 x = o + Vec3(m(0,0), m(0,1), m(0,2))*size;
+  osg::Vec3 y = o + Vec3(m(1,0), m(1,1), m(1,2))*size;
+  osg::Vec3 z = o + Vec3(m(2,0), m(2,1), m(2,2))*size;
   AddCylinderBetweenPoints(o, x, size/10, osg::Vec4(1,0,0,1), group, false);
   AddCylinderBetweenPoints(o, y, size/10, osg::Vec4(0,1,0,1), group, false);
   AddCylinderBetweenPoints(o, z, size/10, osg::Vec4(0,0,1,1), group, false);
