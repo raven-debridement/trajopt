@@ -284,7 +284,7 @@ namespace Needle {
 
   void NeedleProblemHelper::AddStartConstraint(OptProb& prob, NeedleProblemInstancePtr pi) {
     VarVector vars = pi->twistvars.row(0);
-    VectorOfVectorPtr f(new Needle::PositionError(pi->local_configs[0], pi->start, shared_from_this()));
+    VectorOfVectorPtr f(new Needle::PositionError(pi->local_configs[0], pi->start, this->start_position_error_relax, this->start_orientation_deviation_relax, shared_from_this()));
     Vector6d coeffs; coeffs << 1., 1., 1., this->coeff_orientation_error, this->coeff_orientation_error, this->coeff_orientation_error;
     prob.addConstraint(ConstraintPtr(new ConstraintFromFunc(f, vars, coeffs, EQ, "entry")));
     pi->dynamics_constraints.push_back(prob.getConstraints().back());
@@ -292,7 +292,7 @@ namespace Needle {
 
   void NeedleProblemHelper::AddGoalConstraint(OptProb& prob, NeedleProblemInstancePtr pi) {
     VarVector vars = pi->twistvars.row(pi->T);
-    VectorOfVectorPtr f(new Needle::PositionError(pi->local_configs[pi->T], pi->goal, shared_from_this()));
+    VectorOfVectorPtr f(new Needle::PositionError(pi->local_configs[pi->T], pi->goal, Vector3d::Zero(), shared_from_this()));
     Vector6d coeffs; 
     if (goal_orientation_constraint) {
       coeffs << 1., 1., 1., this->coeff_orientation_error, this->coeff_orientation_error, this->coeff_orientation_error;
@@ -435,6 +435,9 @@ namespace Needle {
     this->collision_dist_pen = 0.05;
     this->collision_coeff = 10;
 
+    this->start_position_error_relax = Vector3d(1.25, 1.25, 0);
+    this->start_orientation_deviation_relax = 0.0873;
+
     const char *ignored_kinbody_c_strs[] = { "KinBodyProstate", "KinBodyDermis", "KinBodyEpidermis", "KinBodyHypodermis" };
     this->ignored_kinbody_names = vector<string>(ignored_kinbody_c_strs, end(ignored_kinbody_c_strs));
   }
@@ -442,6 +445,7 @@ namespace Needle {
   void NeedleProblemHelper::InitParametersFromConsole(int argc, char** argv) {
     Clear();
     InitParameters();
+    double start_position_error_relax_x = this->start_a;
     Config config;
     //config.add(new Parameter<int>("T", &this->T, "T"));
     config.add(new Parameter<int>("formulation", &this->formulation, "formulation"));

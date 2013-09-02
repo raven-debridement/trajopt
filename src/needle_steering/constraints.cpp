@@ -2,15 +2,19 @@
 
 namespace Needle {
 
-  PositionError::PositionError(LocalConfigurationPtr cfg, const Vector6d& target_pos, NeedleProblemHelperPtr helper) : cfg(cfg), target_pos(target_pos), body(cfg->GetBodies()[0]), helper(helper) {}
+  PositionError::PositionError(LocalConfigurationPtr cfg, const Vector6d& target_pos, const Vector3d position_error_relax, NeedleProblemHelperPtr helper) : cfg(cfg), target_pose(expUp(target_pos)), position_error_relax(position_error_relax), body(cfg->GetBodies()[0]), helper(helper) {}
 
   VectorXd PositionError::operator()(const VectorXd& a) const {
     assert(a.size() == 6);
-    Matrix4d X = cfg->pose * expUp(a);
-    Vector6d x;
-    x.head<3>() = X.block<3, 1>(0, 3) - target_pos.head<3>();
-    x.tail<3>() = Vector3d::Zero();
-    return logDown((cfg->pose * expUp(a)).inverse() * expUp(target_pos));
+    //Matrix4d X = cfg->pose * expUp(a);
+    //Vector6d x;
+    //x.head<3>() = X.block<3, 1>(0, 3) - target_pos.head<3>();
+    //x.tail<3>() = Vector3d::Zero();
+    Matrix4d current_pose = cfg->pose * expUp(a);
+    Vector3d orientation_error = logDown(current_pose.inverse() * target_pose).tail<3>();
+    Vector3d position_error = (current_pose.block<3, 1>(0, 3) - target_pose.block<3, 1>(0, 3)).array().abs();
+    position_error = (position_error - this->position_error_relax).cwiseMax(Vector3d::Zero());
+    return concat(position_error, orientation_error);
   }
 
   PoseError::PoseError(LocalConfigurationPtr cfg0, LocalConfigurationPtr cfg1, NeedleProblemHelperPtr helper) : cfg0(cfg0), cfg1(cfg1), helper(helper) {}

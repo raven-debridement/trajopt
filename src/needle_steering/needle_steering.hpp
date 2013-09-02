@@ -177,7 +177,9 @@ namespace Needle {
   struct PositionError : public VectorOfVector {
     LocalConfigurationPtr cfg;
     KinBodyPtr body;
-    Vector6d target_pos;
+    Matrix4d target_pose;
+    Vector3d position_error_relax;
+    //Vector6d target_pos;
     NeedleProblemHelperPtr helper;
     PositionError(LocalConfigurationPtr cfg, const Vector6d& target_pos, NeedleProblemHelperPtr helper);
     VectorXd operator()(const VectorXd& a) const;
@@ -279,11 +281,15 @@ namespace Needle {
     vector<NeedleProblemInstancePtr> pis;
     vector<ConstraintPtr> self_collision_constraints;
 
+    Vector3d start_position_error_relax;
+    double start_orientation_deviation_relax;
+
     void ConfigureProblem(OptProb& prob);
     void InitOptimizeVariables(OptimizerT& opt);
     void OptimizerCallback(OptProb*, DblVec& x);
     void ConfigureOptimizer(OptimizerT& opt);
     vector<VectorXd> GetSolutionsWithoutFirstTimestep(const vector<VectorXd>& sol);
+
 
 
     void InitParameters();
