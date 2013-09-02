@@ -28,6 +28,7 @@ namespace BSPCollision {
     m_collisions.push_back(BeliefCollision(linkA, linkB, toOR(cp.m_positionWorldOnA), toOR(cp.m_positionWorldOnB),
         toOR(cp.m_normalWorldOnB), cp.m_distance1));
     LOG_DEBUG("collide %s-%s", linkA->GetName().c_str(), linkB->GetName().c_str());
+    LOG_DEBUG("collide %d-%d", linkA->GetIndex(), linkB->GetIndex());
     bool castShapeIsFirst =  (colObj0Wrap->getCollisionObject() == m_cow);
 
     btVector3 normalWorldFromCast = -(castShapeIsFirst ? 1 : -1) * cp.m_normalWorldOnB;

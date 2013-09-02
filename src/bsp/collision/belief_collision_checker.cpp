@@ -112,7 +112,9 @@ namespace BSPCollision {
       for (int i=0; i<tf1i.size(); i++) t1i[i] = tf0i[0].inverseTimes(tf1i[i]);
       SigmaHullCastShape* shape = new SigmaHullCastShape(convex, t0i, t1i);
       RenderCollisionShape(shape, tf0i[0], *boost::const_pointer_cast<OpenRAVE::EnvironmentBase>(m_env), handles, color);
+      // ADDED
       SetTransparency(handles.back(), 0.2);
+      // END ADDED
       delete shape;
     } else if (btCompoundShape* compound = dynamic_cast<btCompoundShape*>(shape)) {
       for (int child_ind = 0; child_ind < compound->getNumChildShapes(); ++child_ind) {
