@@ -6,12 +6,14 @@ int main(int argc, char** argv) {
 
   NeedleProblemPlannerPtr planner(new NeedleProblemPlanner(argc, argv));
 
-  DblVec x;
+  vector<VectorXd> sol;
   vector< vector<Vector6d> > states;
   states.push_back(planner->starts);
   while (!planner->Finished()) {
-    x = planner->InitializeSolutionWithoutFirstTimestepAndSolve(x);
-    states.push_back(planner->SimulateExecution(states.back(), x));
+    cout << planner->Ts[0] << endl;
+    sol = planner->GetSolutionsWithoutFirstTimestep(planner->Solve(sol));
+    states.push_back(planner->SimulateExecution(states.back()));
+    cout << "simulate one step" << endl;
   }
 
   return 0;

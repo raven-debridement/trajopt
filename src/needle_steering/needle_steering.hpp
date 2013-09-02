@@ -87,9 +87,12 @@ namespace Needle {
   struct NeedleProblemHelper;
   typedef boost::shared_ptr<NeedleProblemHelper> NeedleProblemHelperPtr;
 
+  struct NeedleProblemInstance;
+  typedef boost::shared_ptr<NeedleProblemInstance> NeedleProblemInstancePtr;
+
   class ConstantSpeedCost : public Cost {
   public:
-    ConstantSpeedCost(const Var& var, double coeff, NeedleProblemHelperPtr helper);
+    ConstantSpeedCost(const Var& var, double coeff, NeedleProblemHelperPtr helper, NeedleProblemInstancePtr pi);
     virtual double value(const vector<double>& xvec, Model* model);
     virtual ConvexObjectivePtr convex(const vector<double>& xvec);
   private:
@@ -97,6 +100,7 @@ namespace Needle {
     double coeff;
     AffExpr expr;
     NeedleProblemHelperPtr helper;
+    NeedleProblemInstancePtr pi;
   };
 
   class VariableSpeedCost : public Cost {
@@ -222,9 +226,9 @@ namespace Needle {
 
     VectorXd GetSolution(OptimizerT& opt);
     void SetSolution(const VectorXd& sol, OptimizerT& opt);
+    VectorXd GetSolutionWithoutFirstTimestep(const VectorXd& sol);
   };
 
-  typedef boost::shared_ptr<NeedleProblemInstance> NeedleProblemInstancePtr;
 
   struct NeedleProblemHelper : public boost::enable_shared_from_this<NeedleProblemHelper> {
     // Formulation flag
@@ -279,6 +283,8 @@ namespace Needle {
     void InitOptimizeVariables(OptimizerT& opt);
     void OptimizerCallback(OptProb*, DblVec& x);
     void ConfigureOptimizer(OptimizerT& opt);
+    vector<VectorXd> GetSolutionsWithoutFirstTimestep(const vector<VectorXd>& sol);
+
 
     void InitParameters();
     void InitParametersFromConsole(int argc, char** argv);
@@ -323,18 +329,34 @@ namespace Needle {
     int n_needles;
     vector<int> Ts;
     NeedleProblemHelperPtr helper;
+
+    bool plotting;
+    bool plot_final_result;
+    bool verbose;
+    double env_transparency;
+    string data_dir;
+    string env_file_path;
+    string robot_file_path;
+
+    EnvironmentBasePtr env;
+    boost::shared_ptr<TrajPlotter> plotter;
+
     vector<Vector6d> starts;
     vector<Vector6d> goals;
+    DblVec x;
 
     NeedleProblemPlanner(int argc, char **argv);
     ~NeedleProblemPlanner();
-    //vector<VectorXd> Solve(const vector<VectorXd>& initial = vector<VectorXd>() );
-    //vector<VectorXd> GetSolutionWithoutFirstTimestep(const vector<VectorXd>& sol);
+    Vector6d PerturbState(const Vector6d& state);
+    vector<VectorXd> Solve(const vector<VectorXd>& initial = vector<VectorXd>() );
+    vector<VectorXd> GetSolutionsWithoutFirstTimestep(const vector<VectorXd>& sol);
     DblVec Solve(const DblVec& x);
-    vector<Vector6d> SimulateExecution(const DblVec& x);//const vector<VectorXd>& sol);
-    DblVec InitializeSolutionWithoutFirstTimestepAndSolve(const DblVec& x);
+    vector<Vector6d> SimulateExecution(const vector<Vector6d>& current_states);//const vector<VectorXd>& sol);
+    //DblVec InitializeSolutionWithoutFirstTimestepAndSolve(const DblVec& x);
     bool Finished() const;
   };
+
+  typedef boost::shared_ptr<NeedleProblemPlanner> NeedleProblemPlannerPtr;
 
   struct TrajPlotter {
     OSGViewerPtr viewer;

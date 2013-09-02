@@ -27,7 +27,7 @@ namespace Needle {
     return ret;
   }
 
-  VectorXd NeedleProblemInstance::GetSolutionWithoutFirstTimestep(const VectorXd& sol, int T) {
+  VectorXd NeedleProblemInstance::GetSolutionWithoutFirstTimestep(const VectorXd& sol) {
     VectorXd ret;
     int offset = 0;
     offset += 6;

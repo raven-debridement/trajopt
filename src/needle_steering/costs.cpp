@@ -2,14 +2,14 @@
 
 namespace Needle {
 
-  ConstantSpeedCost::ConstantSpeedCost(const Var& var, double coeff, NeedleProblemHelperPtr helper) : Cost("Speed"), var(var), coeff(coeff), helper(helper) {
+  ConstantSpeedCost::ConstantSpeedCost(const Var& var, double coeff, NeedleProblemHelperPtr helper, NeedleProblemInstancePtr pi) : Cost("Speed"), var(var), coeff(coeff), helper(helper), pi(pi) {
     assert (helper->speed_formulation == NeedleProblemHelper::ConstantSpeed);
-    exprInc(expr, exprMult(var, coeff * helper->T));
+    exprInc(expr, exprMult(var, coeff * pi->T));
   }
 
   double ConstantSpeedCost::value(const vector<double>& xvec, Model* model) {
     double speed = getVec(xvec, singleton<Var>(var))[0];
-    return speed * coeff * helper->T;
+    return speed * coeff * pi->T;
   }
 
   ConvexObjectivePtr ConstantSpeedCost::convex(const vector<double>& xvec) {

@@ -28,12 +28,14 @@ namespace Needle {
     env_transparency(0.1),
     data_dir(get_current_directory() + "/../data") {
 
-    this->start_string_vec.clear();
-    this->start_string_vec.push_back("-6.60848,12.6176,-8.06651,2.53666,-0.868663,1.31701");
-    this->goal_string_vec.clear();
-    this->goal_string_vec.push_back("-2.71912,8.00334,-1.12736,0,0,0");
+    vector<string> start_string_vec;
+    start_string_vec.push_back("-11.67067,5.54934,0,0,0.78,0");
+    start_string_vec.push_back("-11.17067,5.04934,0,0,0.78,0");
+    vector<string> goal_string_vec;
+    goal_string_vec.push_back("-2.71912,8.00334,-1.12736,0,0.78,0");
+    goal_string_vec.push_back("-3.926,7.78291,-1.08402,0,0.75,0");
 
-    int T;
+    int T = 25;
     
     Config config;
     config.add(new Parameter<bool>("plotting", &this->plotting, "plotting"));
@@ -41,20 +43,26 @@ namespace Needle {
     config.add(new Parameter<bool>("verbose", &this->verbose, "verbose"));
     config.add(new Parameter<double>("env_transparency", &this->env_transparency, "env_transparency"));
     config.add(new Parameter<string>("data_dir", &this->data_dir, "data_dir"));
-    config.add(new Parameter< vector<string> >("start_vec", &this->start_string_vec, "s"));
-    config.add(new Parameter< vector<string> >("goal_vec", &this->goal_string_vec, "g"));
+    config.add(new Parameter<string>("env_file_path", &this->env_file_path, "env_file_path"));
+    config.add(new Parameter<string>("robot_file_path", &this->robot_file_path, "robot_file_path"));
+    config.add(new Parameter< vector<string> >("start_vec", &start_string_vec, "s"));
+    config.add(new Parameter< vector<string> >("goal_vec", &goal_string_vec, "g"));
     config.add(new Parameter<int>("T", &T, "T"));
     CommandParser parser(config);
     parser.read(argc, argv, true);
 
-    this->env_file_path = data_dir + "/prostate.env.xml",
-    this->robot_file_path = data_dir + "/needlebot.xml";
+    if (this->env_file_path.length() == 0) {
+      this->env_file_path = data_dir + "/prostate.env.xml";
+    }
+    if (this->robot_file_path.length() == 0) {
+      this->robot_file_path = data_dir + "/needlebot.xml";
+    }
 
-    if (this->start_string_vec.size() != this->goal_string_vec.size()) {
+    if (start_string_vec.size() != goal_string_vec.size()) {
       throw std::runtime_error("The number of start and goal vectors must be the same!");
     }
 
-    if (this->start_string_vec.size() == 0) {
+    if (start_string_vec.size() == 0) {
       throw std::runtime_error("You must provide at least 1 start and 1 goal vector.");
     }
 
@@ -104,7 +112,7 @@ namespace Needle {
 
   }
 
-  vector<VectorXd> NeedleProblemPlanner::InitializeWithoutFirstTimestepAndSolve(const DblVec& x) {//const vector<VectorXd>& initial) {
+  vector<VectorXd> NeedleProblemPlanner::Solve(const vector<VectorXd>& initial) {
     trajopt::SetUserData(*this->env, "trajopt_cc", OpenRAVE::UserDataPtr());
     helper->InitParametersFromConsole(this->argc, this->argv);
     helper->n_needles = this->n_needles;
@@ -121,8 +129,9 @@ namespace Needle {
     OptimizerT opt(prob);
     helper->ConfigureOptimizer(opt);
 
-    if (x.size() > 0) {//initial.size() == helper->n_needles) {
-      helper->InitializeSolutionWithoutFirstTimestep(x, opt);//SetSolutions(initial, opt);
+    if (initial.size() == helper->n_needles) {
+      cout << "set solution initialization" << endl;
+      helper->SetSolutions(initial, opt);
     }
 
     if (this->plotting || this->plot_final_result) {
@@ -132,7 +141,11 @@ namespace Needle {
       opt.addCallback(boost::bind(&Needle::TrajPlotter::OptimizerCallback, boost::ref(this->plotter), _1, _2, helper));
     }
 
-    return opt.x();
+    opt.optimize();
+
+    this->x = opt.x();
+    
+    return helper->GetSolutions(opt);
   }
 
   Vector6d NeedleProblemPlanner::PerturbState(const Vector6d& state) {
@@ -143,17 +156,17 @@ namespace Needle {
     return ret;
   }
 
-  vector<Vector6d> NeedleProblemPlanner::SimulateExecution(const vector<Vector6d>& current_states, const DblVec& x) {
+  vector<Vector6d> NeedleProblemPlanner::SimulateExecution(const vector<Vector6d>& current_states) {
     vector<Vector6d> ret;
     for (int i = 0; i < current_states.size() - n_needles; ++i) { // leave as it is
       ret.push_back(current_states[i]);
     }
 
-    double phi = helper->GetPhi(x, 0, helper->pis.head());
-    double Delta = helper->GetDelta(x, 0, helper->pis.head());
-    double curvature_or_radius = helper->GetCurvatureOrRadius(x, 0, helper->pis.head());
+    double phi = helper->GetPhi(this->x, 0, helper->pis.front());
+    double Delta = helper->GetDelta(this->x, 0, helper->pis.front());
+    double curvature_or_radius = helper->GetCurvatureOrRadius(this->x, 0, helper->pis.front());
     Vector6d state_to_change = current_states[current_states.size() - n_needles];
-    ret.push_back(PerturbState(helper->TransformPose(expUp(state_to_change), phi, Delta, curvature_or_radius)));
+    ret.push_back(PerturbState(logDown(helper->TransformPose(expUp(state_to_change), phi, Delta, curvature_or_radius))));
 
     for (int i = current_states.size() - n_needles + 1, j = 0; i < current_states.size(); ++i, ++j) { // leave as it is
       ret.push_back(current_states[i]);
@@ -165,7 +178,7 @@ namespace Needle {
     starts.clear();
     goals.clear();
 
-    if (Ts.front() > 0) {
+    if (Ts.front() > 1) {
       starts.push_back(ret[current_states.size() - n_needles]);
       goals.push_back(prev_goals.front());
       --Ts.front();
@@ -185,6 +198,18 @@ namespace Needle {
     }
 
     return ret;
+  }
+
+  vector<VectorXd> NeedleProblemPlanner::GetSolutionsWithoutFirstTimestep(const vector<VectorXd>& sol) {
+    if (sol.size() > 0) {
+      return helper->GetSolutionsWithoutFirstTimestep(sol);
+    } else {
+      return sol;
+    }
+  }
+
+  bool NeedleProblemPlanner::Finished() const {
+    return this->Ts.size() == 0;
   }
 
   NeedleProblemPlanner::~NeedleProblemPlanner() {
