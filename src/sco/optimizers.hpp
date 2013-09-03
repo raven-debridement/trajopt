@@ -39,12 +39,17 @@ struct OptResults {
   double total_cost;
   vector<double> cost_vals;
   DblVec cnt_viols;
+  DblVec dynamics_cnt_viols;
+  DblVec collision_cnt_viols;
+
   int n_func_evals, n_qp_solves;
   void clear() {
     x.clear();
     status = INVALID;
     cost_vals.clear();
     cnt_viols.clear();
+    dynamics_cnt_viols.clear();
+    collision_cnt_viols.clear();
     n_func_evals = 0;
     n_qp_solves = 0;
   }
