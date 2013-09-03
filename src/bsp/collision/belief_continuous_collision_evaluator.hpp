@@ -24,10 +24,10 @@ namespace BSPCollision {
     }
 
     virtual void CollisionsToDistanceExpressions(const vector<BeliefCollision>& collisions, Configuration& rad,
-        const Link2Int& link2ind, const VarVector& theta_vars0, const VarVector& theta_vars1, const DblVec& theta_vals0, const DblVec& theta_vals1, vector<AffExpr>& exprs, bool isTimestep1, NamePairs& bodyNames) {
+        const Link2Int& link2ind, const VarVector& theta_vars0, const VarVector& theta_vars1, const DblVec& theta_vals0, const DblVec& theta_vals1, vector<AffExpr>& exprs, bool isTimestep1) {
       vector<AffExpr> exprs0, exprs1;
-      BeliefDiscreteCollisionEvaluator<BeliefFuncT>::CollisionsToDistanceExpressions(collisions, rad, link2ind, theta_vars0, theta_vals0, exprs0, false, bodyNames);
-      BeliefDiscreteCollisionEvaluator<BeliefFuncT>::CollisionsToDistanceExpressions(collisions, rad, link2ind, theta_vars1, theta_vals1, exprs1, true, bodyNames);
+      BeliefDiscreteCollisionEvaluator<BeliefFuncT>::CollisionsToDistanceExpressions(collisions, rad, link2ind, theta_vars0, theta_vals0, exprs0, false);
+      BeliefDiscreteCollisionEvaluator<BeliefFuncT>::CollisionsToDistanceExpressions(collisions, rad, link2ind, theta_vars1, theta_vals1, exprs1, true);
 
       exprs.resize(exprs0.size());
       for (int i=0; i < exprs0.size(); ++i) {
@@ -40,12 +40,12 @@ namespace BSPCollision {
       }
     }
 
-    virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, NamePairs& bodyNames) {
+    virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs) {
       vector<BeliefCollision> collisions;
       this->GetCollisionsCached(x, collisions);
       DblVec theta0 = getDblVec(x, m_vars0);
       DblVec theta1 = getDblVec(x, m_vars1);
-      CollisionsToDistanceExpressions(collisions, *this->m_rad, this->m_link2ind, m_vars0, m_vars1, theta0, theta1, exprs, false, bodyNames);
+      CollisionsToDistanceExpressions(collisions, *this->m_rad, this->m_link2ind, m_vars0, m_vars1, theta0, theta1, exprs, false);
     }
 
     virtual void CustomPlot(const DblVec& x, std::vector<OR::GraphHandlePtr>& handles) {

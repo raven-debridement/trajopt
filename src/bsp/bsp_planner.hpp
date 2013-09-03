@@ -76,7 +76,7 @@ namespace BSP {
       return (helper->T <= 0);
     }
 
-    virtual void initialize_optimizer_parameters(LineSearchSQP& opt, bool is_first_time=true) {
+    virtual void initialize_optimizer_parameters(BSPTrustRegionSQP& opt, bool is_first_time=true) {
       //opt.max_iter_                   = 250;
       //opt.merit_error_coeff_          = 100;
       //opt.merit_coeff_increase_ratio_ = 10;
@@ -150,7 +150,7 @@ namespace BSP {
       }
 
       for (int i = 0; i < n_alpha_iterations; ++i) {
-        LineSearchSQP opt(prob);
+        BSPTrustRegionSQP opt(prob);
         initialize_optimizer_parameters(opt, i == 0);
         helper->configure_optimizer(*prob, opt);
         if (opt_callback) {

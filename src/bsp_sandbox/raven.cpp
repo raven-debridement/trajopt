@@ -63,7 +63,7 @@ namespace RavenBSP {
     opt.max_iter_                   = 100;
     opt.merit_error_coeff_          = 10;
     opt.merit_coeff_increase_ratio_ = 10;
-    opt.max_merit_coeff_increases_  = 5;
+    opt.max_merit_coeff_increases_  = 10;
     opt.trust_shrink_ratio_         = .1;
     opt.trust_expand_ratio_         = 1.5;
     opt.min_trust_box_size_         = 1e-4;

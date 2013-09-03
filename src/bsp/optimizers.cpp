@@ -1,6 +1,8 @@
 #include "common.hpp"
 #include "optimizers.hpp"
 
+#define SEPARATE_COEFF
+
 namespace BSP {
 
   BSPTrustRegionSQP::BSPTrustRegionSQP() : BasicTrustRegionSQP() {}
@@ -18,7 +20,6 @@ namespace BSP {
   }
 
   OptStatus BSPTrustRegionSQP::optimize() {
-
     vector<string> cost_names = getCostNames(prob_->getCosts());
     vector<ConstraintPtr> constraints = prob_->getConstraints();
     vector<string> cnt_names = getCntNames(constraints);
@@ -54,10 +55,6 @@ namespace BSP {
 
     for (int merit_increases=0; merit_increases < max_merit_coeff_increases_; ) { /* merit adjustment loop */
       //++results_.n_merit_increases;
-      results_.cnt_viols = evaluateConstraintViols(constraints, x_, model_.get());
-      results_.cost_vals = evaluateCosts(prob_->getCosts(), x_, model_.get());
-      //assert(results_.n_func_evals == 0);
-      ++results_.n_func_evals;
 
       for (int iter=1; ; ++iter) { /* sqp loop */
         callCallbacks(x_);
@@ -131,6 +128,12 @@ namespace BSP {
 
         while (trust_box_size_ >= min_trust_box_size_) {
 
+          //cout << "setting trust box size " << trust_box_size_ << " around: ";
+          //for (int i = 0; i < x_.size(); ++i) cout << x_[i] << " ";
+          //cout << endl;
+
+          //cout << "current dynamics penalty coefficient: " << dynamics_merit_error_coeff_ << endl;
+          //cout << "current collision penalty coefficient: " << collision_merit_error_coeff_ << endl;
 
           setTrustBoxConstraints(x_, model_.get());
           CvxOptStatus status = model_->optimize();
@@ -170,7 +173,6 @@ namespace BSP {
           new_cost_vals = evaluateCosts(prob_->getCosts(), new_x, model_.get());
           new_dynamics_cnt_viols = evaluateConstraintViols(dynamics_constraints, new_x, model_.get());
           new_collision_cnt_viols = evaluateConstraintViols(collision_constraints, new_x, model_.get());
-
           ++results_.n_func_evals;
 
           double old_merit = vecSum(results_.cost_vals) + dynamics_merit_error_coeff_ * vecSum(results_.dynamics_cnt_viols) + collision_merit_error_coeff_ * vecSum(results_.collision_cnt_viols);
@@ -207,9 +209,6 @@ namespace BSP {
             adjustTrustRegion(trust_shrink_ratio_);
             LOG_INFO("shrunk trust region. new box size: %.4f",
                 trust_box_size_);
-            if (record_trust_region_history_) {
-              LOG_TRUST_REGION;
-            }
           } else {
             x_ = new_x;
             //cout << "adopting new_x: ";
@@ -221,9 +220,6 @@ namespace BSP {
             
             adjustTrustRegion(trust_expand_ratio_);
             LOG_INFO("expanded trust region. new box size: %.4f",trust_box_size_);
-            if (record_trust_region_history_) {
-              LOG_TRUST_REGION;
-            }
             break;
           }
         }
@@ -248,6 +244,8 @@ namespace BSP {
         else {
           LOG_INFO("not all constraints are satisfied. increasing penalties");
           //++merit_increases;
+
+#ifdef SEPARATE_COEFF
           
           if (results_.dynamics_cnt_viols.empty() || vecMax(results_.dynamics_cnt_viols) < cnt_tolerance_) {
             ++merit_increases;
@@ -265,13 +263,17 @@ namespace BSP {
             cout << "increasing just dynamics" << endl;
             trust_box_size_ = fmax(trust_box_size_, min_trust_box_size_ / trust_shrink_ratio_ * 1.5);
           }
+#else
+            ++merit_increases;
+            ++results_.n_merit_increases;
+            collision_merit_error_coeff_ *= merit_coeff_increase_ratio_;
+            dynamics_merit_error_coeff_ *= merit_coeff_increase_ratio_;
+            cout << "increasing both" << endl;
+
+#endif
 
           cout << "(" << collision_merit_error_coeff_ << ", " << dynamics_merit_error_coeff_ << ")" << endl;
 
-          if (record_trust_region_history_) {
-            INC_LOG_TRUST_REGION;
-            LOG_TRUST_REGION;
-          }
           callMeritDoneCallbacks(x_);
           break;
         }

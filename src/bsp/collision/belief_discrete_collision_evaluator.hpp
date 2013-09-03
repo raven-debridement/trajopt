@@ -57,7 +57,7 @@ namespace BSPCollision {
     }
 
     virtual void CollisionsToDistanceExpressions(const vector<BeliefCollision>& collisions, Configuration& rad,
-        const Link2Int& link2ind, const VarVector& theta_vars, const DblVec& theta_vals, vector<AffExpr>& exprs, bool isTimestep1, NamePairs& bodyNames) {
+        const Link2Int& link2ind, const VarVector& theta_vars, const DblVec& theta_vals, vector<AffExpr>& exprs, bool isTimestep1) {
       exprs.clear();
       exprs.reserve(collisions.size());
       typename BeliefFuncT::StateT state;
@@ -90,7 +90,6 @@ namespace BSPCollision {
           if (linkAFound || linkBFound) {
             exprScale(dist_a, col.mi[isTimestep1].alpha[i]);
             exprInc(dist, dist_a);
-            bodyNames.push_back(pair<string, string>(col.linkA->GetParent()->GetName(), col.linkB->GetParent()->GetName()));
           }
         }
         if (dist.constant!=0 || dist.coeffs.size()!=0 || dist.vars.size()!=0) {
@@ -100,20 +99,20 @@ namespace BSPCollision {
       RAVELOG_DEBUG("%i distance expressions\n", exprs.size());
     }
 
-    virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs, NamePairs& bodyNames) {
+    virtual void CalcDistExpressions(const DblVec& x, vector<AffExpr>& exprs) {
       vector<BeliefCollision> collisions;
       GetCollisionsCached(x, collisions);
       DblVec theta = getDblVec(x, m_vars);
-      CollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_vars, theta, exprs, false, bodyNames);
+      CollisionsToDistanceExpressions(collisions, *m_rad, m_link2ind, m_vars, theta, exprs, false);
     }
-    virtual void CalcDists(const DblVec& x, DblVec& dists, NamePairs& bodyNames) {
+    virtual void CalcDists(const DblVec& x, DblVec& dists) {
       vector<BeliefCollision> collisions;
       GetCollisionsCached(x, collisions);
       vector<Collision> raw_collisions;
       for (int i = 0; i < collisions.size(); ++i) {
         raw_collisions.push_back(collisions[i]);
       }
-      this->CollisionsToDistances(raw_collisions, m_link2ind, dists, bodyNames);
+      this->CollisionsToDistances(raw_collisions, m_link2ind, dists);
     }
     virtual void CustomPlot(const DblVec& x, std::vector<OR::GraphHandlePtr>& handles) {
       typename BeliefFuncT::BeliefT belief = getVec(x, this->m_vars);

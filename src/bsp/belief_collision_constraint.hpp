@@ -24,8 +24,7 @@ namespace BSP {
     ConvexConstraintsPtr convex(const vector<double>& x) {
       ConvexConstraintsPtr out(new ConvexConstraints());
       vector<AffExpr> exprs;
-      NamePairs bodyNames;
-      m_calc->CalcDistExpressions(x, exprs, bodyNames);
+      m_calc->CalcDistExpressions(x, exprs);
       for (int i=0; i < exprs.size(); ++i) {
         AffExpr viol = exprSub(AffExpr(m_dist_pen), exprs[i]);
         out->addIneqCnt(exprMult(viol,m_coeff));
@@ -34,8 +33,7 @@ namespace BSP {
     }
     DblVec value(const vector<double>& x, Model* model) {
       DblVec dists;
-      NamePairs bodyNames;
-      m_calc->CalcDists(x, dists, bodyNames);
+      m_calc->CalcDists(x, dists);
       DblVec out(dists.size());
       for (int i=0; i < dists.size(); ++i) {
         out[i] = pospart(m_dist_pen - dists[i]) * m_coeff;

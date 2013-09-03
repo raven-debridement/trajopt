@@ -20,8 +20,7 @@ namespace BSP {
     ConvexObjectivePtr convex(const vector<double>& x) {
       ConvexObjectivePtr out(new ConvexObjective());
       vector<AffExpr> exprs;
-      NamePairs bodyNames;
-      m_calc->CalcDistExpressions(x, exprs, bodyNames);
+      m_calc->CalcDistExpressions(x, exprs);
       for (int i=0; i < exprs.size(); ++i) {
         AffExpr viol = exprSub(AffExpr(m_dist_pen), exprs[i]);
         out->addHinge(viol, m_coeff);
@@ -31,8 +30,7 @@ namespace BSP {
 
     double value(const vector<double>& x, Model* model) {
       DblVec dists;
-      NamePairs bodyNames;
-      m_calc->CalcDists(x, dists, bodyNames);
+      m_calc->CalcDists(x, dists);
       double out = 0;
       for (int i=0; i < dists.size(); ++i) {
         out += pospart(m_dist_pen - dists[i]) * m_coeff;
