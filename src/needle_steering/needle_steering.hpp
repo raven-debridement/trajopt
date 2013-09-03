@@ -179,9 +179,10 @@ namespace Needle {
     KinBodyPtr body;
     Matrix4d target_pose;
     Vector3d position_error_relax;
+    double orientation_error_relax;
     //Vector6d target_pos;
     NeedleProblemHelperPtr helper;
-    PositionError(LocalConfigurationPtr cfg, const Vector6d& target_pos, NeedleProblemHelperPtr helper);
+    PositionError(LocalConfigurationPtr cfg, const Vector6d& target_pos, const Vector3d& position_error_relax, double orientation_error_relax, NeedleProblemHelperPtr helper);
     VectorXd operator()(const VectorXd& a) const;
   };
 
@@ -282,7 +283,7 @@ namespace Needle {
     vector<ConstraintPtr> self_collision_constraints;
 
     Vector3d start_position_error_relax;
-    double start_orientation_deviation_relax;
+    double start_orientation_error_relax;
 
     void ConfigureProblem(OptProb& prob);
     void InitOptimizeVariables(OptimizerT& opt);
