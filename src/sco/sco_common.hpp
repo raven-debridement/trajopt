@@ -19,6 +19,13 @@ inline double vecAbsSum(const DblVec& v) {
   for (int i=0; i < v.size(); ++i) out += fabs(v[i]);
   return out;
 }
+inline double vecAbsMax(const DblVec& v) {
+  double out = 0;
+  for (int i=0; i < v.size(); ++i) {
+    out = fmax(out, fabs(v[i]));
+  }
+  return out;
+}
 inline double pospart(double x) {
   return (x > 0) ? x : 0;
 }
@@ -40,7 +47,27 @@ inline double vecDot(const DblVec& a, const DblVec& b) {
   return out;
 }
 
-
-
+inline void vecDiff(const DblVec& a, const DblVec& b, DblVec& c) {
+  assert(a.size() == b.size());
+  c.resize(a.size());
+  for (int i = 0; i < a.size(); ++i) {
+    c[i] = a[i] - b[i];
+  }
 }
 
+inline void vecAdd(const DblVec& a, const DblVec& b, DblVec& c) {
+  assert(a.size() == b.size());
+  c.resize(a.size());
+  for (int i = 0; i < a.size(); ++i) {
+    c[i] = a[i] + b[i];
+  }
+}
+
+inline void vecScale(const DblVec& a, double scale, DblVec& c) {
+  c.resize(a.size());
+  for (int i = 0; i < a.size(); ++i) {
+    c[i] = a[i] * scale;
+  }
+}
+
+}

@@ -1,0 +1,13 @@
+program name: needle_steering
+#converged: 103
+average run time for converged: 1.8133980582524272
+average n merit increases: 3.9375
+average n qp solves: 397.28125
+average cost: 4.697534760030504
+
+program name: needle_steering_1
+#converged: 105
+average run time for converged: 1.5675238095238095
+average n merit increases: 4.09375
+average n qp solves: 303.30625
+average cost: 3.930595331465143

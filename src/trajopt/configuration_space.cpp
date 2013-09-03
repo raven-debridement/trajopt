@@ -23,7 +23,7 @@ void RobotAndDOF::SetDOFValues(const DblVec& dofs) {
   }
 }
 
-DblVec RobotAndDOF::GetDOFValues() {
+DblVec RobotAndDOF::GetDOFValues() const {
   DblVec out;
   robot->GetDOFValues(out, joint_inds);
   if (affinedofs != 0) {

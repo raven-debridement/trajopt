@@ -26,9 +26,9 @@ add_library(trajopt
 	plot_callback.cpp
 	bullet_unity.cpp
 )
-target_link_libraries(trajopt ${OpenRAVE_BOTH_LIBRARIES} ${Boost_SYSTEM_LIBRARY} sco utils json osgviewer)
+target_link_libraries(trajopt ${OpenRAVE_BOTH_LIBRARIES} ${Boost_SYSTEM_LIBRARY} sco utils json osgviewer)# ${GLUT_glut_LIBRARY} ${OPENGL_gl_LIBRARY} ${OPENGL_glu_LIBRARY})
 
-add_subdirectory(test)
+#add_subdirectory(test)
 
 include_directories(${PYTHON_NUMPY_INCLUDE_DIR})
 boost_python_module(ctrajoptpy trajoptpy.cpp)

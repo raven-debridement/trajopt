@@ -36,6 +36,8 @@ public:
   virtual void setObjective(const QuadExpr&);
   virtual void writeToFile(const string& fname);
   virtual VarVector getVars() const;
+
+  ModelPtr cloneModel() const;
   
 };
 

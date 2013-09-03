@@ -488,4 +488,27 @@ VarVector BPMPDModel::getVars() const {
   return m_vars;
 }
 
+vector<double> BPMPDModel::getLowerBounds() const {
+  return m_lbs;
+}
+
+vector<double> BPMPDModel::getUpperBounds() const {
+  return m_ubs;
+}
+
+ModelPtr BPMPDModel::cloneModel() const {
+  boost::shared_ptr<BPMPDModel> model(new BPMPDModel());
+  model->m_vars = m_vars;
+  model->m_cnts = m_cnts;
+  model->m_cntExprs = m_cntExprs;
+  model->m_soln = m_soln;
+  model->m_lbs = m_lbs;
+  model->m_ubs = m_ubs;
+  model->m_objective = m_objective;
+  model->m_pipeIn = m_pipeIn;
+  model->m_pipeOut = m_pipeOut;
+  model->m_pid = m_pid;
+  return model;
+}
+
 }

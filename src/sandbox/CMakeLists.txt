@@ -30,5 +30,5 @@ target_link_libraries(compl_test sco)
 add_executable(dubins_car dubins_car.cpp)
 target_link_libraries(dubins_car trajopt)
 
-add_executable(needle_steering needle_steering.cpp o3.cpp)
-target_link_libraries(needle_steering trajopt)
+add_executable(sqp_test sqp_test.cpp)
+target_link_libraries(sqp_test trajopt)

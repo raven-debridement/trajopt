@@ -18,6 +18,7 @@ enum OptStatus {
   OPT_PENALTY_ITERATION_LIMIT,
   OPT_FAILED,
   OPT_ALPHA_ITERATION_LIMIT,
+  OPT_INFEASIBLE,
   INVALID
 };
 static const char* OptStatus_strings[]  = {
@@ -26,6 +27,7 @@ static const char* OptStatus_strings[]  = {
   "PENALTY_ITERATION_LIMIT",
   "FAILED",
   "ALPHA_ITERATION_LIMIT",
+  "INFEASIBLE",
   "INVALID"
 };
 inline string statusToString(OptStatus status) {
@@ -39,14 +41,22 @@ struct OptResults {
   double total_cost;
   vector<double> cost_vals;
   DblVec cnt_viols;
-  int n_func_evals, n_qp_solves;
+  DblVec dynamics_cnt_viols;
+  DblVec collision_cnt_viols;
+  int n_func_evals, n_qp_solves, n_lp_solves;
+  int n_iters;
+  int n_merit_increases;
   void clear() {
     x.clear();
     status = INVALID;
     cost_vals.clear();
     cnt_viols.clear();
+    dynamics_cnt_viols.clear();
+    collision_cnt_viols.clear();
     n_func_evals = 0;
     n_qp_solves = 0;
+    n_lp_solves = 0;
+    n_merit_increases = 0;
   }
   OptResults() {clear();}
 };
@@ -98,28 +108,40 @@ public:
   double merit_error_coeff_, // initial penalty coefficient
          trust_box_size_ // current size of trust region (component-wise)
          ;
+  bool record_trust_region_history_;
+  vector< vector<double> > trust_region_size_history;
+  vector< vector<double> > log_trust_region_size_history;
 
   BasicTrustRegionSQP();
   BasicTrustRegionSQP(OptProbPtr prob);
   void setProblem(OptProbPtr prob);
+  bool hasViolation(const DblVec& cnt_viols);
   OptStatus optimize();
+  ModelPtr getModel() { return model_; }
 protected:
   void adjustTrustRegion(double ratio);
-  void setTrustBoxConstraints(const vector<double>& x);
+  void setTrustBoxConstraints(const vector<double>& x, Model* model);
   void initParameters();
   ModelPtr model_;
 };
 
-DblVec evaluateCosts(vector<CostPtr>& costs, const DblVec& x);
-DblVec evaluateConstraintViols(vector<ConstraintPtr>& constraints, const DblVec& x);
-vector<ConvexObjectivePtr> convexifyCosts(vector<CostPtr>& costs, const DblVec& x, Model* model);
-vector<ConvexConstraintsPtr> convexifyConstraints(vector<ConstraintPtr>& cnts, const DblVec& x, Model* model);
-DblVec evaluateModelCosts(vector<ConvexObjectivePtr>& costs, const DblVec& x);
-DblVec evaluateModelCntViols(vector<ConvexConstraintsPtr>& cnts, const DblVec& x);
+class NeedleSQP : public BasicTrustRegionSQP {
+public:
+	OptStatus optimize();
+  NeedleSQP() : BasicTrustRegionSQP() {};
+	NeedleSQP(OptProbPtr prob) : BasicTrustRegionSQP(prob) {};
+};
+
+DblVec evaluateCosts(vector<CostPtr>& costs, const DblVec& x, Model* model);
+DblVec evaluateConstraintViols(vector<ConstraintPtr>& constraints, const DblVec& x, Model* model);
+vector<ConvexObjectivePtr> convexifyCosts(vector<CostPtr>& costs, const DblVec& x);
+vector<ConvexConstraintsPtr> convexifyConstraints(vector<ConstraintPtr>& cnts, const DblVec& x);
+DblVec evaluateModelCosts(vector<ConvexObjectivePtr>& costs, const DblVec& x, Model* model);
+DblVec evaluateModelCntViols(vector<ConvexConstraintsPtr>& cnts, const DblVec& x, Model* model);
 vector<string> getCostNames(const vector<CostPtr>& costs);
 vector<string> getCntNames(const vector<ConstraintPtr>& cnts);
 void printCostInfo(const vector<double>& old_cost_vals, const vector<double>& model_cost_vals, const vector<double>& new_cost_vals,
                   const vector<double>& old_cnt_vals, const vector<double>& model_cnt_vals, const vector<double>& new_cnt_vals,
     const vector<string>& cost_names, const vector<string>& cnt_names, double merit_coeff);
-vector<ConvexObjectivePtr> cntsToCosts(const vector<ConvexConstraintsPtr>& cnts, double err_coeff, Model* model);
+vector<ConvexObjectivePtr> cntsToCosts(const vector<ConvexConstraintsPtr>& cnts, double err_coeff);
 }

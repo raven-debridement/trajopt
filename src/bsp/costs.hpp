@@ -8,8 +8,8 @@ namespace BSP {
   public:
     VarianceCost(const VarVector& sqrt_sigma_vars, const MatrixXd& Q);
     int sigma_id(int i, int j);
-    double value(const vector<double>& xvec);
-    ConvexObjectivePtr convex(const vector<double>& xvec, Model* model);
+    double value(const vector<double>& xvec, Model* model);
+    ConvexObjectivePtr convex(const vector<double>& xvec);
   protected:
     VarVector sqrt_sigma_vars;
     QuadExpr expr;
@@ -21,8 +21,8 @@ namespace BSP {
   class ControlCost : public Cost {
   public:
     ControlCost(const VarVector& control_vars, const MatrixXd& R);
-    double value(const vector<double>& xvec);
-    ConvexObjectivePtr convex(const vector<double>& xvec, Model* model);
+    double value(const vector<double>& xvec, Model* model);
+    ConvexObjectivePtr convex(const vector<double>& xvec);
   protected:
     VarVector control_vars;
     QuadExpr expr;

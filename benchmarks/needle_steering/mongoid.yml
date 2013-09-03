@@ -1,0 +1,6 @@
+development:
+  sessions:
+    default:
+      database: needle_steering
+      hosts:
+        - localhost:27017

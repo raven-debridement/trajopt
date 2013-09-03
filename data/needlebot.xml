@@ -1,4 +1,4 @@
-<Robot name="boxbot">
+<Robot name="needlebot">
 <KinBody>
   <Body name="needlelink" type="dynamic">
     <Translation>0 0 0</Translation>
@@ -8,15 +8,18 @@
     </Mass>
  
     <Geom type="cylinder">
-      <radius>.01</radius>
-      <height>.1</height>
-      <translation>-.05</translation>
-      <rotationaxis>0 0 1 90</rotationaxis>
-   	</Geom>
+      <radius>.03</radius>
+      <height>.5</height>
+      <rotationaxis>1 0 0 90</rotationaxis>
+    </Geom>
+    <!--<Geom type="sphere">
+      <radius>.5</radius>
+    </Geom>-->
+
     <Geom type="sphere">
-      <translation>0 0 0</translation>
-      <radius>.01</radius>
-   	</Geom>
+      <translation>0 0 0.25</translation>
+      <radius>.03</radius>
+    </Geom>
  </Body>
 </KinBody>
 </Robot>

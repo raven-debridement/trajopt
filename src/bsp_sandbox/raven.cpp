@@ -64,7 +64,7 @@ namespace RavenBSP {
     opt.max_iter_                   = 100;
     opt.merit_error_coeff_          = 10;
     opt.merit_coeff_increase_ratio_ = 10;
-    opt.max_merit_coeff_increases_  = 5;
+    opt.max_merit_coeff_increases_  = 10;
     opt.trust_shrink_ratio_         = .1;
     opt.trust_expand_ratio_         = 1.5;
     opt.min_trust_box_size_         = 1e-4;
@@ -110,35 +110,16 @@ namespace RavenBSP {
   }
 
   void RavenBSPProblemHelper::add_collision_term(OptProb& prob) {
-//	  //discrete State space:
-//	  for (int i = 0; i <= T; ++i) {
-//		  prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.001, 1, rad, state_vars.row(i))));
-//	  }
-//	  CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*(rad->GetEnv()));
-//
-//	  //cont. State space:
-//	  for (int i = 0; i < T; ++i) {
-//		  prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(0.001, 1, rad, state_vars.row(i), state_vars.row(i+1))));
-//	  }
-//	  CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*(rad->GetEnv()));
-//
-//	  //discrete bsp
-//	  for (int i = 0; i <= T; ++i) {
-//		  //for (int i = 0; i < T; ++i) {
-//		  prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_func, link)));
-//	  }
-//	  BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
+    for (int i = 0; i <= T; ++i) {
+    //for (int i = 0; i < T; ++i) {
+      prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_func, link)));
+      //prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_func, link)));
+      //prob.addCost(CostPtr(new BeliefCollisionCost<RavenBeliefFunc>(0.025, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
+    }
+    BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
 
-	  //cont. bsp
-	  for (int i = 0; i < T; ++i) {
-		  prob.addIneqConstraint(ConstraintPtr(new BeliefCollisionConstraint<RavenBeliefFunc>(0.001, 1, rad, belief_vars.row(i), belief_vars.row(i+1), belief_func, link)));
-	  }
-	  BeliefCollisionCheckerPtr cc = BeliefCollisionChecker::GetOrCreate(*(rad->GetEnv()));
-
-	  cc->ExcludeCollisionPair(*(robot->GetLink("grasper1_R")),*(robot->GetLink("grasper2_R")));
-	  cc->ExcludeCollisionPair(*(robot->GetLink("grasper1_R")),*(robot->GetLinks()[0]));
-	  cc->ExcludeCollisionPair(*(robot->GetLink("grasper2_R")),*(robot->GetLinks()[0]));
-	  cc->SetContactDistance(0.001);
+    cc->ExcludeCollisionPair(*(robot->GetLink("grasper1_R")),*(robot->GetLink("grasper2_R")));
+    cc->SetContactDistance(0.001);
   }
 
   void RavenBSPProblemHelper::configure_problem(OptProb& prob) {

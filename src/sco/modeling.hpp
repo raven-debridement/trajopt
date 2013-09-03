@@ -9,12 +9,30 @@
 
 #include <vector>
 #include <boost/shared_ptr.hpp>
+#include <map>
 #include "sco/sco_fwd.hpp"
 #include "sco/solver_interface.hpp"
 
 namespace sco {
 
 using std::vector;
+using std::pair;
+using std::map;
+
+enum ObjectiveType {
+  Objective_AffExpr,
+  Objective_QuadExpr,
+  Objective_Hinge, 
+  Objective_Abs,
+  Objective_Max
+};
+
+typedef map<Model*, vector<Var> > Model2Vars;
+typedef pair<Model*, vector<Var> > ModelVarsPair;
+typedef map<Model*, vector<Cnt> > Model2Cnts;
+typedef pair<Model*, vector<Cnt> > ModelCntsPair;
+typedef map<Model*, QuadExpr > Model2Quad;
+typedef pair<Model*, QuadExpr > ModelQuadPair;
 
 /**
 Stores convex terms in a objective
@@ -23,7 +41,20 @@ Note: When this object is deleted, the constraints and variables it added to the
  */
 class ConvexObjective {
 public:
-  ConvexObjective(Model* model) : model_(model) {}
+  
+  struct ObjectiveInfo {
+    ObjectiveInfo(ObjectiveType type, const QuadExpr& quadexpr, double coeff=1) : type_(type), quadexpr_(quadexpr), coeff_(coeff) {}
+    ObjectiveInfo(ObjectiveType type, const AffExpr& affexpr, double coeff=1) : type_(type), affexpr_(affexpr), coeff_(coeff) {}
+    ObjectiveInfo(ObjectiveType type, const AffExprVector& ev, double coeff=1) : type_(type), ev_(ev), coeff_(coeff) {}
+    ObjectiveType type_;
+    AffExpr affexpr_;
+    QuadExpr quadexpr_;
+    AffExprVector ev_;
+    double coeff_;
+  };
+
+
+  ConvexObjective() {}
   void addAffExpr(const AffExpr&);
   void addQuadExpr(const QuadExpr&);
   void addHinge(const AffExpr&, double coeff);
@@ -33,24 +64,20 @@ public:
   void addL2Norm(const AffExprVector&);
   void addMax(const AffExprVector&);
   
-  bool inModel() {
-    return model_ != NULL;
-  }
-  void addConstraintsToModel();
-  void removeFromModel();
-  double value(const vector<double>& x);
+  void addToModelAndObjective(Model* model, AffExpr& objective, bool permissive=false);
+  void addToModelAndObjective(Model* model, QuadExpr& objective);
+  void removeFromModel(Model* model);
+  void removeFromModels();
+
+  double value(const vector<double>& x, Model* model);
   
   ~ConvexObjective();
 
-  
-  Model* model_;
-  QuadExpr quad_;
-  vector<Var> vars_;
-  vector<AffExpr> eqs_;
-  vector<AffExpr> ineqs_;
-  vector<Cnt> cnts_;
+  Model2Vars model2vars_;
+  Model2Cnts model2cnts_;
+  Model2Quad model2quad_;
+  vector<ObjectiveInfo> objective_infos_;
 private:
-  ConvexObjective()  {}
   ConvexObjective(ConvexObjective&)  {}
 };
 
@@ -60,31 +87,24 @@ Actually only affine inequality constraints are currently implemented.
 */
 class ConvexConstraints {
 public:
-  ConvexConstraints(Model* model) : model_(model) {}
+  ConvexConstraints() {}
   /** Expression that should == 0 */
   void addEqCnt(const AffExpr&);
   /** Expression that should <= 0 */
   void addIneqCnt(const AffExpr&);
-  void setModel(Model* model) {
-    assert(!inModel());
-    model_ = model;
-  }
-  bool inModel() {
-    return model_ != NULL;
-  }
-  void addConstraintsToModel();
-  void removeFromModel();
+  
+  void addToModel(Model* model);
+  void removeFromModel(Model* model);
+  void removeFromModels();
 
-  vector<double> violations(const vector<double>& x);
-  double violation(const vector<double>& x);
+  vector<double> violations(const vector<double>& x, Model* model);
+  double violation(const vector<double>& x, Model* model);
 
   ~ConvexConstraints();
   vector<AffExpr> eqs_;
   vector<AffExpr> ineqs_;
+  Model2Cnts model2cnts_;
 private:
-   Model* model_;
-   vector<Cnt> cnts_;
-   ConvexConstraints() : model_(NULL) {}
    ConvexConstraints(ConvexConstraints&) {}
 };
 
@@ -94,9 +114,9 @@ Non-convex cost function, which knows how to calculate its convex approximation 
 class Cost {
 public:
   /** Evaluate at solution vector x*/
-  virtual double value(const vector<double>&) = 0;
+  virtual double value(const vector<double>&, Model*) = 0;
   /** Convexify at solution vector x*/
-  virtual ConvexObjectivePtr convex(const vector<double>& x, Model* model) = 0;
+  virtual ConvexObjectivePtr convex(const vector<double>& x) = 0;
 
   string name() {return name_;}
   void setName(const string& name) {name_=name;}
@@ -116,13 +136,13 @@ public:
   /** inequality vs equality */
   virtual ConstraintType type() = 0;
   /** Evaluate at solution vector x*/  
-  virtual vector<double> value(const vector<double>& x) = 0;
+  virtual vector<double> value(const vector<double>& x, Model*) = 0;
   /** Convexify at solution vector x*/  
-  virtual ConvexConstraintsPtr convex(const vector<double>& x, Model* model) = 0;
+  virtual ConvexConstraintsPtr convex(const vector<double>& x) = 0;
   /** Calculate constraint violations (positive part for inequality constraint, absolute value for inequality constraint)*/
-  vector<double> violations(const vector<double>& x);
+  vector<double> violations(const vector<double>& x, Model*);
   /** Sum of violations */
-  double violation(const vector<double>& x);
+  double violation(const vector<double>& x, Model*);
 
   string name() {return name_;}
   void setName(const string& name) {name_=name;}

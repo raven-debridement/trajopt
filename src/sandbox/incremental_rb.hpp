@@ -23,8 +23,7 @@ struct IncrementalRB: public Configuration {
     lower = DblVec(6, -INFINITY);
     upper = DblVec(6, INFINITY);
   };
-  virtual DblVec GetDOFValues() {
-    throw;
+  virtual DblVec GetDOFValues() const {
     DblVec out(6);
     OpenRAVE::Transform T = m_body->GetTransform();
     out[0] = T.trans.x;

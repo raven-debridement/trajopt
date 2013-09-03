@@ -5,6 +5,7 @@
 #include "sco_fwd.hpp"
 #include <iosfwd>
 #include <limits>
+#include <stdexcept>
 /**
 @file solver_interface.hpp
 @brief Interface to convex solvers
@@ -70,6 +71,8 @@ public:
 
   virtual VarVector getVars() const=0;
 
+  virtual ModelPtr cloneModel() const { throw std::runtime_error("not implemented"); }
+
   virtual ~Model() {}
 
 };
@@ -127,6 +130,8 @@ struct QuadExpr {
   vector<Var> vars1;
   vector<Var> vars2;
   QuadExpr() {}
+  QuadExpr(const QuadExpr& other) :
+    affexpr(other.affexpr), coeffs(other.coeffs), vars1(other.vars1), vars2(other.vars2) {}
   explicit QuadExpr(double a) : affexpr(a) {}
   explicit QuadExpr(const Var& v) : affexpr(v) {}
   explicit QuadExpr(const AffExpr& aff) : affexpr(aff) {}

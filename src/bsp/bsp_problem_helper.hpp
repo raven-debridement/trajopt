@@ -278,7 +278,7 @@ namespace BSP {
     }
 
     virtual void add_optimizer_callback(OptProb& prob, BSPTrustRegionSQP& opt) {
-      opt.addMeritDoneCallback(boost::bind(&BSPProblemHelper::merit_done_callback, this, _1, _2));
+      opt.addCallback(boost::bind(&BSPProblemHelper::merit_done_callback, this, _1, _2));
     }
 
     void configure_optimizer(OptProb& prob, BSPTrustRegionSQP& opt) {
@@ -315,7 +315,7 @@ namespace BSP {
       add_control_cost(*prob);
       add_goal_constraint(*prob);
       add_state_constraint(*prob);
-      BasicTrustRegionSQP opt(prob);
+      BSPTrustRegionSQP opt(prob);
       DblVec x(prob->getNumVars(), 0);
       opt.initialize(x);
       opt.optimize();
