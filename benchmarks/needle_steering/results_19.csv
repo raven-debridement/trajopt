@@ -1,0 +1,33 @@
+program_name,formulation,curvature_constraint,speed_formulation,rotation_cost,converged_percentage,avg_converged_run_time,avg_overall_run_time,avg_n_merit_increases,avg_n_qp_solves,avg_cost
+needle_steering_single_stage,stop and turn,constant curvature,constant speed,quadratic rotation cost,0.9,0.9028888888888887,1.011,2.14,150.76,11.5126582
+needle_steering_single_stage,stop and turn,constant curvature,constant speed,L1 rotation cost,0.72,0.9644444444444447,0.9484000000000001,3.9,232.68,10.5370226
+needle_steering_single_stage,stop and turn,constant curvature,variable speed,quadratic rotation cost,0.92,1.0699999999999996,1.1285999999999996,1.82,208.82,6.123664
+needle_steering_single_stage,stop and turn,constant curvature,variable speed,L1 rotation cost,0.88,1.4927272727272722,1.5039999999999996,2.1,259.22,5.8075738
+needle_steering_single_stage,stop and turn,bounded curvature,constant speed,quadratic rotation cost,0.82,1.5804878048780486,1.7253999999999998,2.98,268.84,11.255556600000004
+needle_steering_single_stage,stop and turn,bounded curvature,constant speed,L1 rotation cost,0.64,0.9321874999999998,1.0074000000000003,4.46,238.76,10.300291
+needle_steering_single_stage,stop and turn,bounded curvature,variable speed,quadratic rotation cost,0.86,1.3525581395348836,1.5976000000000001,2.22,279.24,6.127745799999999
+needle_steering_single_stage,stop and turn,bounded curvature,variable speed,L1 rotation cost,0.9,1.3986666666666663,1.5373999999999994,2.3,257.54,5.8410394
+needle_steering_single_stage,constant twist,constant curvature,constant speed,quadratic rotation cost,0.88,1.1004545454545456,1.2724000000000002,2.4,175.98,11.5020852
+needle_steering_single_stage,constant twist,constant curvature,constant speed,L1 rotation cost,0.68,1.0808823529411766,1.0076,3.94,235.08,10.422163400000002
+needle_steering_single_stage,constant twist,constant curvature,variable speed,quadratic rotation cost,0.9,1.036,1.1470000000000002,2.06,206.2,6.447557599999999
+needle_steering_single_stage,constant twist,constant curvature,variable speed,L1 rotation cost,0.9,1.374,1.4465999999999999,2.14,253.58,6.2313136
+needle_steering_single_stage,constant twist,bounded curvature,constant speed,quadratic rotation cost,0.86,1.5988372093023255,1.8706000000000003,2.3,274.2,11.269925200000003
+needle_steering_single_stage,constant twist,bounded curvature,constant speed,L1 rotation cost,0.64,1.10375,1.1146,4.26,275.22,10.101478200000003
+needle_steering_single_stage,constant twist,bounded curvature,variable speed,quadratic rotation cost,0.8,1.1775,1.3159999999999998,3.08,242.9,6.0520468
+needle_steering_single_stage,constant twist,bounded curvature,variable speed,L1 rotation cost,0.88,1.660909090909091,1.8188,2.4,315.14,5.840617599999998
+needle_steering_two_stages,stop and turn,constant curvature,constant speed,quadratic rotation cost,0.94,1.5642553191489361,1.6757999999999997,4.12,284.9,3.911386
+needle_steering_two_stages,stop and turn,constant curvature,constant speed,L1 rotation cost,0.98,1.2193877551020413,1.2444000000000004,3.58,347.78,2.8997596000000003
+needle_steering_two_stages,stop and turn,constant curvature,variable speed,quadratic rotation cost,0.94,1.2044680851063831,1.3053999999999997,3.42,257.62,1.5763652
+needle_steering_two_stages,stop and turn,constant curvature,variable speed,L1 rotation cost,0.96,1.633541666666667,1.6724,3.94,327.22,1.9658928000000002
+needle_steering_two_stages,stop and turn,bounded curvature,constant speed,quadratic rotation cost,0.98,1.9075510204081636,1.9352,4.06,329.84,4.996216
+needle_steering_two_stages,stop and turn,bounded curvature,constant speed,L1 rotation cost,1.0,1.1871999999999998,1.1871999999999998,3.58,328.12,4.5360119999999995
+needle_steering_two_stages,stop and turn,bounded curvature,variable speed,quadratic rotation cost,0.96,1.4458333333333335,1.4914,4.04,284.46,1.7992055999999998
+needle_steering_two_stages,stop and turn,bounded curvature,variable speed,L1 rotation cost,0.96,1.5485416666666667,1.648,3.84,299.82,1.0305156
+needle_steering_two_stages,constant twist,constant curvature,constant speed,quadratic rotation cost,1.0,1.4783999999999997,1.4783999999999997,3.3,236.94,3.509914
+needle_steering_two_stages,constant twist,constant curvature,constant speed,L1 rotation cost,0.98,1.159795918367347,1.1636,3.78,328.38,3.1598618000000003
+needle_steering_two_stages,constant twist,constant curvature,variable speed,quadratic rotation cost,0.98,1.1889795918367347,1.2304000000000002,3.04,252.5,1.3776546000000003
+needle_steering_two_stages,constant twist,constant curvature,variable speed,L1 rotation cost,0.98,1.6418367346938776,1.6643999999999999,3.6,317.46,1.6560648
+needle_steering_two_stages,constant twist,bounded curvature,constant speed,quadratic rotation cost,1.0,2.0228,2.0228,3.64,312.14,4.330960000000001
+needle_steering_two_stages,constant twist,bounded curvature,constant speed,L1 rotation cost,1.0,1.3372,1.3372,3.84,356.46,5.200322
+needle_steering_two_stages,constant twist,bounded curvature,variable speed,quadratic rotation cost,0.94,1.3314893617021277,1.4192000000000007,4.02,272.04,1.8120551999999999
+needle_steering_two_stages,constant twist,bounded curvature,variable speed,L1 rotation cost,1.0,1.5966000000000002,1.5966000000000002,3.54,295.98,1.2740924

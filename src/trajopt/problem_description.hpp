@@ -2,6 +2,7 @@
 
 #include "trajopt/common.hpp"
 #include "json_marshal.hpp"
+#include "utils/default_map.hpp"
 #include <boost/function.hpp>
 #include <boost/shared_ptr.hpp>
 #include "traj_plotter.hpp"
@@ -14,6 +15,7 @@ using namespace json_marshal;
 using namespace Json;
 typedef Json::Value TrajOptRequest;
 typedef Json::Value TrajOptResponse;
+typedef DefaultMap<string, double> Str2Dbl;
 using std::string;
 
 struct TermInfo;
@@ -250,6 +252,8 @@ struct CollisionCostInfo : public TermInfo, public MakesCost {
   /// safety margin: contacts with distance < dist_pen are penalized
   DblVec dist_pen;
   bool continuous;
+  std::vector<Str2Dbl> tag2coeffs;
+  std::vector<Str2Dbl> tag2dist_pen;
   /// for continuous-time penalty, use swept-shape between timesteps t and t+gap (gap=1 by default)
   int gap;
   void fromJson(const Value& v);

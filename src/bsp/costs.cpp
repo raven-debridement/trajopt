@@ -27,7 +27,7 @@ namespace BSP {
                   : ((2 * state_dim - j + 1) * j / 2 + i - j);
   }
 
-  double VarianceCost::value(const vector<double>& xvec) {
+  double VarianceCost::value(const vector<double>& xvec, Model* model) {
     VectorXd sqrt_sigma_vec = getVec(xvec, sqrt_sigma_vars);
     MatrixXd sigma;
     sqrt_sigma_vec_to_sigma(sqrt_sigma_vec, &sigma, state_dim);
@@ -36,8 +36,8 @@ namespace BSP {
     return bcost;
   }
 
-  ConvexObjectivePtr VarianceCost::convex(const vector<double>& xvec, Model* model) {
-    ConvexObjectivePtr out(new ConvexObjective(model));
+  ConvexObjectivePtr VarianceCost::convex(const vector<double>& xvec) {
+    ConvexObjectivePtr out(new ConvexObjective());
     out->addQuadExpr(expr);
     return out;
   }
@@ -54,15 +54,15 @@ namespace BSP {
     }
   }
 
-  double ControlCost::value(const vector<double>& xvec) {
+  double ControlCost::value(const vector<double>& xvec, Model* model) {
     VectorXd u = getVec(xvec, control_vars);
     double ucost = u.transpose() * R * u;
     //cout << "ucost: " << ucost << endl;
     return ucost;
   }
 
-  ConvexObjectivePtr ControlCost::convex(const vector<double>& xvec, Model* model) {
-    ConvexObjectivePtr out(new ConvexObjective(model));
+  ConvexObjectivePtr ControlCost::convex(const vector<double>& xvec) {
+    ConvexObjectivePtr out(new ConvexObjective());
     out->addQuadExpr(expr);
     return out;
   }

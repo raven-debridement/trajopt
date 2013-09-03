@@ -47,3 +47,8 @@ make_eclipse_project.sh
 src/cloudproc/determineNumpyPath.py
 src/humanoids/determineNumpyPath.py
 src/trajopt/determineNumpyPath.py
+.*.swo
+.*.swm
+.*.swp
+.*.swn
+benchmarks/needle_steering/scaleobj/scaleobj

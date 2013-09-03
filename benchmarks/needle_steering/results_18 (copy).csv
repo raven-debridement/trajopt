@@ -1,0 +1,33 @@
+program_name,formulation,curvature_constraint,speed_formulation,rotation_cost,converged_percentage,avg_converged_run_time,avg_overall_run_time,avg_n_merit_increases,avg_n_qp_solves,avg_cost
+needle_steering_without_collision_without_smart_merit_update,stop and turn,constant curvature,constant speed,quadratic rotation cost,1.0,0.7606000000000002,0.7606000000000002,0.0,200.92,12.237304000000002
+needle_steering_without_collision_without_smart_merit_update,stop and turn,constant curvature,constant speed,L1 rotation cost,1.0,0.48059999999999997,0.48059999999999997,0.0,298.8,11.218032599999999
+needle_steering_without_collision_without_smart_merit_update,stop and turn,constant curvature,variable speed,quadratic rotation cost,0.98,0.6979591836734695,0.7902000000000001,0.0,292.64,4.904066000000001
+needle_steering_without_collision_without_smart_merit_update,stop and turn,constant curvature,variable speed,L1 rotation cost,0.98,1.01265306122449,1.1296000000000002,0.0,370.88,3.9705972
+needle_steering_without_collision_without_smart_merit_update,stop and turn,bounded curvature,constant speed,quadratic rotation cost,1.0,0.5406,0.5406,0.0,161.22,10.823763800000004
+needle_steering_without_collision_without_smart_merit_update,stop and turn,bounded curvature,constant speed,L1 rotation cost,1.0,0.3473999999999999,0.3473999999999999,0.0,276.26,10.8120202
+needle_steering_without_collision_without_smart_merit_update,stop and turn,bounded curvature,variable speed,quadratic rotation cost,1.0,0.42760000000000004,0.42760000000000004,0.0,169.16,3.7236673999999987
+needle_steering_without_collision_without_smart_merit_update,stop and turn,bounded curvature,variable speed,L1 rotation cost,1.0,1.2126,1.2126,0.0,416.2,3.7191138
+needle_steering_without_collision_without_smart_merit_update,constant twist,constant curvature,constant speed,quadratic rotation cost,1.0,0.6984,0.6984,0.0,181.5,12.260286
+needle_steering_without_collision_without_smart_merit_update,constant twist,constant curvature,constant speed,L1 rotation cost,1.0,0.546,0.546,0.0,333.62,11.2359672
+needle_steering_without_collision_without_smart_merit_update,constant twist,constant curvature,variable speed,quadratic rotation cost,0.98,0.703673469387755,0.7789999999999998,0.0,298.36,4.989401599999997
+needle_steering_without_collision_without_smart_merit_update,constant twist,constant curvature,variable speed,L1 rotation cost,1.0,1.0812,1.0812,0.0,359.88,4.0033462
+needle_steering_without_collision_without_smart_merit_update,constant twist,bounded curvature,constant speed,quadratic rotation cost,1.0,0.6559999999999998,0.6559999999999998,0.0,179.7,10.859276399999999
+needle_steering_without_collision_without_smart_merit_update,constant twist,bounded curvature,constant speed,L1 rotation cost,1.0,0.33019999999999994,0.33019999999999994,0.0,262.82,10.825442999999998
+needle_steering_without_collision_without_smart_merit_update,constant twist,bounded curvature,variable speed,quadratic rotation cost,1.0,0.4506,0.4506,0.0,172.9,3.7499550000000004
+needle_steering_without_collision_without_smart_merit_update,constant twist,bounded curvature,variable speed,L1 rotation cost,1.0,0.8695999999999999,0.8695999999999999,0.0,302.98,3.7255643999999997
+needle_steering_without_collision_with_smart_merit_update,stop and turn,constant curvature,constant speed,quadratic rotation cost,1.0,0.7472000000000003,0.7472000000000003,0.0,200.92,12.237304000000002
+needle_steering_without_collision_with_smart_merit_update,stop and turn,constant curvature,constant speed,L1 rotation cost,1.0,0.4750000000000001,0.4750000000000001,0.0,298.8,11.218032599999999
+needle_steering_without_collision_with_smart_merit_update,stop and turn,constant curvature,variable speed,quadratic rotation cost,0.98,0.6889795918367349,0.7774000000000001,0.0,292.64,4.904066000000001
+needle_steering_without_collision_with_smart_merit_update,stop and turn,constant curvature,variable speed,L1 rotation cost,0.98,1.0410204081632655,1.1354,0.0,370.88,3.9705972
+needle_steering_without_collision_with_smart_merit_update,stop and turn,bounded curvature,constant speed,quadratic rotation cost,1.0,0.5378000000000001,0.5378000000000001,0.0,161.22,10.823763800000004
+needle_steering_without_collision_with_smart_merit_update,stop and turn,bounded curvature,constant speed,L1 rotation cost,1.0,0.3436,0.3436,0.0,276.26,10.8120202
+needle_steering_without_collision_with_smart_merit_update,stop and turn,bounded curvature,variable speed,quadratic rotation cost,1.0,0.42699999999999994,0.42699999999999994,0.0,169.16,3.7236673999999987
+needle_steering_without_collision_with_smart_merit_update,stop and turn,bounded curvature,variable speed,L1 rotation cost,1.0,1.2114000000000003,1.2114000000000003,0.0,416.2,3.7191138
+needle_steering_without_collision_with_smart_merit_update,constant twist,constant curvature,constant speed,quadratic rotation cost,1.0,0.7038,0.7038,0.0,181.5,12.260286
+needle_steering_without_collision_with_smart_merit_update,constant twist,constant curvature,constant speed,L1 rotation cost,1.0,0.5327999999999999,0.5327999999999999,0.0,333.62,11.2359672
+needle_steering_without_collision_with_smart_merit_update,constant twist,constant curvature,variable speed,quadratic rotation cost,0.98,0.7016326530612246,0.778,0.0,298.36,4.989401599999997
+needle_steering_without_collision_with_smart_merit_update,constant twist,constant curvature,variable speed,L1 rotation cost,1.0,1.0804,1.0804,0.0,359.88,4.0033462
+needle_steering_without_collision_with_smart_merit_update,constant twist,bounded curvature,constant speed,quadratic rotation cost,1.0,0.6538,0.6538,0.0,179.7,10.859276399999999
+needle_steering_without_collision_with_smart_merit_update,constant twist,bounded curvature,constant speed,L1 rotation cost,1.0,0.3204,0.3204,0.0,262.82,10.825442999999998
+needle_steering_without_collision_with_smart_merit_update,constant twist,bounded curvature,variable speed,quadratic rotation cost,1.0,0.4332000000000001,0.4332000000000001,0.0,172.9,3.7499550000000004
+needle_steering_without_collision_with_smart_merit_update,constant twist,bounded curvature,variable speed,L1 rotation cost,1.0,0.8856000000000002,0.8856000000000002,0.0,302.98,3.7255643999999997

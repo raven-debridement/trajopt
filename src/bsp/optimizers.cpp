@@ -52,13 +52,12 @@ namespace BSP {
 
     OptStatus retval = INVALID;
 
-    if (record_trust_region_history_) {
-      INC_LOG_TRUST_REGION;
-      LOG_TRUST_REGION;
-    }
-
     for (int merit_increases=0; merit_increases < max_merit_coeff_increases_; ) { /* merit adjustment loop */
       //++results_.n_merit_increases;
+      results_.cnt_viols = evaluateConstraintViols(constraints, x_, model_.get());
+      results_.cost_vals = evaluateCosts(prob_->getCosts(), x_, model_.get());
+      //assert(results_.n_func_evals == 0);
+      ++results_.n_func_evals;
 
       for (int iter=1; ; ++iter) { /* sqp loop */
         callCallbacks(x_);
@@ -132,12 +131,6 @@ namespace BSP {
 
         while (trust_box_size_ >= min_trust_box_size_) {
 
-          //cout << "setting trust box size " << trust_box_size_ << " around: ";
-          //for (int i = 0; i < x_.size(); ++i) cout << x_[i] << " ";
-          //cout << endl;
-
-          //cout << "current dynamics penalty coefficient: " << dynamics_merit_error_coeff_ << endl;
-          //cout << "current collision penalty coefficient: " << collision_merit_error_coeff_ << endl;
 
           setTrustBoxConstraints(x_, model_.get());
           CvxOptStatus status = model_->optimize();
@@ -177,6 +170,7 @@ namespace BSP {
           new_cost_vals = evaluateCosts(prob_->getCosts(), new_x, model_.get());
           new_dynamics_cnt_viols = evaluateConstraintViols(dynamics_constraints, new_x, model_.get());
           new_collision_cnt_viols = evaluateConstraintViols(collision_constraints, new_x, model_.get());
+
           ++results_.n_func_evals;
 
           double old_merit = vecSum(results_.cost_vals) + dynamics_merit_error_coeff_ * vecSum(results_.dynamics_cnt_viols) + collision_merit_error_coeff_ * vecSum(results_.collision_cnt_viols);

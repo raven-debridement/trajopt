@@ -1,0 +1,44 @@
+####
+# OBJ dataFile simple version. File name: prostate_data/cvxobjs/arteriesBaseRight_cvx_24.obj
+# Vertices: 13
+# Faces: 22
+####
+# List of Vertices, with (x,y,z) coordinates, w is optional.
+v -0.47535 3.739 2.031
+v -0.46865 4.0429 2.0387
+v -0.5795 3.7929 2.4772
+v -0.19405 4.0068 1.9604
+v -0.5706 3.5336 2.3229
+v -0.64605 3.8532 2.1565
+v -0.5017 4.0612 2.2302
+v -0.5378 3.6147 2.4938
+v -0.44485 3.8366 1.9076
+v -0.5857 3.6496 2.0595
+v -0.65515 3.6892 2.2924
+v -0.61785 3.9176 2.3427
+v -0.55895 3.9119 2.0138
+# 13 vertices
+# Face Definitions
+f 9 10 13
+f 1 4 5
+f 3 4 7
+f 4 2 7
+f 2 6 7
+f 4 3 8
+f 5 4 8
+f 2 4 9
+f 4 1 9
+f 1 5 10
+f 9 1 10
+f 10 5 11
+f 8 3 11
+f 5 8 11
+f 6 10 11
+f 3 7 12
+f 7 6 12
+f 11 3 12
+f 6 11 12
+f 6 2 13
+f 2 9 13
+f 10 6 13
+# End of File

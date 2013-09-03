@@ -462,6 +462,7 @@ void JointVelConstraintInfo::hatch(TrajOptProb& prob) {
 }
 
 void CollisionCostInfo::fromJson(const Value& v) {
+
   FAIL_IF_FALSE(v.isMember("params"));
   const Value& params = v["params"];
 
@@ -473,8 +474,11 @@ void CollisionCostInfo::fromJson(const Value& v) {
   FAIL_IF_FALSE( gap >= 0 );
   FAIL_IF_FALSE((first_step >= 0) && (first_step < n_steps));
   FAIL_IF_FALSE((last_step >= first_step) && (last_step < n_steps));
-  childFromJson(params, coeffs, "coeffs");
   int n_terms = last_step - first_step + 1;
+  tag2coeffs.resize(n_terms);
+  tag2dist_pen.resize(n_terms);
+
+  childFromJson(params, coeffs, "coeffs");
   if (coeffs.size() == 1) coeffs = DblVec(n_terms, coeffs[0]);
   else if (coeffs.size() != n_terms) {
     PRINT_AND_THROW (boost::format("wrong size: coeffs. expected %i got %i")%n_terms%coeffs.size());
@@ -484,16 +488,16 @@ void CollisionCostInfo::fromJson(const Value& v) {
   else if (dist_pen.size() != n_terms) {
     PRINT_AND_THROW(boost::format("wrong size: dist_pen. expected %i got %i")%n_terms%dist_pen.size());
   }
-  
-  const char* all_fields[] = {"continuous", "first_step", "last_step", "gap", "coeffs", "dist_pen"};
+
+  const char* all_fields[] = {"continuous", "first_step", "last_step", "gap", "coeffs", "dist_pen", "object_costs"};
   ensure_only_members(params, all_fields, sizeof(all_fields)/sizeof(char*));  
   
 }
 void CollisionCostInfo::hatch(TrajOptProb& prob) {
   if (term_type == TT_COST) {
     if (continuous) {
-      for (int i=first_step; i <= last_step - gap; ++i) {
-        prob.addCost(CostPtr(new CollisionCost(dist_pen[i-first_step], coeffs[i-first_step], prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+gap))));
+      for (int i=first_step; i <= last_step-gap; ++i) {
+        prob.addCost(CostPtr(new CollisionCost(dist_pen[i-first_step], coeffs[i-first_step], prob.GetRAD(), prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+gap))));
         prob.getCosts().back()->setName( (boost::format("%s_%i")%name%i).str() );
       }
     }
@@ -507,7 +511,7 @@ void CollisionCostInfo::hatch(TrajOptProb& prob) {
   else { // ALMOST COPIED
     if (continuous) {
       for (int i=first_step; i < last_step; ++i) {
-        prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(dist_pen[i-first_step], coeffs[i-first_step], prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+1))));
+        prob.addIneqConstraint(ConstraintPtr(new CollisionConstraint(dist_pen[i-first_step], coeffs[i-first_step], prob.GetRAD(), prob.GetRAD(), prob.GetVarRow(i), prob.GetVarRow(i+1))));
         prob.getIneqConstraints().back()->setName( (boost::format("%s_%i")%name%i).str() );
       }
     }
@@ -519,14 +523,15 @@ void CollisionCostInfo::hatch(TrajOptProb& prob) {
     }
   }
 
-
-
   CollisionCheckerPtr cc = CollisionChecker::GetOrCreate(*prob.GetEnv());
-  cc->SetContactDistance(*std::max_element(dist_pen.begin(), dist_pen.end()) + .04);
+  double max_dist_pen = 0;
+  for (int i=first_step; i < last_step; ++i) {
+    if (dist_pen[i] > max_dist_pen) {
+      max_dist_pen = dist_pen[i];
+    }
+  }
+  cc->SetContactDistance(max_dist_pen + .04);
 }
-
-
-
 
 void JointConstraintInfo::fromJson(const Value& v) {
   FAIL_IF_FALSE(v.isMember("params"));

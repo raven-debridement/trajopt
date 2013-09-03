@@ -38,7 +38,9 @@ enable_testing()
 
 option(BUILD_BSP "build belief space planning experiments" ON)
 option(BUILD_CLOUDPROC "build point cloud processing stuff" OFF)
-option(BUILD_SANDBOX "build sandbox programs" OFF)
+option(BUILD_SANDBOX "build sandbox programs" ON)
+option(BUILD_NEEDLE_STEERING "build needle steering" ON)
+option(BUILD_NEEDLE_STEERING_RRT "build needle steering rrt" ON)
 option(BUILD_HUMANOIDS "build humanoids stuff" OFF)
 option(BUILD_SENSORSIM "build sensor simulation" OFF)
 

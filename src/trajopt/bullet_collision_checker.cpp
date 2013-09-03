@@ -2,6 +2,14 @@
 #include <btBulletCollisionCommon.h>
 #include <BulletCollision/CollisionShapes/btShapeHull.h>
 #include <BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.h>
+
+#include "BulletCollision/CollisionShapes/btConvexHullShape.h"
+#include "BulletCollision/NarrowPhaseCollision/btGjkEpaPenetrationDepthSolver.h"
+#include "BulletCollision/NarrowPhaseCollision/btGjkPairDetector.h"
+#include "BulletCollision/NarrowPhaseCollision/btPointCollector.h"
+#include "BulletCollision/NarrowPhaseCollision/btVoronoiSimplexSolver.h"
+#include "BulletCollision/NarrowPhaseCollision/btConvexPenetrationDepthSolver.h"
+
 #include <openrave-core.h>
 #include "utils/eigen_conversions.hpp"
 #include <boost/foreach.hpp>
@@ -12,6 +20,7 @@
 #include "utils/logging.hpp"
 #include "openrave_userdata_utils.hpp"
 #include "bullet_collision_checker.hpp"
+
 using namespace util;
 using namespace std;
 using namespace trajopt;
@@ -269,7 +278,20 @@ void BulletCollisionChecker::RenderCollisionShape(btCollisionShape* shape, const
   }
 
   default:
-    LOG_INFO("not rendering shape of type %i", shape->getShapeType());
+    if (shape->getShapeType() <= CUSTOM_CONVEX_SHAPE_TYPE) {
+      btConvexShape* convex = dynamic_cast<btConvexShape*>(shape);
+      btShapeHull* hull = new btShapeHull(convex);
+      hull->buildHull(convex->getMargin());
+      int num_triangles = hull->numTriangles();
+      const unsigned int* indices = hull->getIndexPointer();
+      const btVector3* vertices = hull->getVertexPointer();
+      btVector3 tf_vertices[hull->numVertices()];
+      for (int i=0; i<hull->numVertices(); i++) tf_vertices[i] = tf * vertices[i];
+
+      handles.push_back(env.drawtrimesh((float*)tf_vertices, 16, (int*) indices, num_triangles, OR::RaveVector<float>(1,1,1,1)));
+    } else {
+      LOG_INFO("not rendering shape of type %i", shape->getShapeType());
+    }
     break;
   }
 }
@@ -373,6 +395,12 @@ void BulletCollisionChecker::LinkVsAll_NoUpdate(const KinBody::Link& link, vecto
   m_world->contactTest(cow, cc);
 }
 
+bool BulletCollisionChecker::SegmentVsAll(const btVector3& pt0, const btVector3& pt1) {
+  btCollisionWorld::ClosestRayResultCallback RayCallback(pt0, pt1);
+  m_world->rayTest(pt0, pt1, RayCallback);
+  return RayCallback.hasHit();
+}
+
 
 
 void BulletCollisionChecker::AddKinBody(const OR::KinBodyPtr& body) {
@@ -410,17 +438,72 @@ void BulletCollisionChecker::RemoveKinBody(const OR::KinBodyPtr& body) {
       m_world->removeCollisionObject(cow);
       m_link2cow.erase(link.get());      
     }
+    
   }
   trajopt::RemoveUserData(*body, "bt");
 }
 
 
+void BulletCollisionChecker::AddCastHullShape(Configuration& rad0, Configuration& rad1, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec endjoints) {
+  // Almost copied from CastVsAll
+  Configuration::SaverPtr saver = rad0.Save();
+  rad0.SetDOFValues(startjoints);
+  int nlinks = links.size();
+  vector<btTransform> tbefore(nlinks), tafter(nlinks);
+  for (int i=0; i < nlinks; ++i) {
+    tbefore[i] = toBt(links[i]->GetTransform());
+  }
+  rad1.SetDOFValues(endjoints);
+  for (int i=0; i < nlinks; ++i) {
+    tafter[i] = toBt(links[i]->GetTransform());
+  }
+  rad0.SetDOFValues(startjoints);
+  bool useTrimesh = trajopt::GetUserData(*links[0]->GetParent(), "bt_use_trimesh");
+  CDPtr cd = boost::static_pointer_cast<KinBodyCollisionData>(trajopt::GetUserData(*links[0]->GetParent(), "bt"));
+  for (int i = 0; i < cd->cows.size(); ++i) {
+    m_managed_cows.push_back(cd->cows[i]);//CowPtr(GetCow(links[i].get())));
+  }
+  for (int i = 0; i < nlinks; ++i) {
+    if (links[i]->GetGeometries().size() > 0) {
+      COWPtr cow = CollisionObjectFromLink(links[i], useTrimesh); 
+      cow->m_dynamic = false;
+      //cow->manage(boost::shared_ptr<btCollisionShape>(cow->getCollisionShape()));
+      //assert(m_link2cow[links[i].get()] != NULL);
+      //CollisionObjectWrapper* cow = m_link2cow[links[i].get()];
+      m_managed_cows.push_back(cow);
+      AddCastHullShape(cow->getCollisionShape(), tbefore[i], tafter[i], cow.get(), m_world);
+    }
+  }
+}
+
+void BulletCollisionChecker::AddCastHullShape(btCollisionShape* shape, const btTransform& tf0, const btTransform& tf1,
+    CollisionObjectWrapper* cow, btCollisionWorld* world) {
+  if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
+    //boost::shared_ptr<btConvexShape> convex_ptr(convex);
+    boost::shared_ptr<CastHullShape> shape(new CastHullShape(convex, tf0.inverseTimes(tf1)));
+    COWPtr obj(new CollisionObjectWrapper(cow->m_link));
+    obj->setCollisionShape(shape.get());
+    obj->setWorldTransform(tf0);
+    obj->m_index = cow->m_index;
+    obj->manage(shape);
+    //obj->manage(convex_ptr);
+    world->addCollisionObject(obj.get(), KinBodyFilter);
+    obj->setContactProcessingThreshold(m_contactDistance);
+    m_managed_cows.push_back(obj);
+  } else if (btCompoundShape* compound = dynamic_cast<btCompoundShape*>(shape)) {
+    for (int i = 0; i < compound->getNumChildShapes(); ++i) {
+      AddCastHullShape(compound->getChildShape(i), tf0*compound->getChildTransform(i), tf1*compound->getChildTransform(i), cow, world);
+    }
+  } else {
+    throw std::runtime_error("I can only add cast hull of convex shapes and compound shapes made of convex shapes");
+  }
+}
 
 void BulletCollisionChecker::AddAndRemoveBodies(const vector<KinBodyPtr>& curVec, const vector<KinBodyPtr>& prevVec, vector<KinBodyPtr>& toAdd) {
   vector<KinBodyPtr> toRemove;
   SetDifferences(curVec, prevVec, toAdd, toRemove);
   BOOST_FOREACH(const KinBodyPtr& body, toAdd) {
-    assert(!trajopt::GetUserData(*body, "bt"));
+    //assert(!trajopt::GetUserData(*body, "bt"));
     AddKinBody(body);
   }
   BOOST_FOREACH(const KinBodyPtr& body, toRemove) {
@@ -455,6 +538,7 @@ void BulletCollisionChecker::UpdateAllowedCollisionMatrix() {
 void BulletCollisionChecker::UpdateBulletFromRave() {
   vector<OR::KinBodyPtr> bodies, addedBodies;
   m_env->GetBodies(bodies);
+
   if (bodies.size() != m_prevbodies.size() || !std::equal(bodies.begin(), bodies.end(), m_prevbodies.begin())) {
     LOG_DEBUG("need to add and remove stuff");
     AddAndRemoveBodies(bodies, m_prevbodies, addedBodies);
@@ -475,7 +559,9 @@ void BulletCollisionChecker::UpdateBulletFromRave() {
   LOG_DEBUG("%i objects in bullet world", objs.size());
   for (int i=0; i < objs.size(); ++i) {
     CollisionObjectWrapper* cow = static_cast<CollisionObjectWrapper*>(objs[i]);
-    cow->setWorldTransform(toBt(cow->m_link->GetTransform()));
+    if (cow->isDynamic()) {
+      cow->setWorldTransform(toBt(cow->m_link->GetTransform()));
+    }
   }
 
 }
@@ -662,6 +748,40 @@ class CompoundHullShape : public btConvexShape {
 };
 #endif
 
+void GetAverageSupport(const btConvexShape* shape, const btVector3& localNormal, float& outsupport, btVector3& outpt) {
+  btVector3 ptSum(0,0,0);
+  float ptCount = 0;
+  float maxSupport=-1000;
+  const float EPSILON = 1e-3;
+  const btPolyhedralConvexShape* pshape = dynamic_cast<const btPolyhedralConvexShape*>(shape);
+  if (pshape) {
+    int nPts = pshape->getNumVertices();
+
+    for (int i=0; i < nPts; ++i) {
+      btVector3 pt;
+      pshape->getVertex(i, pt);
+      float sup  = pt.dot(localNormal);
+      if (sup > maxSupport + EPSILON) {
+        ptCount=1;
+        ptSum = pt;
+        maxSupport = sup;
+      }
+      else if (sup < maxSupport - EPSILON) {
+      }
+      else {
+        ptCount += 1;
+        ptSum += pt;
+      }
+    }
+    outsupport = maxSupport;
+    outpt = ptSum / ptCount;
+  }
+  else  {
+    outpt = shape->localGetSupportingVertexWithoutMargin(localNormal);
+    outsupport = localNormal.dot(outpt);
+  }
+}
+
 btScalar CastCollisionCollector::addSingleResult(btManifoldPoint& cp,
     const btCollisionObjectWrapper* colObj0Wrap,int partId0,int index0,
     const btCollisionObjectWrapper* colObj1Wrap,int partId1,int index1) {      
@@ -678,8 +798,6 @@ btScalar CastCollisionCollector::addSingleResult(btManifoldPoint& cp,
 
         Collision& col = m_collisions.back();
         const float SUPPORT_FUNC_TOLERANCE = .01 METERS;
-
-//        cout << normalWorldFromCast << endl;
 
         if (castShapeIsFirst) {
           swap(col.ptA, col.ptB);
@@ -742,40 +860,6 @@ btScalar CastCollisionCollector::addSingleResult(btManifoldPoint& cp,
       return retval;          
 }
 
-void CastCollisionCollector::GetAverageSupport(const btConvexShape* shape, const btVector3& localNormal, float& outsupport, btVector3& outpt) const {
-  btVector3 ptSum(0,0,0);
-  float ptCount = 0;
-  float maxSupport=-1000;
-  const float EPSILON = 1e-3;
-  const btPolyhedralConvexShape* pshape = dynamic_cast<const btPolyhedralConvexShape*>(shape);
-  if (pshape) {
-    int nPts = pshape->getNumVertices();
-
-    for (int i=0; i < nPts; ++i) {
-      btVector3 pt;
-      pshape->getVertex(i, pt);
-//      cout << "pt: " << pt << endl;
-      float sup  = pt.dot(localNormal);
-      if (sup > maxSupport + EPSILON) {
-        ptCount=1;
-        ptSum = pt;
-        maxSupport = sup;
-      }
-      else if (sup < maxSupport - EPSILON) {
-      }
-      else {
-        ptCount += 1;
-        ptSum += pt;
-      }
-    }
-    outsupport = maxSupport;
-    outpt = ptSum / ptCount;
-  }
-  else  {
-    outpt = shape->localGetSupportingVertexWithoutMargin(localNormal);
-    outsupport = localNormal.dot(outpt);
-  }
-}
 
 void BulletCollisionChecker::CheckShapeCast(btCollisionShape* shape, const btTransform& tf0, const btTransform& tf1,
     CollisionObjectWrapper* cow, btCollisionWorld* world, vector<Collision>& collisions) {
@@ -803,20 +887,20 @@ void BulletCollisionChecker::CheckShapeCast(btCollisionShape* shape, const btTra
 
 }
 
-void BulletCollisionChecker::CastVsAll(Configuration& rad, const vector<KinBody::LinkPtr>& links,
+void BulletCollisionChecker::CastVsAll(Configuration& rad0, Configuration& rad1, const vector<KinBody::LinkPtr>& links,
     const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions) {
-  Configuration::SaverPtr saver = rad.Save();
-  rad.SetDOFValues(startjoints);
+  Configuration::SaverPtr saver = rad0.Save();
+  rad0.SetDOFValues(startjoints);
   int nlinks = links.size();
   vector<btTransform> tbefore(nlinks), tafter(nlinks);
   for (int i=0; i < nlinks; ++i) {
     tbefore[i] = toBt(links[i]->GetTransform());
   }
-  rad.SetDOFValues(endjoints);
+  rad1.SetDOFValues(endjoints);
   for (int i=0; i < nlinks; ++i) {
     tafter[i] = toBt(links[i]->GetTransform());
   }
-  rad.SetDOFValues(startjoints);
+  rad0.SetDOFValues(startjoints);
   UpdateBulletFromRave();
   m_world->updateAabbs();
 
@@ -826,6 +910,218 @@ void BulletCollisionChecker::CastVsAll(Configuration& rad, const vector<KinBody:
     CheckShapeCast(cow->getCollisionShape(), tbefore[i], tafter[i], cow, m_world, collisions);
   }
   LOG_DEBUG("CastVsAll checked %li links and found %li collisions", links.size(), collisions.size());
+}
+
+
+void BulletCollisionChecker::CastVsCastGJKDistance(CastHullShape* shape0, const btTransform& tf0, CastHullShape* shape1, const btTransform& tf1, vector<Collision>& collisions) {
+  btGjkEpaPenetrationDepthSolver epa;
+  btVoronoiSimplexSolver sGjkSimplexSolver;
+  btGjkPairDetector convexConvex(shape0, shape1,&sGjkSimplexSolver,&epa);
+
+  btPointCollector gjkOutput;
+  btGjkPairDetector::ClosestPointInput input;
+  input.m_transformA = tf0;
+  input.m_transformB = tf1;
+
+  convexConvex.getClosestPoints(input, gjkOutput, 0);
+
+  if (gjkOutput.m_hasResult && GetContactDistance() >= gjkOutput.m_distance) {
+    Collision collision(NULL, NULL, toOR(gjkOutput.m_pointInWorld), toOR(gjkOutput.m_pointInWorld + gjkOutput.m_normalOnBInWorld*gjkOutput.m_distance),
+        toOR(gjkOutput.m_normalOnBInWorld), gjkOutput.m_distance);
+
+    btVector3 ptOn0 = gjkOutput.m_pointInWorld;
+    btVector3 ptOn1 = gjkOutput.m_pointInWorld + gjkOutput.m_normalOnBInWorld*gjkOutput.m_distance;
+    btVector3 normalWorldFrom0 = -gjkOutput.m_normalOnBInWorld;
+    btVector3 normalWorldFrom1 = gjkOutput.m_normalOnBInWorld;
+    btTransform tfWorld00 = tf0;
+    btTransform tfWorld01 = tf0 * shape0->m_t01;
+    btTransform tfWorld10 = tf1;
+    btTransform tfWorld11 = tf1 * shape1->m_t01;
+    btVector3 normalLocal00 = normalWorldFrom0 * tfWorld00.getBasis();
+    btVector3 normalLocal01 = normalWorldFrom0 * tfWorld01.getBasis();
+    btVector3 normalLocal10 = normalWorldFrom1 * tfWorld10.getBasis();
+    btVector3 normalLocal11 = normalWorldFrom1 * tfWorld11.getBasis();
+
+    const float SUPPORT_FUNC_TOLERANCE = .01 METERS;
+
+    btVector3 ptLocal00;
+    float localsup00;
+    GetAverageSupport(shape0->m_shape, normalLocal00, localsup00, ptLocal00);
+    btVector3 ptWorld00 = tfWorld00 * ptLocal00;
+    btVector3 ptLocal01;
+    float localsup01;
+    GetAverageSupport(shape0->m_shape, normalLocal01, localsup01, ptLocal01);
+    btVector3 ptWorld01 = tfWorld01 * ptLocal01;
+
+    btVector3 ptLocal10;
+    float localsup10;
+    GetAverageSupport(shape1->m_shape, normalLocal10, localsup10, ptLocal10);
+    btVector3 ptWorld10 = tfWorld10 * ptLocal10;
+    btVector3 ptLocal11;
+    float localsup11;
+    GetAverageSupport(shape1->m_shape, normalLocal11, localsup11, ptLocal11);
+    btVector3 ptWorld11 = tfWorld11 * ptLocal11;
+
+    float sup00 = normalWorldFrom0.dot(ptWorld00);
+    float sup01 = normalWorldFrom0.dot(ptWorld01);
+    float sup10 = normalWorldFrom1.dot(ptWorld10);
+    float sup11 = normalWorldFrom1.dot(ptWorld11);
+
+    // TODO: this section is potentially problematic. think hard about the math
+    if (sup00 - sup01 > SUPPORT_FUNC_TOLERANCE) {
+      collision.timeA = 0;
+      collision.cctypeA = CCType_Time0;
+    }
+    else if (sup01 - sup00 > SUPPORT_FUNC_TOLERANCE) {
+      collision.timeA = 1;
+      collision.cctypeA = CCType_Time1;
+    }
+    else {
+      float l0c = (ptOn0 - ptWorld00).length(), 
+            l1c = (ptOn0 - ptWorld01).length();
+      collision.pt00 = toOR(ptWorld00);
+      collision.pt01 = toOR(ptWorld01);
+      collision.cctypeA = CCType_Between;
+      const float LENGTH_TOLERANCE = .001 METERS;
+      if ( l0c + l1c < LENGTH_TOLERANCE) {
+        collision.timeA = .5;
+      }
+      else {
+        collision.timeA = l0c/(l0c + l1c); 
+      }
+    }
+
+    if (sup10 - sup11 > SUPPORT_FUNC_TOLERANCE) {
+      collision.timeB = 0;
+      collision.cctypeB = CCType_Time0;
+    }
+    else if (sup11 - sup10 > SUPPORT_FUNC_TOLERANCE) {
+      collision.timeB = 1;
+      collision.cctypeA = CCType_Time1;
+    }
+    else {
+      float l0c = (ptOn1 - ptWorld10).length(), 
+            l1c = (ptOn1 - ptWorld11).length();
+      collision.pt10 = toOR(ptWorld10);
+      collision.pt11 = toOR(ptWorld11);
+      collision.cctypeB = CCType_Between;
+      const float LENGTH_TOLERANCE = .001 METERS;
+      if ( l0c + l1c < LENGTH_TOLERANCE) {
+        collision.timeB = .5;
+      }
+      else {
+        collision.timeB = l0c/(l0c + l1c); 
+      }
+    }
+
+    collisions.push_back(collision);
+  }
+}
+
+void createCastHullShape(btCollisionShape* shape, const btTransform& tf0,
+    const btTransform& tf1, CollisionObjectWrapper* cow, vector<CollisionObjectWrapper*>& objs) {
+  if (btConvexShape* convex = dynamic_cast<btConvexShape*>(shape)) {
+    btTransform t01 = tf0.inverseTimes(tf1);
+    CastHullShape* shape = new CastHullShape(convex, t01);
+    CollisionObjectWrapper* obj = new CollisionObjectWrapper(cow->m_link);
+    obj->setCollisionShape(shape);
+    obj->setWorldTransform(tf0);
+    obj->m_index = cow->m_index;
+    objs.push_back(obj);
+  }
+  else if (btCompoundShape* compound = dynamic_cast<btCompoundShape*>(shape)) {
+    for (int child_ind = 0; child_ind < compound->getNumChildShapes(); ++child_ind) {
+      btTransform tf0_child = tf0*compound->getChildTransform(child_ind);
+      btTransform tf1_child = tf1*compound->getChildTransform(child_ind);
+      createCastHullShape(compound->getChildShape(child_ind), tf0_child, tf1_child, cow, objs);
+    }
+  }
+  else {
+    throw std::runtime_error("I can only create MultiCastHullShape made of convex shapes and compound shapes made of convex shapes");
+  }
+}
+
+void BulletCollisionChecker::CastVsCast(Configuration& rad00, Configuration& rad01, Configuration& rad10, Configuration& rad11, const vector<KinBody::LinkPtr>& links0, const vector<KinBody::LinkPtr>& links1, const DblVec& startjoints0, const DblVec& endjoints0, const DblVec& startjoints1, const DblVec& endjoints1, vector<Collision>& collisions) {
+
+  Configuration::SaverPtr saver = rad00.Save();
+  rad00.SetDOFValues(startjoints0);
+  int nlinks0 = links0.size();
+  vector<btTransform> tbefore0(nlinks0), tafter0(nlinks0);
+  for (int i=0; i < nlinks0; ++i) {
+    tbefore0[i] = toBt(links0[i]->GetTransform());
+  }
+  rad01.SetDOFValues(endjoints0);
+  for (int i=0; i < nlinks0; ++i) {
+    tafter0[i] = toBt(links0[i]->GetTransform());
+  }
+
+  Configuration::SaverPtr saver2 = rad10.Save();
+  rad10.SetDOFValues(startjoints1);
+  int nlinks1 = links1.size();
+  vector<btTransform> tbefore1(nlinks1), tafter1(nlinks1);
+  for (int i=0; i < nlinks1; ++i) {
+    tbefore1[i] = toBt(links1[i]->GetTransform());
+  }
+  rad11.SetDOFValues(endjoints1);
+  for (int i=0; i < nlinks1; ++i) {
+    tafter1[i] = toBt(links1[i]->GetTransform());
+  }
+
+  rad00.SetDOFValues(startjoints0);
+  rad10.SetDOFValues(startjoints1);
+  UpdateBulletFromRave();
+  m_world->updateAabbs();
+
+  for (int i = 0; i < nlinks0; ++i) {
+    for (int j = 0; j < nlinks1; ++j) {
+      CheckShapeCastVsCast(
+          links0[i], tbefore0[i], tafter0[i],
+          links1[j], tbefore1[j], tafter1[j],
+          collisions);
+    }
+  }
+
+  LOG_DEBUG("CastVsCast checked %i links vs %i links and found %i collisions", (int)links0.size(), (int)links1.size(), (int)collisions.size());
+
+}
+
+void BulletCollisionChecker::CheckShapeCastVsCast(
+    KinBody::LinkPtr link0, const btTransform& tf00, const btTransform& tf01,
+    KinBody::LinkPtr link1, const btTransform& tf10, const btTransform& tf11,
+    vector<Collision>& collisions) {
+
+
+  vector<CollisionObjectWrapper*> objs0, objs1;
+
+  assert(m_link2cow[link0.get()] != NULL);
+  CollisionObjectWrapper* cow0 = m_link2cow[link0.get()];
+  createCastHullShape(cow0->getCollisionShape(), tf00, tf01, cow0, objs0);
+
+  assert(m_link2cow[link1.get()] != NULL);
+  CollisionObjectWrapper* cow1 = m_link2cow[link1.get()];
+  createCastHullShape(cow1->getCollisionShape(), tf10, tf11, cow1, objs1);
+
+  for (int i=0; i<objs0.size(); i++) {
+    for (int j=0; j<objs1.size(); j++) {
+      CastHullShape* shape0 = dynamic_cast<CastHullShape*>(objs0[i]->getCollisionShape());
+      CastHullShape* shape1 = dynamic_cast<CastHullShape*>(objs1[j]->getCollisionShape());
+      assert(!!shape0);
+      assert(!!shape1);
+      CastVsCastGJKDistance(shape0, objs0[i]->getWorldTransform(), shape1, objs1[j]->getWorldTransform(), collisions);
+      for (int i=0; i<collisions.size(); i++) {
+        collisions[i].linkA = link0.get();
+        collisions[i].linkB = link1.get();
+      }
+    }
+  }
+  for (int i=0; i<objs0.size(); i++) {
+    delete objs0[i]->getCollisionShape();
+    delete objs0[i];
+  }
+  for (int i=0; i<objs0.size(); i++) {
+    delete objs1[i]->getCollisionShape();
+    delete objs1[i];
+  }
 }
 
 }

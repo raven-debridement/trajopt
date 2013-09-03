@@ -21,9 +21,12 @@ struct TRAJOPT_API Collision {
   const OR::KinBody::Link* linkB;
   OR::Vector ptA, ptB, normalB2A; /* normal points from 2 to 1 */
   OR::Vector ptB1;
+  OR::Vector pt00, pt01, pt10, pt11;
   double distance; /* pt1 = pt2 + normal*dist */
   float weight, time;
+  float timeA, timeB;
   CastCollisionType cctype;
+  CastCollisionType cctypeA, cctypeB;
   Collision(const KinBody::Link* linkA, const KinBody::Link* linkB, const OR::Vector& ptA, const OR::Vector& ptB, const OR::Vector& normalB2A, double distance, float weight=1, float time=0) :
     linkA(linkA), linkB(linkB), ptA(ptA), ptB(ptB), normalB2A(normalB2A), distance(distance), weight(weight), time(0), cctype(CCType_None) {}
 };
@@ -59,7 +62,9 @@ public:
   virtual void ContinuousCheckTrajectory(const TrajArray& traj, Configuration& rad, vector<Collision>& collisions) {throw std::runtime_error("not implemented");}
   
   /** Find contacts between swept-out shapes of robot links and everything in the environment, as robot goes from startjoints to endjoints */ 
-  virtual void CastVsAll(Configuration& rad, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions) {throw std::runtime_error("not implemented");}
+  virtual void CastVsAll(Configuration& rad0, Configuration& rad1, const vector<KinBody::LinkPtr>& links, const DblVec& startjoints, const DblVec& endjoints, vector<Collision>& collisions) {throw std::runtime_error("not implemented");}
+
+  virtual void CastVsCast(Configuration& rad00, Configuration& rad01, Configuration& rad10, Configuration& rad11, const vector<KinBody::LinkPtr>& links0, const vector<KinBody::LinkPtr>& links1, const DblVec& startjoints0, const DblVec& endjoints0, const DblVec& startjoints1, const DblVec& endjoints1, vector<Collision>& collisions) {throw std::runtime_error("not implemented");}
 
   /** Finds all self collisions when all joints are set to zero, and ignore collisions between the colliding links */
   void IgnoreZeroStateSelfCollisions();

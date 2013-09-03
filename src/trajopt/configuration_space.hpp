@@ -10,7 +10,7 @@ public:
   
   virtual void SetDOFValues(const DblVec& dofs) = 0;
   virtual void GetDOFLimits(DblVec& lower, DblVec& upper) const = 0;
-  virtual DblVec GetDOFValues() = 0;
+  virtual DblVec GetDOFValues() const = 0;
   virtual int GetDOF() const = 0;
   virtual OpenRAVE::EnvironmentBasePtr GetEnv() = 0;
   virtual DblMatrix PositionJacobian(int link_ind, const OR::Vector& pt) const = 0;
@@ -52,7 +52,7 @@ public:
 
   void SetDOFValues(const DblVec& dofs);
   void GetDOFLimits(DblVec& lower, DblVec& upper) const;
-  DblVec GetDOFValues();
+  DblVec GetDOFValues() const;
   int GetDOF() const;
   virtual OpenRAVE::EnvironmentBasePtr GetEnv() {return robot->GetEnv();};  
   IntVec GetJointIndices() const {return joint_inds;}

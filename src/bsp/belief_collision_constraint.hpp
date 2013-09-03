@@ -21,19 +21,21 @@ namespace BSP {
       name_ = "belief_collision"; 
     }
 
-    ConvexConstraintsPtr convex(const vector<double>& x, Model* model) {
-      ConvexConstraintsPtr out(new ConvexConstraints(model));
+    ConvexConstraintsPtr convex(const vector<double>& x) {
+      ConvexConstraintsPtr out(new ConvexConstraints());
       vector<AffExpr> exprs;
-      m_calc->CalcDistExpressions(x, exprs);
+      NamePairs bodyNames;
+      m_calc->CalcDistExpressions(x, exprs, bodyNames);
       for (int i=0; i < exprs.size(); ++i) {
         AffExpr viol = exprSub(AffExpr(m_dist_pen), exprs[i]);
         out->addIneqCnt(exprMult(viol,m_coeff));
       }
       return out;
     }
-    DblVec value(const vector<double>& x) {
+    DblVec value(const vector<double>& x, Model* model) {
       DblVec dists;
-      m_calc->CalcDists(x, dists);
+      NamePairs bodyNames;
+      m_calc->CalcDists(x, dists, bodyNames);
       DblVec out(dists.size());
       for (int i=0; i < dists.size(); ++i) {
         out[i] = pospart(m_dist_pen - dists[i]) * m_coeff;

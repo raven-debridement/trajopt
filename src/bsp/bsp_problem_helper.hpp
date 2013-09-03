@@ -234,7 +234,7 @@ namespace BSP {
       }
     }
 
-    virtual void init_optimize_variables(OptProb& prob, BSPTrustRegionSQP& opt) {
+    virtual void init_optimize_variables(OptProb& prob, LineSearchSQP& opt) {
       DblVec x(prob.getNumVars()); 
 
       for (int i = 0; i < T; ++i) {
@@ -277,11 +277,11 @@ namespace BSP {
       }
     }
 
-    virtual void add_optimizer_callback(OptProb& prob, BSPTrustRegionSQP& opt) {
-      opt.addMeritDoneCallback(boost::bind(&BSPProblemHelper::merit_done_callback, this, _1, _2));
+    virtual void add_optimizer_callback(OptProb& prob, LineSearchSQP& opt) {
+      opt.addCallback(boost::bind(&BSPProblemHelper::merit_done_callback, this, _1, _2));
     }
 
-    void configure_optimizer(OptProb& prob, BSPTrustRegionSQP& opt) {
+    void configure_optimizer(OptProb& prob, LineSearchSQP& opt) {
       init_optimize_variables(prob, opt);  
       add_optimizer_callback(prob, opt);
     }
@@ -315,7 +315,7 @@ namespace BSP {
       add_control_cost(*prob);
       add_goal_constraint(*prob);
       add_state_constraint(*prob);
-      BasicTrustRegionSQP opt(prob);
+      LineSearchSQP opt(prob);
       DblVec x(prob->getNumVars(), 0);
       opt.initialize(x);
       opt.optimize();
