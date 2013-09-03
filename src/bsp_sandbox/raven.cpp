@@ -342,6 +342,7 @@ int main(int argc, char *argv[]) {
   planner->method = BSP::ContinuousBeliefSpace;
   planner->initialize();
 
+
   int index = robot->GetJointIndex("grasper_joint_1_R");
   cout << index << endl;
   std::vector<int> indices;

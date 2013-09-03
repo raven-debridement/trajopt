@@ -1,7 +1,7 @@
 #include "common.hpp"
 #include "optimizers.hpp"
 
-#define SEPARATE_COEFF
+//#define SEPARATE_COEFF
 
 namespace BSP {
 
